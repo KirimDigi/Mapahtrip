@@ -1,3 +1,4 @@
+import logoHitam from '../assets/mapahtrip_logo_hitam.png';
 import React from 'react';
 
 export type NavItemKey =
@@ -51,7 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img
-              src="/mapahtrip_logo_hitam.png"
+              src={logoHitam}
               alt="Logo MapahTrip"
               style={{
                 width: '34px',

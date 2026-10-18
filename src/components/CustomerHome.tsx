@@ -1,3 +1,6 @@
+import logoHitam from '../assets/mapahtrip_logo_hitam.png';
+import logoPutih from '../assets/mapahtrip_logo_putih.png';
+import buildingPhoto from '../assets/MapahTrip.jpg';
 import React, { useState } from 'react';
 import type { Pengajuan } from '../types';
 import { searchPasporInDB } from '../lib/supabase';
@@ -353,7 +356,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}
           >
             <img
-              src="/mapahtrip_logo_hitam.png"
+              src={isDarkMode ? logoPutih : logoHitam}
               alt="Logo MapahTrip"
               style={{
                 width: '38px',
@@ -837,7 +840,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               }}
             >
               <img
-                src="/MapahTrip.jpg"
+                src={buildingPhoto}
                 alt="MapahTrip.id"
                 style={{
                   width: '100%',
@@ -2917,7 +2920,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           <div style={{ flex: '1 1 360px', maxWidth: '480px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
               <img
-                src="/mapahtrip_logo_putih.png"
+                src={logoPutih}
                 alt="Mapahtrip.id"
                 style={{
                   width: '36px',
