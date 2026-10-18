@@ -388,7 +388,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   4. Ketentuan Pembayaran Komisi
                 </strong>
                 <p style={{ margin: 0, color: '#475569' }}>
-                  Komisi dapat dicairkan secara mingguan atau per batch pengajuan rombongan setelah paspor pemohon selesai dan visa disetujui. Pembayaran ditransfer langsung ke rekening bank atau dompet digital resmi yang Anda daftarkan.
+                  Komisi dapat dicairkan setelah paspor pemohon selesai dan visa disetujui. Pembayaran ditransfer langsung ke rekening bank atau dompet digital resmi yang Anda daftarkan.
                 </p>
               </div>
 
