@@ -1,7 +1,7 @@
 import logoHitam from '../assets/mapahtrip_logo_hitam.png';
 import logoPutih from '../assets/mapahtrip_logo_putih.png';
 import buildingPhoto from '../assets/MapahTrip.jpg';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Pengajuan } from '../types';
 import { searchPasporInDB } from '../lib/supabase';
 
@@ -87,15 +87,15 @@ const GmailBrandIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
   </svg>
 );
 
-const WhatsAppBrandIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
+const WhatsAppBrandIcon: React.FC<{ size?: number; inverted?: boolean }> = ({ size = 18, inverted = false }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}>
     <path
       d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.04 14.69 2 12.04 2Z"
-      fill="#25D366"
+      fill={inverted ? "#FFFFFF" : "#25D366"}
     />
     <path
       d="M17.52 14.33C17.22 14.18 15.75 13.45 15.47 13.35C15.2 13.25 15 13.2 14.81 13.5C14.61 13.8 14.05 14.47 13.87 14.67C13.7 14.87 13.52 14.9 13.22 14.75C12.92 14.6 11.97 14.29 10.84 13.28C9.96 12.49 9.37 11.52 9.2 11.22C9.02 10.92 9.18 10.76 9.33 10.61C9.47 10.47 9.63 10.26 9.78 10.08C9.93 9.9 9.98 9.77 10.08 9.57C10.18 9.37 10.13 9.2 10.05 9.05C9.98 8.9 9.4 7.47 9.17 6.88C8.93 6.3 8.7 6.38 8.52 6.37C8.35 6.36 8.16 6.36 7.96 6.36C7.76 6.36 7.44 6.43 7.17 6.73C6.9 7.02 6.13 7.75 6.13 9.22C6.13 10.69 7.2 12.11 7.35 12.31C7.5 12.51 9.45 15.52 12.44 16.81C13.15 17.12 13.71 17.3 14.14 17.44C14.86 17.67 15.52 17.64 16.04 17.56C16.62 17.47 17.82 16.83 18.07 16.13C18.32 15.43 18.32 14.83 18.25 14.7C18.17 14.58 17.98 14.5 17.68 14.35L17.52 14.33Z"
-      fill="#FFFFFF"
+      fill={inverted ? "#25D366" : "#FFFFFF"}
     />
   </svg>
 );
@@ -281,11 +281,48 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
   const [trackingResult, setTrackingResult] = useState<Pengajuan | null | 'NOT_FOUND'>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedVisaModal, setSelectedVisaModal] = useState<any | null>(null);
+
+  // Pertanyaan & Input Kode Referral Pengunjung
+  const [customerRefCode, setCustomerRefCode] = useState<string>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('ref') || localStorage.getItem('mapahtrip_customer_ref') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [hasRefChoice, setHasRefChoice] = useState<'yes' | 'no'>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ref = urlParams.get('ref') || localStorage.getItem('mapahtrip_customer_ref');
+      return ref ? 'yes' : 'no';
+    } catch {
+      return 'no';
+    }
+  });
+
+  // Sync kode referral jika dibuka dari URL link khusus (cth: mapahtrip.id/?ref=MT-ALUMNI123)
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refUrl = urlParams.get('ref');
+      if (refUrl) {
+        const cleanRef = refUrl.toUpperCase().trim();
+        setCustomerRefCode(cleanRef);
+        setHasRefChoice('yes');
+        localStorage.setItem('mapahtrip_customer_ref', cleanRef);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
   const [activeVisaTab, setActiveVisaTab] = useState<'all' | 'turis' | 'bisnis' | 'keluarga'>('all');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
 
 
   const handleTrack = async (e: React.FormEvent) => {
@@ -1661,10 +1698,168 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               💡 <strong>Layanan MapahTrip:</strong> Tim konsultan kami akan memverifikasi seluruh dokumen Anda sebelum disubmit ke VFS JVAC / Konsulat untuk menjamin kelengkapan dan meminimalisir risiko penolakan.
             </div>
 
+            {/* Pertanyaan & Form Kode Referral Mitra */}
+            <div
+              style={{
+                backgroundColor: '#F8FAFC',
+                border: hasRefChoice === 'yes' ? '1.5px solid #005BB5' : '1.5px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '14px 16px',
+                marginBottom: '18px',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                    loyalty
+                  </span>
+                  Apakah kamu punya kode referral mitra?
+                </span>
+                {hasRefChoice === 'yes' && customerRefCode.trim() && (
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      backgroundColor: '#DCFCE7',
+                      color: '#15803D',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    ✓ Kode Terpasang
+                  </span>
+                )}
+              </div>
+
+              {/* Pilihan: Ya punya vs Tidak punya */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: hasRefChoice === 'yes' ? '12px' : '0' }}>
+                <button
+                  type="button"
+                  onClick={() => setHasRefChoice('yes')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: hasRefChoice === 'yes' ? '2px solid #005BB5' : '1px solid #CBD5E1',
+                    backgroundColor: hasRefChoice === 'yes' ? '#EFF6FF' : '#FFFFFF',
+                    color: hasRefChoice === 'yes' ? '#005BB5' : '#475569',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    {hasRefChoice === 'yes' ? 'check_circle' : 'radio_button_unchecked'}
+                  </span>
+                  <span>Ya, Punya Kode</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasRefChoice('no');
+                    setCustomerRefCode('');
+                    localStorage.removeItem('mapahtrip_customer_ref');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: hasRefChoice === 'no' ? '2px solid #64748B' : '1px solid #CBD5E1',
+                    backgroundColor: hasRefChoice === 'no' ? '#F1F5F9' : '#FFFFFF',
+                    color: hasRefChoice === 'no' ? '#0F172A' : '#475569',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    {hasRefChoice === 'no' ? 'check_circle' : 'radio_button_unchecked'}
+                  </span>
+                  <span>Tidak Punya</span>
+                </button>
+              </div>
+
+              {/* Input Kode Referral Jika Memilih Ya */}
+              {hasRefChoice === 'yes' && (
+                <div style={{ marginTop: '10px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #005BB5',
+                      backgroundColor: '#FFFFFF',
+                      boxShadow: '0 0 0 3px rgba(0, 91, 181, 0.08)',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                      tag
+                    </span>
+                    <input
+                      type="text"
+                      value={customerRefCode}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setCustomerRefCode(val);
+                        localStorage.setItem('mapahtrip_customer_ref', val);
+                      }}
+                      placeholder="Masukkan Kode Referral (cth: MT-AGUS482)"
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        width: '100%',
+                        fontSize: '0.86rem',
+                        fontWeight: 700,
+                        color: '#0F172A',
+                        letterSpacing: '0.04em',
+                        backgroundColor: 'transparent',
+                        textTransform: 'uppercase',
+                      }}
+                    />
+                    {customerRefCode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerRefCode('');
+                          localStorage.removeItem('mapahtrip_customer_ref');
+                        }}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8', padding: 0 }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: '0.74rem', color: '#64748B' }}>
+                    💡 Kode ini akan otomatis disertakan ke WhatsApp agar komisi mitra Anda tercatat.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* CTA Buttons */}
             <div style={{ display: 'flex', gap: '12px' }}>
               <a
-                href={`https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20konsultasi%20pengajuan%20${encodeURIComponent(selectedVisaModal.title)}`}
+                href={`https://wa.me/6281401735648?text=${encodeURIComponent(
+                  `Halo MapahTrip, saya ingin konsultasi pengajuan ${selectedVisaModal.title}.\n\n` +
+                  (hasRefChoice === 'yes' && customerRefCode.trim()
+                    ? `🏷️ Kode Referral Mitra: ${customerRefCode.trim()}\n\n`
+                    : `🏷️ Kode Referral: (Tanpa Referral)\n\n`) +
+                  `Mohon info estimasi jadwal, biaya, dan kelengkapan berkasnya. Terima kasih!`
+                )}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1681,6 +1876,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   justifyContent: 'center',
                   gap: '8px',
                   boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 <span>💬 Konsultasi via WhatsApp</span>
@@ -2744,160 +2940,354 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           </div>
         </div>
 
-        {/* Dark Premium Final Conversion Banner (Siap berangkat ke Jepang?) */}
+        {/* ======================================================== */}
+        {/* ======================================================== */}
+        {/* ======================================================== */}
+        {/* ======================================================== */}
+        {/* ======================================================== */}
+        {/* UNIFIED LUXURY DUO CARDS: KONSULTASI VISA & PROGRAM MITRA */}
+        {/* Harmonious Jewel-Toned Bento Grid (No Black-vs-White Clash) */}
+        {/* ======================================================== */}
         <div
           style={{
-            marginTop: '48px',
-            backgroundColor: '#0B132B',
-            borderRadius: '24px',
-            border: '1px solid #1E293B',
-            padding: '36px 40px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            marginTop: '52px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
             gap: '24px',
-            flexWrap: 'wrap',
-            boxShadow: '0 20px 45px -10px rgba(11, 19, 43, 0.45)',
-            position: 'relative',
-            overflow: 'hidden',
+            alignItems: 'stretch',
           }}
         >
-          {/* Ambient Glow */}
+          {/* Card 1: Konsultasi Visa Jepang (Clean Pearl White Theme) */}
           <div
             style={{
-              position: 'absolute',
-              top: '-80px',
-              right: '-80px',
-              width: '280px',
-              height: '280px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, rgba(14, 165, 233, 0) 70%)',
-              pointerEvents: 'none',
+              background: isDarkMode
+                ? 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)'
+                : 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
+              borderRadius: '24px',
+              border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
+              padding: '36px 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxShadow: isDarkMode
+                ? '0 20px 40px -15px rgba(0, 0, 0, 0.4)'
+                : '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
+              position: 'relative',
+              overflow: 'hidden',
+              minHeight: '270px',
             }}
-          />
-
-          {/* Left: Tagline, Headline & Live Status */}
-          <div style={{ maxWidth: '580px', zIndex: 1 }}>
+          >
+            {/* Ambient Background Glow */}
             <div
               style={{
-                color: '#38BDF8',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                marginBottom: '8px',
+                position: 'absolute',
+                top: '-50px',
+                right: '-50px',
+                width: '180px',
+                height: '180px',
+                borderRadius: '50%',
+                background: isDarkMode
+                  ? 'radial-gradient(circle, rgba(0, 91, 181, 0.15) 0%, rgba(0, 91, 181, 0) 70%)'
+                  : 'radial-gradient(circle, rgba(0, 91, 181, 0.06) 0%, rgba(0, 91, 181, 0) 70%)',
+                pointerEvents: 'none',
               }}
-            >
-              KONSULTASI GRATIS • NO BOT, REAL EXPERT
+            />
+
+            <div>
+              {/* Top Tag */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: isDarkMode ? '#60A5FA' : '#005BB5',
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  marginBottom: '14px',
+                  backgroundColor: isDarkMode ? 'rgba(0, 91, 181, 0.2)' : 'rgba(0, 91, 181, 0.06)',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  border: isDarkMode ? '1px solid rgba(0, 91, 181, 0.35)' : '1px solid rgba(0, 91, 181, 0.16)',
+                }}
+              >
+                <span>🇯🇵 KONSULTASI RESMI JVAC</span>
+              </div>
+
+              {/* Title */}
+              <h3
+                style={{
+                  color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                  fontSize: '1.45rem',
+                  fontWeight: 800,
+                  margin: '0 0 10px',
+                  lineHeight: 1.3,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Siap Berangkat ke Jepang?<br />
+                <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Chat Japan Expert Sekarang.</span>
+              </h3>
+
+              {/* Subtitle */}
+              <p
+                style={{
+                  margin: '0 0 16px',
+                  fontSize: '0.88rem',
+                  color: isDarkMode ? '#94A3B8' : '#475569',
+                  lineHeight: 1.5,
+                }}
+              >
+                Konsultasikan jadwal proses, verifikasi dokumen, dan slot kuota VFS JVAC langsung dengan konsultan kami.
+              </p>
+
+              {/* Live Indicator */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem', marginBottom: '24px' }}>
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10B981',
+                    boxShadow: '0 0 8px #10B981',
+                    display: 'inline-block',
+                  }}
+                />
+                <span>Online sekarang • Respon cepat &lt; 5 menit</span>
+              </div>
             </div>
 
-            <h2
-              style={{
-                fontSize: 'clamp(1.5rem, 2.5vw, 2.1rem)',
-                fontWeight: 800,
-                color: '#FFFFFF',
-                lineHeight: 1.25,
-                letterSpacing: '-0.025em',
-                margin: '0 0 12px',
-              }}
-            >
-              Siap berangkat ke Jepang?<br />
-              Chat Japan Expert sekarang.
-            </h2>
-
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#94A3B8', fontSize: '0.84rem' }}>
-              <span
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <a
+                href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20siap%20berangkat%20ke%20Jepang%20dan%20ingin%20konsultasi%20visa"
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: '#10B981',
-                  boxShadow: '0 0 8px #10B981',
-                  display: 'inline-block',
+                  backgroundColor: '#25D366',
+                  color: '#FFFFFF',
+                  padding: '12px 22px',
+                  borderRadius: '9999px',
+                  fontSize: '0.88rem',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
+                  transition: 'all 0.2s ease',
                 }}
-              />
-              <span>Online sekarang • Balas &lt; 5 menit</span>
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.backgroundColor = '#20BA5A';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.backgroundColor = '#25D366';
+                }}
+              >
+                <WhatsAppBrandIcon size={20} inverted={true} />
+                <span>WhatsApp Expert</span>
+              </a>
+
+              <a
+                href="#jenis-visa"
+                style={{
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                  color: isDarkMode ? '#FFFFFF' : '#334155',
+                  border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
+                  padding: '12px 20px',
+                  borderRadius: '9999px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
+                  e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
+                  e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <span>Lihat Jenis Visa</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                  arrow_forward
+                </span>
+              </a>
             </div>
           </div>
 
-          {/* Right: Action Buttons */}
+          {/* Card 2: Program Mitra & Affiliate (Clean Pearl White Theme) */}
           <div
             style={{
+              background: isDarkMode
+                ? 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)'
+                : 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
+              borderRadius: '24px',
+              border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
+              padding: '36px 32px',
               display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              flexWrap: 'wrap',
-              zIndex: 1,
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxShadow: isDarkMode
+                ? '0 20px 40px -15px rgba(0, 0, 0, 0.4)'
+                : '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
+              position: 'relative',
+              overflow: 'hidden',
+              minHeight: '270px',
             }}
           >
-            {/* WhatsApp Expert (Solid White Pill) */}
-            <a
-              href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20siap%20berangkat%20ke%20Jepang%20dan%20ingin%20konsultasi%20visa"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="banner-wa-btn"
+            {/* Ambient Background Glow */}
+            <div
               style={{
-                backgroundColor: '#FFFFFF',
-                color: '#0F172A',
-                padding: '13px 26px',
-                borderRadius: '9999px',
-                fontSize: '0.92rem',
-                fontWeight: 800,
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
-                transition: 'all 0.2s ease',
+                position: 'absolute',
+                top: '-50px',
+                right: '-50px',
+                width: '180px',
+                height: '180px',
+                borderRadius: '50%',
+                background: isDarkMode
+                  ? 'radial-gradient(circle, rgba(0, 91, 181, 0.15) 0%, rgba(0, 91, 181, 0) 70%)'
+                  : 'radial-gradient(circle, rgba(0, 91, 181, 0.06) 0%, rgba(0, 91, 181, 0) 70%)',
+                pointerEvents: 'none',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F8FAFC';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.25)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#FFFFFF';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.15)';
-              }}
-            >
-              <WhatsAppBrandIcon size={20} />
-              <span className="banner-wa-text" style={{ color: '#0F172A', fontWeight: 800 }}>WhatsApp Expert</span>
-            </a>
+            />
 
-            {/* Lihat Jenis Visa (Translucent Dark Pill) */}
-            <a
-              href="#jenis-visa"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                padding: '13px 22px',
-                borderRadius: '9999px',
-                fontSize: '0.9rem',
-                fontWeight: 700,
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.35)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              <span>Lihat Jenis Visa</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                arrow_forward
-              </span>
-            </a>
+            <div>
+              {/* Top Tag */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: isDarkMode ? '#60A5FA' : '#005BB5',
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  marginBottom: '14px',
+                  backgroundColor: isDarkMode ? 'rgba(0, 91, 181, 0.2)' : 'rgba(0, 91, 181, 0.06)',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  border: isDarkMode ? '1px solid rgba(0, 91, 181, 0.35)' : '1px solid rgba(0, 91, 181, 0.16)',
+                }}
+              >
+                <span>🤝 PROGRAM MITRA &amp; AFFILIATE 2026</span>
+              </div>
+
+              {/* Title */}
+              <h3
+                style={{
+                  color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                  fontSize: '1.45rem',
+                  fontWeight: 800,
+                  margin: '0 0 10px',
+                  lineHeight: 1.3,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Punya Rekan atau Siswa LPK?<br />
+                <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Tunai Resmi.</span>
+              </h3>
+
+              {/* Subtitle */}
+              <p
+                style={{
+                  margin: '0 0 16px',
+                  fontSize: '0.88rem',
+                  color: isDarkMode ? '#94A3B8' : '#475569',
+                  lineHeight: 1.5,
+                }}
+              >
+                Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi tunai <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5' }}>Rp 50.000 – Rp 250.000</strong> per visa terbit.
+              </p>
+
+              {/* Live Indicator */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem', marginBottom: '24px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>
+                  paid
+                </span>
+                <span>Pendaftaran gratis 100% • Pencairan berkala transparan</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <a
+                href="#affiliate"
+                style={{
+                  backgroundColor: '#005BB5',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '12px 22px',
+                  borderRadius: '9999px',
+                  fontSize: '0.88rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px rgba(0, 91, 181, 0.3)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#004A94';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#005BB5';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <span>Daftar Akun Mitra</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                  arrow_forward
+                </span>
+              </a>
+
+              <a
+                href="#affiliate"
+                style={{
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                  color: isDarkMode ? '#FFFFFF' : '#334155',
+                  border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
+                  padding: '12px 20px',
+                  borderRadius: '9999px',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  textDecoration: 'none',
+                  boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
+                  e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
+                  e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <span>Masuk Akun</span>
+              </a>
+            </div>
           </div>
         </div>
               </div>
@@ -3332,6 +3722,8 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           <WhatsAppBrandIcon size={11} />
         </span>
       </a>
+    
+
     </div>
   );
 };

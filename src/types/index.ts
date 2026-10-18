@@ -81,3 +81,14 @@ export interface AffiliateMaster {
   totalKomisi: number;
   status: 'Aktif' | 'Nonaktif';
 }
+
+export interface AffiliateUser {
+  id: string;
+  nama: string;
+  email: string;
+  noWa?: string;
+  affiliateCode: string;
+  kategori?: string;
+  password?: string;
+  createdAt: string;
+}

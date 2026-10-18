@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Sidebar } from './components/Sidebar';
 import type { NavItemKey } from './components/Sidebar';
+import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { PengajuanView } from './components/PengajuanView';
@@ -11,33 +11,54 @@ import { AffiliateView } from './components/AffiliateView';
 import { PengaturanView } from './components/PengaturanView';
 import { NewPengajuanModal } from './components/NewPengajuanModal';
 import { CustomerHome } from './components/CustomerHome';
+import { AffiliatePortal } from './components/AffiliatePortal';
 import { SplashScreen } from './components/SplashScreen';
 import { mockPengajuan } from './data/mockData';
 import type { Pengajuan } from './types';
 import { fetchAllPengajuanFromDB, supabase } from './lib/supabase';
 
+export type AppMode = 'customer' | 'affiliate' | 'admin';
+
 export function App() {
-  // Check if current URL indicates admin mode (#admin, ?admin, or /admin)
-  const checkIsAdminUrl = () => {
-    if (typeof window === 'undefined') return false;
+  // Check URL to determine mode:
+  // 1. customer: '/' (default)
+  // 2. affiliate: '#affiliate' or '#mitra'
+  // 3. admin: '#admin' or '#owner'
+  const getModeFromUrl = (): AppMode => {
+    if (typeof window === 'undefined') return 'customer';
     const hash = window.location.hash.toLowerCase();
     const search = window.location.search.toLowerCase();
     const path = window.location.pathname.toLowerCase();
-    return hash === '#admin' || hash === '#/admin' || search.includes('admin') || path.endsWith('/admin');
+
+    if (
+      hash === '#admin' ||
+      hash === '#/admin' ||
+      hash === '#owner' ||
+      search.includes('admin') ||
+      path.endsWith('/admin')
+    ) {
+      return 'admin';
+    }
+
+    if (
+      hash === '#affiliate' ||
+      hash === '#/affiliate' ||
+      hash === '#mitra' ||
+      hash === '#/mitra' ||
+      search.includes('affiliate') ||
+      search.includes('mitra')
+    ) {
+      return 'affiliate';
+    }
+
+    return 'customer';
   };
 
-  // Mode: 'customer' (Landing page pelanggan) or 'admin' (Dashboard operasional admin)
-  const [currentMode, setCurrentMode] = useState<'customer' | 'admin'>(() => {
-    return checkIsAdminUrl() ? 'admin' : 'customer';
-  });
+  const [currentMode, setCurrentMode] = useState<AppMode>(() => getModeFromUrl());
 
   useEffect(() => {
     const handleUrlChange = () => {
-      if (checkIsAdminUrl()) {
-        setCurrentMode('admin');
-      } else {
-        setCurrentMode('customer');
-      }
+      setCurrentMode(getModeFromUrl());
     };
     window.addEventListener('hashchange', handleUrlChange);
     window.addEventListener('popstate', handleUrlChange);
@@ -124,7 +145,7 @@ export function App() {
 
   const selectedPengajuan = pengajuanList.find((p) => p.id === selectedPengajuanId);
 
-  // If customer mode is active, show the customer landing page with splash screen
+  // 1. Customer Mode (Landing Page Pelanggan)
   if (currentMode === 'customer') {
     return (
       <>
@@ -134,10 +155,27 @@ export function App() {
     );
   }
 
-  // Admin Dashboard Mode
+  // 2. Affiliate / Mitra Mode (Monitoring Berkas & Siswa Mitra)
+  if (currentMode === 'affiliate') {
+    return (
+      <AffiliatePortal
+        pengajuanList={pengajuanList}
+        onSwitchMode={(mode) => {
+          setCurrentMode(mode);
+          if (mode === 'customer') {
+            window.location.hash = '';
+          } else if (mode === 'admin') {
+            window.location.hash = '#admin';
+          }
+        }}
+      />
+    );
+  }
+
+  // 3. Admin / Owner Mode (Operasional & Keuangan Lengkap)
   return (
     <div className="app-layout">
-      {/* 1. Sidebar Navigation */}
+      {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
@@ -145,50 +183,85 @@ export function App() {
         totalAffiliateCount={62}
       />
 
-      {/* 2. Main Workspace */}
+      {/* Main Workspace */}
       <div className="main-content">
-        {/* Admin top banner to easily return to customer home */}
+        {/* Admin top banner to easily navigate between modes */}
         <div
           style={{
             backgroundColor: '#0F172A',
             color: '#ffffff',
-            padding: '6px 32px',
+            padding: '8px 24px',
             fontSize: '0.8rem',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+            borderBottom: '1px solid #1E293B',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-            <span style={{ fontWeight: 600 }}>Mode: Portal Admin Operasional MapahTrip</span>
+            <span style={{ fontWeight: 600 }}>Mode: Portal Owner / Admin Operasional &amp; Keuangan</span>
           </div>
-          <button
-            onClick={() => {
-              setCurrentMode('customer');
-              if (window.location.hash === '#admin' || window.location.hash === '#/admin') {
-                history.pushState(null, '', window.location.pathname + window.location.search);
-              }
-            }}
-            style={{
-              background: '#2B68E0',
-              border: 'none',
-              color: '#ffffff',
-              padding: '4px 12px',
-              borderRadius: '9999px',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-              public
-            </span>
-            <span>Buka Beranda Pelanggan (Home)</span>
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Switch to Affiliate Portal */}
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMode('affiliate');
+                window.location.hash = '#affiliate';
+              }}
+              style={{
+                background: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                color: '#38BDF8',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+              title="Lihat tampilan dari sisi Mitra / Affiliate"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                handshake
+              </span>
+              <span>Portal Mitra (Affiliate)</span>
+            </button>
+
+            {/* Switch to Customer Home */}
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMode('customer');
+                window.location.hash = '';
+              }}
+              style={{
+                background: '#2B68E0',
+                border: 'none',
+                color: '#ffffff',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+              title="Buka Beranda Pelanggan Umum"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                public
+              </span>
+              <span>Halaman Pelanggan</span>
+            </button>
+          </div>
         </div>
 
         <Header
@@ -237,7 +310,7 @@ export function App() {
         </main>
       </div>
 
-      {/* 3. New Submission Modal */}
+      {/* New Submission Modal */}
       <NewPengajuanModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
