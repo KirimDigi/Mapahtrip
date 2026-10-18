@@ -489,164 +489,389 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const renderTermsModal = () => {
     if (!showTermsModal) return null;
     return (
+      <div
+        onClick={() => setShowTermsModal(false)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+        }}
+      >
         <div
-          onClick={() => setShowTermsModal(false)}
+          onClick={(e) => e.stopPropagation()}
           style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            backgroundColor: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(5px)',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '20px',
+            maxWidth: '680px',
+            width: '100%',
+            maxHeight: '88vh',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #E2E8F0',
+            overflow: 'hidden',
           }}
         >
+          {/* Modal Header */}
           <div
-            onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '20px',
-              maxWidth: '540px',
-              width: '100%',
-              maxHeight: '85vh',
+              padding: '18px 24px',
+              borderBottom: '1px solid #E2E8F0',
               display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #E2E8F0',
-              overflow: 'hidden',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#F8FAFC',
             }}
           >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '18px 24px',
-                borderBottom: '1px solid #E2E8F0',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: '#F8FAFC',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-symbols-outlined" style={{ color: '#10B981', fontSize: '26px' }}>
-                  verified_user
-                </span>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
-                    Syarat &amp; Kebijakan Kemitraan
-                  </h3>
-                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                    Program Affiliate Resmi MapahTrip 2026
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(false)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
                 style={{
-                  background: '#E2E8F0',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '30px',
-                  height: '30px',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  backgroundColor: '#ECFDF5',
+                  color: '#10B981',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#475569',
-                  fontSize: '16px',
+                  fontWeight: 900,
+                  fontSize: '1.2rem',
                 }}
               >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Body (Scrollable) */}
-            <div
-              style={{
-                padding: '20px 24px',
-                overflowY: 'auto',
-                fontSize: '0.84rem',
-                color: '#334155',
-                lineHeight: 1.6,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
-              }}
-            >
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  1. Ketentuan Pendaftaran Mitra
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Pendaftaran Program Mitra MapahTrip bersifat <strong>gratis 100%</strong> tanpa biaya admin atau iuran bulanan. Terbuka bagi LPK (Lembaga Pelatihan Kerja), agensi travel, alumni/pekerja di Jepang, sekolah bahasa, maupun individu yang ingin mereferensikan pemohon visa Jepang.
-                </p>
+                📜
               </div>
-
               <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  2. Besaran Komisi Referral
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Mitra berhak memperoleh komisi tunai resmi sebesar <strong>Rp 100.000</strong> per pemohon untuk setiap pengajuan visa Jepang yang berhasil diproses dan diterbitkan. Pembayaran bonus affiliate dilakukan setelah proses visa selesai.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  3. Penggunaan Kode Referral Resmi
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Setelah mendaftar, mitra mendapatkan <strong>Kode Referral Unik</strong> resmi. Pemohon yang direkomendasikan wajib mencantumkan kode ini saat berkonsultasi atau mengajukan visa agar status kandidat otomatis tercatat di dashboard mitra.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  4. Ketentuan Pembayaran Komisi
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Komisi dapat dicairkan setelah paspor pemohon selesai dan visa disetujui. Pembayaran ditransfer langsung ke rekening bank atau dompet digital resmi yang Anda daftarkan.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  5. Keabsahan &amp; Integritas Dokumen
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Mitra dilarang memanipulasi, memalsukan, atau menyerahkan dokumen fiktif. Seluruh berkas (paspor, rekening koran, sponsor/surat undangan) harus asli dan dapat dipertanggungjawabkan sesuai hukum dan aturan Kedutaan Jepang.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  6. Kerahasiaan &amp; Keamanan Data
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  MapahTrip menjamin kerahasiaan seluruh dokumen pemohon. Data identitas hanya dipergunakan khusus untuk pemrosesan visa resmi di JVAC / Konsulat dan tidak akan diperjualbelikan kepada pihak ketiga.
-                </p>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
+                  Syarat &amp; Ketentuan Kemitraan (MPC)
+                </h3>
+                <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                  Peraturan Direksi No. 018/SK/DIR/MPC/VI/2026 • Program Afiliasi Visa Jepang
+                </span>
               </div>
             </div>
-
-            {/* Modal Footer */}
-            <div
+            <button
+              type="button"
+              onClick={() => setShowTermsModal(false)}
               style={{
-                padding: '14px 24px',
-                borderTop: '1px solid #E2E8F0',
-                backgroundColor: '#F8FAFC',
+                background: '#E2E8F0',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: '12px',
-                flexWrap: 'wrap',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#475569',
+                fontSize: '16px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#CBD5E1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#E2E8F0';
               }}
             >
-              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                Dengan mencentang persetujuan, Anda menyepakati syarat di atas.
+              ✕
+            </button>
+          </div>
+
+          {/* Modal Body (Scrollable Official Document) */}
+          <div
+            style={{
+              padding: '24px 28px',
+              overflowY: 'auto',
+              fontSize: '0.84rem',
+              color: '#334155',
+              lineHeight: 1.65,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '18px',
+              backgroundColor: '#FFFFFF',
+            }}
+          >
+            {/* Kop Surat & Judul Formal */}
+            <div style={{ textAlign: 'center', paddingBottom: '16px', borderBottom: '2px solid #E2E8F0' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#10B981', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>
+                DOKUMEN RESMI KEMITRAAN MAPAHTRIP
+              </div>
+              <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem', fontWeight: 900, color: '#0F172A', textTransform: 'uppercase' }}>
+                PERATURAN DIREKSI MAPAHTRIP DIGITAL
+              </h2>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>
+                Nomor : 018/SK/DIR/MPC/VI/2026
+              </div>
+              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#005BB5', marginTop: '4px' }}>
+                Tentang : PROGRAM MAPAHTRIP PARTNER CLUB (MPC)
+              </div>
+            </div>
+
+            {/* Menimbang */}
+            <div style={{ backgroundColor: '#F8FAFC', padding: '14px 18px', borderRadius: '10px', borderLeft: '4px solid #005BB5' }}>
+              <strong style={{ color: '#0F172A', display: 'block', marginBottom: '6px', fontSize: '0.85rem' }}>
+                MENIMBANG :
+              </strong>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <li>Bahwa Divisi Kemitraan &amp; Operasional Visa MapahTrip merupakan unit kerja strategis dalam menyediakan akses pengurusan visa Jepang yang resmi, cepat, dan transparan.</li>
+                <li>Bahwa tingginya kebutuhan pengurusan visa Jepang (Magang/SSW Tokutei Ginou, Bisnis, Pelajar, dan Wisata) perlu direspons dengan skema kemitraan yang saling menguntungkan.</li>
+                <li>Bahwa ketentuan program kemitraan terbaru MapahTrip Partner Club (MPC) telah diperhitungkan secara cermat untuk memberikan insentif tunai yang transparan bagi mitra.</li>
+                <li>Bahwa sehubungan dengan hal tersebut di atas, perlu dibuatkan dan ditetapkan Peraturan Direksi.</li>
+              </ol>
+            </div>
+
+            {/* Mengingat */}
+            <div style={{ backgroundColor: '#F8FAFC', padding: '14px 18px', borderRadius: '10px', borderLeft: '4px solid #64748B' }}>
+              <strong style={{ color: '#0F172A', display: 'block', marginBottom: '6px', fontSize: '0.85rem' }}>
+                MENGINGAT :
+              </strong>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <li>Akta Pendirian Perusahaan MapahTrip Tahun 2024 tentang Layanan Pengurusan dan Pendampingan Dokumen Perjalanan.</li>
+                <li>Standar Operasional Prosedur (SOP) Kedutaan Besar Jepang, Konsulat Jenderal Jepang di Indonesia, dan VFS JVAC (Japan Visa Application Centre).</li>
+                <li>Peraturan Perusahaan MapahTrip Tahun 2024.</li>
+              </ol>
+            </div>
+
+            {/* Memutuskan */}
+            <div style={{ textAlign: 'center', margin: '4px 0' }}>
+              <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.88rem' }}>
+                MEMUTUSKAN :
               </span>
+              <div style={{ fontWeight: 800, color: '#10B981', fontSize: '0.92rem', marginTop: '2px' }}>
+                Menetapkan : PERATURAN DIREKSI TENTANG PROGRAM MAPAHTRIP PARTNER CLUB (MPC)
+              </div>
+            </div>
+
+            {/* PASAL 1 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 1 : DEFINISI ISTILAH
+              </strong>
+              <div style={{ color: '#475569', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <p style={{ margin: 0 }}><strong>1. Mitra MPC</strong> adalah orang perorangan atau badan/lembaga (LPK, biro tour &amp; travel, sekolah bahasa, alumni/pekerja di Jepang, konsultan visa, atau masyarakat umum) yang terdaftar pada program MPC sebagai afiliasi untuk mereferensikan pemohon visa Jepang.</p>
+                <p style={{ margin: 0 }}><strong>2. Kode Referral</strong> adalah kode unik resmi berformat <code>MPH + 3 digit terakhir No. WA + 2 huruf depan nama/lembaga</code> (contoh: <code>MPH433EL</code>) yang diberikan kepada Mitra MPC untuk digunakan oleh pemohon visa saat pendaftaran.</p>
+                <p style={{ margin: 0 }}><strong>3. Insentif / Komisi</strong> adalah imbalan berupa uang tunai resmi sebesar <strong>Rp 100.000 / Visa</strong> yang diberikan kepada Mitra MPC untuk setiap pemohon visa yang berhasil menyelesaikan proses pengajuan dan visanya selesai/disetujui.</p>
+                <p style={{ margin: 0 }}><strong>4. Website / Portal MPC</strong> adalah halaman resmi <code>mapahtrip.id/#affiliate</code> untuk pendaftaran, monitoring berkas, dan pencairan komisi.</p>
+                <p style={{ margin: 0 }}><strong>5. Lembaga Pelatihan Kerja (LPK)</strong> adalah lembaga pelatihan yang mengirim kandidat tenaga kerja magang atau Tokutei Ginou (SSW) ke Jepang.</p>
+                <p style={{ margin: 0 }}><strong>6. Biro Travel / Agensi</strong> adalah penyedia jasa perjalanan wisata, dinas, atau bisnis rombongan ke Jepang.</p>
+                <p style={{ margin: 0 }}><strong>7. Alumni / Pekerja Jepang</strong> adalah eks-magang, pekerja berketerampilan spesifik (SSW), engineer, atau ekspatriat yang mereferensikan keluarga/rekan kerja untuk berangkat ke Jepang.</p>
+                <p style={{ margin: 0 }}><strong>8. Masyarakat Umum</strong> adalah individu perorangan yang secara aktif bergabung menjadi mitra promosi MapahTrip.</p>
+                <p style={{ margin: 0 }}><strong>9. Referral / Pemohon Visa</strong> adalah klien, siswa LPK, atau kandidat yang mengajukan pengurusan visa Jepang di MapahTrip menggunakan kode referral milik Mitra MPC.</p>
+                <p style={{ margin: 0 }}><strong>10. Pengelola MPC</strong> adalah unit kerja Divisi Kemitraan yang ditunjuk sebagai pengelola program kemitraan oleh MapahTrip.</p>
+                <p style={{ margin: 0 }}><strong>11. Staf Verifikator</strong> adalah petugas operasional MapahTrip yang melakukan validasi berkas fisik, pendaftaran JVAC, dan pencocokan kode referral.</p>
+                <p style={{ margin: 0 }}><strong>12. Approved</strong> adalah status verifikasi pencairan komisi yang dinyatakan aman, valid, dan siap ditransfer setelah visa selesai.</p>
+                <p style={{ margin: 0 }}><strong>13. Not Approved</strong> adalah status pencairan yang ditolak atau ditunda karena tidak memenuhi syarat, klaim sepihak, atau terindikasi pelanggaran.</p>
+              </div>
+            </div>
+
+            {/* PASAL 2 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 2 : DEFINISI PROGRAM
+              </strong>
+              <p style={{ margin: 0, color: '#475569' }}>
+                <strong>MapahTrip Partner Club (MPC)</strong> adalah program kemitraan berbasis afiliasi yang dikembangkan oleh MapahTrip untuk memperluas jangkauan layanan visa Jepang melalui para mitra (LPK, biro travel, alumni magang/pekerja di Jepang, sekolah bahasa, konsultan, maupun masyarakat umum). Program ini memberikan kesempatan bagi para mitra untuk memperoleh komisi tunai resmi atas keberhasilan mereferensikan pemohon visa Jepang menggunakan kode referral khusus.
+              </p>
+            </div>
+
+            {/* PASAL 3 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 3 : TUJUAN PROGRAM
+              </strong>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <li>Meningkatkan kemudahan akses pengurusan berkas visa Jepang yang tepat, cepat, dan sesuai regulasi Kedutaan/JVAC.</li>
+                <li>Menyediakan peluang bagi Mitra MPC untuk mendapatkan penghasilan tambahan (komisi tunai) tanpa modal dan tanpa pungutan biaya.</li>
+                <li>Membangun ekosistem kemitraan yang solid bersama LPK, biro tour &amp; travel, dan komunitas alumni Jepang di seluruh Indonesia.</li>
+                <li>Membangun hubungan profesional jangka panjang yang saling menguntungkan dan berkelanjutan.</li>
+              </ol>
+            </div>
+
+            {/* PASAL 4 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 4 : RUANG LINGKUP
+              </strong>
+              <p style={{ margin: 0, color: '#475569' }}>
+                Peraturan ini berlaku dan mengikat bagi seluruh pihak yang terlibat dalam Program MPC, yaitu: (1) Mitra MPC terdaftar; (2) Pemohon Visa / Referral binaan mitra; dan (3) Manajemen serta Pegawai Operasional MapahTrip.
+              </p>
+            </div>
+
+            {/* PASAL 5 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 5 : SYARAT DAN KETENTUAN PENDAFTARAN
+              </strong>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <li>Mitra MPC wajib mendaftarkan diri melalui formulir pendaftaran portal resmi MapahTrip.</li>
+                <li>Pendaftaran 100% gratis tanpa dipungut biaya pendaftaran atau iuran bulanan apapun.</li>
+                <li>Mitra MPC wajib memberikan data pribadi yang valid dan akurat, mencakup: (a) Nama Lengkap; (b) Status Kemitraan; (c) Nama Lembaga (boleh diisi '-' jika umum); (d) Nomor WhatsApp aktif; (e) Alamat dan Provinsi; (f) Jenis &amp; Nomor Identitas (KTP/Paspor/SIM); (g) Foto diri/KTP; dan (h) Nomor Rekening Bank atau E-Wallet.</li>
+                <li>Atas nama rekening bank atau e-wallet harus sama dengan nama mitra MPC terdaftar demi keamanan pencairan.</li>
+                <li>Kode referral resmi diterbitkan otomatis setelah mitra melengkapi formulir identitas.</li>
+                <li>Kode referral bersifat personal dan tidak dapat dipindahtangankan tanpa persetujuan tertulis MapahTrip.</li>
+                <li>Setiap pemohon visa hanya dapat menggunakan satu kode referral saat pengajuan berkas.</li>
+                <li>Mitra MPC dilarang melakukan promosi yang melanggar etika, hukum, SARA, atau merugikan pihak lain.</li>
+                <li>Pegawai internal verifikator MapahTrip tidak diperkenankan menggunakan kode referral pribadi untuk pengajuan klien organik.</li>
+              </ol>
+            </div>
+
+            {/* PASAL 6 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 6 : HAK DAN KEWAJIBAN MITRA MPC
+              </strong>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginTop: '6px' }}>
+                <div style={{ backgroundColor: '#F0FDF4', padding: '12px', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
+                  <strong style={{ color: '#166534', display: 'block', marginBottom: '4px', fontSize: '0.82rem' }}>Hak Mitra MPC:</strong>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.78rem', color: '#15803D', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <li>Mendapat Kode Referral resmi berformat unik (<code>MPH...</code>).</li>
+                    <li>Mendapat flyer &amp; materi informasi persyaratan visa Jepang resmi.</li>
+                    <li>Mendapat edukasi dan konsultasi berkas visa Jepang.</li>
+                    <li>Mendapat komisi tunai Rp 100.000 per visa terbit/selesai.</li>
+                    <li>Mendapat akses monitoring status berkas pemohon secara transparan.</li>
+                    <li>Mendapat bukti transfer pencairan komisi tunai.</li>
+                    <li>Mendapat jaminan perlindungan dan kerahasiaan data pribadi.</li>
+                  </ul>
+                </div>
+                <div style={{ backgroundColor: '#EFF6FF', padding: '12px', borderRadius: '10px', border: '1px solid #BFDBFE' }}>
+                  <strong style={{ color: '#1E40AF', display: 'block', marginBottom: '4px', fontSize: '0.82rem' }}>Kewajiban Mitra MPC:</strong>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.78rem', color: '#1D4ED8', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <li>Memberikan data diri dan nomor rekening yang valid untuk pencairan.</li>
+                    <li>Mengajak rekan, siswa LPK, atau rombongan yang butuh visa Jepang ke MapahTrip.</li>
+                    <li>Memastikan berkas pemohon yang direkomendasikan asli dan dapat dipertanggungjawabkan.</li>
+                    <li>Memastikan pemohon memasukkan kode referral mitra pada saat pendaftaran.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* PASAL 7 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 7 : SKEMA INSENTIF KOMISI MITRA
+              </strong>
+              <div style={{ backgroundColor: '#ECFDF5', padding: '12px 16px', borderRadius: '10px', border: '1px solid #10B981', marginBottom: '8px' }}>
+                <div style={{ fontWeight: 800, color: '#047857', fontSize: '0.92rem' }}>
+                  Komisi Tunai Flat: Rp 100.000 / Visa Terbit
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#065F46', marginTop: '2px' }}>
+                  Berlaku untuk seluruh kategori visa Jepang: Magang/SSW Tokutei Ginou, Visa Kerja, Visa Bisnis/Seminar, Visa Pelajar, dan Visa Turis Single/Multiple Entry.
+                </div>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <li><strong>Simulasi Pendapatan:</strong> Ajak 1 Pemohon = Rp 100.000 | Ajak 5 Pemohon = Rp 500.000 | Ajak 10 Pemohon = Rp 1.000.000 | Ajak 25 Pemohon = Rp 2.500.000.</li>
+                <li><strong>Benefit Pemohon:</strong> Pemohon binaan mendapatkan jaminan verifikasi berkas lengkap, translate dokumen, antrean JVAC, dan update progres langsung.</li>
+              </ul>
+            </div>
+
+            {/* PASAL 8 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 8 : STATUS DAN PROSES PENCAIRAN INSENTIF
+              </strong>
+              <div style={{ color: '#475569', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <p style={{ margin: 0 }}><strong>1. Approved:</strong> Status pencairan disetujui apabila proses visa pemohon telah selesai diproses oleh Kedutaan/JVAC dan data verifikasi mitra dinyatakan valid.</p>
+                <p style={{ margin: 0 }}><strong>2. Not Approved:</strong> Status pencairan tidak diproses apabila: (a) Pemohon mendaftar menggunakan kode referral miliknya sendiri tanpa izin; (b) Mitra terdaftar dalam daftar sanksi/blacklist; (c) Pemohon menyatakan tidak pernah direferensikan oleh mitra (klaim sepihak); atau (d) Pengajuan visa dibatalkan sebelum diproses.</p>
+                <p style={{ margin: 0 }}><strong>3. Waktu Pencairan:</strong> Komisi ditransfer maksimal 1–3 hari kerja setelah pengajuan visa dinyatakan selesai dan lolos approval.</p>
+                <p style={{ margin: 0 }}><strong>4. Metode Transfer:</strong> Insentif ditransfer langsung ke rekening bank (BCA, Mandiri, BNI, BRI, BSI, Seabank, dll) atau dompet digital (GoPay, OVO, Dana) yang didaftarkan mitra.</p>
+                <p style={{ margin: 0 }}><strong>5. Gagal Cair:</strong> Jika transfer terkendala teknis atau nomor rekening salah, pengelola MPC akan meminta mitra memperbarui data rekening agar komisi dapat dikirim ulang.</p>
+              </div>
+            </div>
+
+            {/* PASAL 9 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 9 : PELANGGARAN PROGRAM MPC
+              </strong>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <li><strong>Pelanggaran Ringan:</strong> Mengarahkan pemohon organik kantor yang datang sendiri agar menggunakan kode referral tertentu demi mendapatkan keuntungan tanpa rekomendasi awal; atau mengetahui penyalahgunaan tetapi tidak melapor.</li>
+                <li><strong>Pelanggaran Berat:</strong> Memberikan informasi menyesatkan/palsu kepada pemohon; menjanjikan kelulusan visa 100% (keputusan visa adalah hak prerogatif Kedutaan Jepang); atau menjanjikan diskon liar di luar ketentuan resmi MapahTrip.</li>
+                <li><strong>Pelanggaran Mendesak (Fraud):</strong> Memalsukan dokumen pemohon (rekening koran palsu, KTP palsu, sponsor manipulatif); bersekongkol mencairkan komisi fiktif; atau merekayasa penggunaan kode referral mitra lain.</li>
+              </ol>
+            </div>
+
+            {/* PASAL 10 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 10 : SANKSI
+              </strong>
+              <ul style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <li>Peringatan tertulis kepada Mitra MPC yang melanggar ketentuan program.</li>
+                <li>Pembatalan komisi insentif atas pengajuan yang terbukti memanipulasi kode referral.</li>
+                <li>Kewajiban pengembalian insentif yang diperoleh dari transaksi yang tidak sah.</li>
+                <li>Penonaktifan akun, pemblokiran kode referral permanen, dan pencantuman ke daftar hitam (blacklist) kemitraan MapahTrip.</li>
+                <li>Tindakan pemalsuan dokumen berkas resmi dapat diteruskan ke jalur hukum yang berlaku.</li>
+              </ul>
+            </div>
+
+            {/* PASAL 11 */}
+            <div>
+              <strong style={{ color: '#0F172A', display: 'block', fontSize: '0.88rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '3px', marginBottom: '8px' }}>
+                PASAL 11 : PENUTUP
+              </strong>
+              <p style={{ margin: 0, color: '#475569' }}>
+                Peraturan ini mulai berlaku efektif sejak tanggal 1 Januari 2026 dan menjadi acuan operasional kemitraan MapahTrip Partner Club. Hal-hal teknis yang belum diatur akan dituangkan dalam SOP tersendiri.
+              </p>
+            </div>
+
+            {/* Tanda Tangan Pengesahan */}
+            <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Ditetapkan di: <strong>Jakarta</strong></div>
+                <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Berlaku sejak: <strong>1 Januari 2026</strong></div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A' }}>Direksi MapahTrip Digital Indonesia</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#10B981', margin: '4px 0 2px' }}>Divisi Kemitraan &amp; Layanan Visa</div>
+                <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Ttd. Manajemen Resmi MapahTrip</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div
+            style={{
+              padding: '14px 24px',
+              borderTop: '1px solid #E2E8F0',
+              backgroundColor: '#F8FAFC',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+              Dengan mendaftar sebagai mitra, Anda menyepakati seluruh pasal di atas.
+            </span>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  window.print();
+                }}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  border: '1px solid #CBD5E1',
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                🖨️ Cetak / PDF
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -657,25 +882,23 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   backgroundColor: '#10B981',
                   color: '#FFFFFF',
                   border: 'none',
-                  padding: '9px 18px',
+                  padding: '9px 20px',
                   borderRadius: '10px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   fontSize: '0.85rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
                 }}
               >
-                <span>Saya Paham &amp; Setujui</span>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                  check
-                </span>
+                <span>✓ Saya Mengerti &amp; Setuju</span>
               </button>
             </div>
           </div>
         </div>
+      </div>
     );
   };
 
