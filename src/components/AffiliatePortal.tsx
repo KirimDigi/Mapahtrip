@@ -383,22 +383,15 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       return;
     }
 
-    // Default Demo Account
+    // Default Demo Account (Memerlukan pengisian formulir pendaftaran terlebih dahulu sebelum kode referral terbit)
     if (emailClean === 'demo@mapahtrip.id' && loginPassword === '123456') {
       const demoUser: AffiliateUser = {
         id: 'aff_demo',
         nama: 'Mitra Demo LPK',
         email: 'demo@mapahtrip.id',
-        affiliateCode: 'LPK-JAPANCENTER',
+        affiliateCode: '', // Kode belum diterbitkan, wajib mengisi formulir pendaftaran dulu!
         createdAt: new Date().toISOString(),
-        isProfileComplete: true,
-        statusMitra: 'LPK (Lembaga Pelatihan Kerja ke Jepang)',
-        lembaga: 'Japan Center Indonesia',
-        noWa: '6281234567890',
-        alamat: 'Jl. Gatot Subroto No. 45, Kuningan',
-        provinsi: 'DKI Jakarta',
-        jenisIdentitas: 'KTP (Kartu Tanda Penduduk)',
-        nomorIdentitas: '3171012345678901',
+        isProfileComplete: false, // Harus mengisi data identitas mitra
       };
       setCurrentUser(demoUser);
       return;
@@ -2034,6 +2027,34 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 badge
               </span>
               <span>Data Saya</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Ingin menguji alur pengisian formulir data diri dari awal?')) {
+                  const resetUser: AffiliateUser = { ...currentUser, affiliateCode: '', isProfileComplete: false };
+                  setCurrentUser(resetUser);
+                }
+              }}
+              style={{
+                backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                color: '#38BDF8',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              title="Uji coba alur pengisian formulir pendaftaran mitra"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                edit_note
+              </span>
+              <span>Tes Isi Formulir</span>
             </button>
           </div>
           <button
