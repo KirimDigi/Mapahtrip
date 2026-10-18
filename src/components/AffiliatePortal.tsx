@@ -265,6 +265,200 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   // =========================================================================
   // VIEW 1: AUTHENTICATION SCREEN (REGISTER / LOGIN) - Matches user screenshot
   // =========================================================================
+  // Reusable Terms & Conditions Modal (Rendered in Auth screen and Dashboard)
+  const renderTermsModal = () => {
+    if (!showTermsModal) return null;
+    return (
+        <div
+          onClick={() => setShowTermsModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '540px',
+              width: '100%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #E2E8F0',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#F8FAFC',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="material-symbols-outlined" style={{ color: '#10B981', fontSize: '26px' }}>
+                  verified_user
+                </span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
+                    Syarat &amp; Kebijakan Kemitraan
+                  </h3>
+                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    Program Affiliate Resmi MapahTrip 2026
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                style={{
+                  background: '#E2E8F0',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#475569',
+                  fontSize: '16px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div
+              style={{
+                padding: '20px 24px',
+                overflowY: 'auto',
+                fontSize: '0.84rem',
+                color: '#334155',
+                lineHeight: 1.6,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+              }}
+            >
+              <div>
+                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
+                  1. Ketentuan Pendaftaran Mitra
+                </strong>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Pendaftaran Program Mitra MapahTrip bersifat <strong>gratis 100%</strong> tanpa biaya admin atau iuran bulanan. Terbuka bagi LPK (Lembaga Pelatihan Kerja), agensi travel, alumni/pekerja di Jepang, sekolah bahasa, maupun individu yang ingin mereferensikan pemohon visa Jepang.
+                </p>
+              </div>
+
+              <div>
+                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
+                  2. Besaran Komisi Referral
+                </strong>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Mitra berhak memperoleh komisi tunai sebesar <strong>Rp 50.000 hingga Rp 250.000</strong> per pemohon untuk setiap pengajuan visa Jepang yang berhasil diterbitkan oleh Kedutaan Besar / Konsulat Jepang / VFS JVAC. Besaran komisi bergantung pada tipe visa (Wisata Single/Multiple Entry, Kunjungan Keluarga, Bisnis, dsb).
+                </p>
+              </div>
+
+              <div>
+                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
+                  3. Penggunaan Kode Referral Resmi
+                </strong>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Setelah mendaftar, mitra mendapatkan <strong>Kode Referral Unik</strong> resmi. Pemohon yang direkomendasikan wajib mencantumkan kode ini saat berkonsultasi atau mengajukan visa agar status kandidat otomatis tercatat di dashboard mitra.
+                </p>
+              </div>
+
+              <div>
+                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
+                  4. Ketentuan Pembayaran Komisi
+                </strong>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Komisi dapat dicairkan secara mingguan atau per batch pengajuan rombongan setelah paspor pemohon selesai dan visa disetujui. Pembayaran ditransfer langsung ke rekening bank atau dompet digital resmi yang Anda daftarkan.
+                </p>
+              </div>
+
+              <div>
+                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
+                  5. Keabsahan &amp; Integritas Dokumen
+                </strong>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Mitra dilarang memanipulasi, memalsukan, atau menyerahkan dokumen fiktif. Seluruh berkas (paspor, rekening koran, sponsor/surat undangan) harus asli dan dapat dipertanggungjawabkan sesuai hukum dan aturan Kedutaan Jepang.
+                </p>
+              </div>
+
+              <div>
+                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
+                  6. Kerahasiaan &amp; Keamanan Data
+                </strong>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  MapahTrip menjamin kerahasiaan seluruh dokumen pemohon. Data identitas hanya dipergunakan khusus untuk pemrosesan visa resmi di JVAC / Konsulat dan tidak akan diperjualbelikan kepada pihak ketiga.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                borderTop: '1px solid #E2E8F0',
+                backgroundColor: '#F8FAFC',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                Dengan mencentang persetujuan, Anda menyepakati syarat di atas.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setRegAgree(true);
+                  setShowTermsModal(false);
+                }}
+                style={{
+                  backgroundColor: '#10B981',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                }}
+              >
+                <span>Saya Paham &amp; Setujui</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                  check
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+    );
+  };
+
   if (!currentUser) {
     return (
       <div
@@ -948,6 +1142,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             </div>
           )}
         </div>
+        {/* Modal Syarat & Kebijakan Kemitraan MapahTrip */}
+        {renderTermsModal()}
       </div>
     );
   }
@@ -1674,195 +1870,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         </div>
       )}
       {/* Modal Syarat & Kebijakan Kemitraan MapahTrip */}
-      {showTermsModal && (
-        <div
-          onClick={() => setShowTermsModal(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            backgroundColor: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '20px',
-              maxWidth: '540px',
-              width: '100%',
-              maxHeight: '85vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #E2E8F0',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '18px 24px',
-                borderBottom: '1px solid #E2E8F0',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: '#F8FAFC',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-symbols-outlined" style={{ color: '#10B981', fontSize: '26px' }}>
-                  verified_user
-                </span>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
-                    Syarat &amp; Kebijakan Kemitraan
-                  </h3>
-                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                    Program Affiliate Resmi MapahTrip 2026
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(false)}
-                style={{
-                  background: '#E2E8F0',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#475569',
-                  fontSize: '16px',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Body (Scrollable) */}
-            <div
-              style={{
-                padding: '20px 24px',
-                overflowY: 'auto',
-                fontSize: '0.84rem',
-                color: '#334155',
-                lineHeight: 1.6,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
-              }}
-            >
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  1. Ketentuan Pendaftaran Mitra
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Pendaftaran Program Mitra MapahTrip bersifat <strong>gratis 100%</strong> tanpa biaya admin atau iuran bulanan. Terbuka bagi LPK (Lembaga Pelatihan Kerja), agensi travel, alumni/pekerja di Jepang, sekolah bahasa, maupun individu yang ingin mereferensikan pemohon visa Jepang.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  2. Besaran Komisi Referral
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Mitra berhak memperoleh komisi tunai sebesar <strong>Rp 50.000 hingga Rp 250.000</strong> per pemohon untuk setiap pengajuan visa Jepang yang berhasil diterbitkan oleh Kedutaan Besar / Konsulat Jepang / VFS JVAC. Besaran komisi bergantung pada tipe visa (Wisata Single/Multiple Entry, Kunjungan Keluarga, Bisnis, dsb).
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  3. Penggunaan Kode Referral Resmi
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Setelah mendaftar, mitra mendapatkan <strong>Kode Referral Unik</strong> resmi. Pemohon yang direkomendasikan wajib mencantumkan kode ini saat berkonsultasi atau mengajukan visa agar status kandidat otomatis tercatat di dashboard mitra.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  4. Ketentuan Pembayaran Komisi
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Komisi dapat dicairkan secara mingguan atau per batch pengajuan rombongan setelah paspor pemohon selesai dan visa disetujui. Pembayaran ditransfer langsung ke rekening bank atau dompet digital resmi yang Anda daftarkan.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  5. Keabsahan &amp; Integritas Dokumen
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Mitra dilarang memanipulasi, memalsukan, atau menyerahkan dokumen fiktif. Seluruh berkas (paspor, rekening koran, sponsor/surat undangan) harus asli dan dapat dipertanggungjawabkan sesuai hukum dan aturan Kedutaan Jepang.
-                </p>
-              </div>
-
-              <div>
-                <strong style={{ color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  6. Kerahasiaan &amp; Keamanan Data
-                </strong>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  MapahTrip menjamin kerahasiaan seluruh dokumen pemohon. Data identitas hanya dipergunakan khusus untuk pemrosesan visa resmi di JVAC / Konsulat dan tidak akan diperjualbelikan kepada pihak ketiga.
-                </p>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: '14px 24px',
-                borderTop: '1px solid #E2E8F0',
-                backgroundColor: '#F8FAFC',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '12px',
-                flexWrap: 'wrap',
-              }}
-            >
-              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                Dengan mencentang persetujuan, Anda menyepakati syarat di atas.
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setRegAgree(true);
-                  setShowTermsModal(false);
-                }}
-                style={{
-                  backgroundColor: '#10B981',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  padding: '9px 18px',
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
-                }}
-              >
-                <span>Saya Paham &amp; Setujui</span>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                  check
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderTermsModal()}
 
     </div>
   );
