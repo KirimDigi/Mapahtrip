@@ -3209,7 +3209,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   lineHeight: 1.5,
                 }}
               >
-                Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi tunai <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5' }}>Rp 50.000 – Rp 250.000</strong> per visa terbit.
+                Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi tunai <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5', whiteSpace: 'nowrap' }}>Rp 100.000</strong> per visa terbit.
               </p>
 
               {/* Live Indicator */}

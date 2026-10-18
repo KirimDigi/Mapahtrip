@@ -90,6 +90,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  // NFIC-style Menu / Tab State for Partner Onboarding
+  const [onboardingView, setOnboardingView] = useState<'menu' | 'form'>('menu');
+  const [partnerSubTab, setPartnerSubTab] = useState<'informasi' | 'insentif'>('informasi');
+
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
 
@@ -237,39 +241,40 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       if (p.affiliateCode) existingCodes.add(p.affiliateCode.toUpperCase().trim());
     });
 
-    // GENERATE KODE REFERRAL BARU KETIKA DATA SUDAH DIISI
+    // GENERATE KODE REFERRAL BARU KETIKA DATA SUDAH DIISI (SESUAI SPREADSHEET: MPH + 3 DIGIT WA + 2 HURUF NAMA)
     let activeCode = currentUser.affiliateCode;
     if (!activeCode) {
-      const sourceName = (profileStatus === 'Umum' ? profileNama : (profileLembaga || profileNama || 'MITRA')).trim();
-      const cleanName = sourceName.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6) || 'MITRA';
-      let uniqueCode = '';
-      let attempt = 0;
+      const cleanDigits = cleanWa.replace(/\D/g, '');
+      const last3Digits = cleanDigits.length >= 3 ? cleanDigits.slice(-3) : cleanDigits.padStart(3, '0');
 
-      do {
-        attempt++;
-        const randNum = Math.floor(1000 + Math.random() * 9000);
-        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-        const extraChar = attempt > 1 ? alphabet[Math.floor(Math.random() * alphabet.length)] : '';
-        const candidate = `MT-${cleanName}${randNum}${extraChar}`;
-
-        if (!existingCodes.has(candidate)) {
-          uniqueCode = candidate;
-          existingCodes.add(candidate);
-          break;
-        }
-      } while (attempt < 100);
-
-      if (!uniqueCode) {
-        uniqueCode = `MT-${cleanName}${Date.now().toString().slice(-5)}`;
+      // Ambil 2 huruf identifikasi dari nama depan atau lembaga
+      let namePart = '';
+      const cleanLembaga = (profileLembaga || '').trim();
+      if (profileStatus !== 'Umum' && cleanLembaga && cleanLembaga !== '-') {
+        const parts = cleanLembaga.split(/\s+/).filter(p => !['lpk', 'biro', 'pt', 'cv', 'tour', 'travel'].includes(p.toLowerCase()));
+        namePart = (parts[0] || cleanLembaga).toUpperCase().replace(/[^A-Z]/g, '');
       }
-      activeCode = uniqueCode;
+      if (!namePart) {
+        namePart = (profileNama.trim().split(/\s+/)[0] || 'MP').toUpperCase().replace(/[^A-Z]/g, '');
+      }
+      const twoLetters = (namePart.slice(0, 2) || 'MP').padEnd(2, 'X');
+
+      let candidate = `MPH${last3Digits}${twoLetters}`;
+      let suffix = 1;
+      while (existingCodes.has(candidate)) {
+        candidate = `MPH${last3Digits}${twoLetters}${suffix}`;
+        suffix++;
+      }
+
+      existingCodes.add(candidate);
+      activeCode = candidate;
     }
 
     const updatedUser: AffiliateUser = {
       ...currentUser,
       nama: profileNama.trim(),
       statusMitra: profileStatus,
-      lembaga: profileLembaga.trim(),
+      lembaga: profileLembaga.trim() || '-',
       noWa: cleanWa,
       alamat: profileAlamat.trim(),
       provinsi: profileProvinsi,
@@ -585,7 +590,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   2. Besaran Komisi Referral
                 </strong>
                 <p style={{ margin: 0, color: '#475569' }}>
-                  Mitra berhak memperoleh komisi tunai sebesar <strong>Rp 50.000 hingga Rp 250.000</strong> per pemohon untuk setiap pengajuan visa Jepang yang berhasil diterbitkan oleh Kedutaan Besar / Konsulat Jepang / VFS JVAC. Besaran komisi bergantung pada tipe visa (Wisata Single/Multiple Entry, Kunjungan Keluarga, Bisnis, dsb).
+                  Mitra berhak memperoleh komisi tunai resmi sebesar <strong>Rp 100.000</strong> per pemohon untuk setiap pengajuan visa Jepang yang berhasil diproses dan diterbitkan. Pembayaran bonus affiliate dilakukan setelah proses visa selesai.
                 </p>
               </div>
 
@@ -1032,7 +1037,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
                       <ul style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <li>
-                          <strong>Komisi Referral:</strong> Rp 50.000 – Rp 250.000 per visa terbit.
+                          <strong>Komisi Referral:</strong> Rp 100.000 flat per visa terbit / selesai.
                         </li>
                         <li>
                           <strong>Pendaftaran 100% Gratis:</strong> Tanpa biaya admin atau iuran bulanan.
@@ -1365,10 +1370,566 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
   
   // =========================================================================
-  // VIEW 1.5: PROFILE ONBOARDING (DATA MITRA SESUAI FORM PENDAFTARAN)
-  // Diwajibkan diisi setelah akun dibuat sebelum masuk ke Dashboard
+  // VIEW 1.5: PARTNER CLUB MENU & FORM (SESUAI NFIC NURUL FIKRI UNTUK VISA)
+  // Menampilkan landing page menu Informasi/Insentif terlebih dahulu,
+  // lalu klik "Daftar Sekarang" untuk membuka formulir pendaftaran.
   // =========================================================================
   if (currentUser && !currentUser.isProfileComplete) {
+    if (onboardingView === 'menu') {
+      return (
+        <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', display: 'flex', color: '#0F172A', fontFamily: 'inherit' }}>
+          {/* Sidebar Kiri (Gaya PSB-NF) */}
+          <aside
+            style={{
+              width: '260px',
+              backgroundColor: '#FFFFFF',
+              borderRight: '1px solid #E2E8F0',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              padding: '24px 16px',
+              flexShrink: 0,
+            }}
+          >
+            <div>
+              {/* Brand Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '32px', paddingLeft: '8px' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    backgroundColor: '#005BB5',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: '16px',
+                  }}
+                >
+                  ⛩️
+                </div>
+                <div>
+                  <strong style={{ fontSize: '1.05rem', color: '#0F172A', display: 'block', lineHeight: 1.1 }}>
+                    MapahTrip
+                  </strong>
+                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Partner Portal</span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#0284C7',
+                    color: '#FFFFFF',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    marginLeft: 'auto',
+                  }}
+                >
+                  v3
+                </span>
+              </div>
+
+              {/* Nav Category 1: Platform User */}
+              <div style={{ marginBottom: '24px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
+                  Platform User
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => alert('Fitur ini akan aktif setelah Anda terdaftar resmi sebagai mitra.')}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#64748B',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>dashboard</span>
+                    <span>Dasbor</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => alert('Belum ada notifikasi baru.')}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#64748B',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>notifications</span>
+                    <span>Notifikasi</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Nav Category 2: Afiliasi (ACTIVE) */}
+              <div style={{ marginBottom: '24px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
+                  Afiliasi
+                </span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    backgroundColor: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    color: '#166534',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#10B981' }}>groups</span>
+                  <span>Partner Club (MPC)</span>
+                </div>
+              </div>
+
+              {/* Nav Category 3: Bantuan */}
+              <div>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
+                  Bantuan &amp; Info
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#64748B',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>article</span>
+                    <span>Syarat &amp; Ketentuan</span>
+                  </button>
+                  <a
+                    href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20tanya%20program%20mitra%20affiliate%20visa"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      color: '#64748B',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>support_agent</span>
+                    <span>Pusat Bantuan</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom User Pill */}
+            <div
+              style={{
+                backgroundColor: '#F8FAFC',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                padding: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    backgroundColor: '#0F172A',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    flexShrink: 0,
+                  }}
+                >
+                  {currentUser.nama.slice(0, 2).toUpperCase()}
+                </div>
+                <div style={{ overflow: 'hidden' }}>
+                  <strong style={{ fontSize: '0.82rem', color: '#0F172A', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {currentUser.nama}
+                  </strong>
+                  <span style={{ fontSize: '0.7rem', color: '#94A3B8', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {currentUser.email}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Keluar"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
+              </button>
+            </div>
+          </aside>
+
+          {/* Konten Utama Kanan (Sesuai Screenshot NFIC) */}
+          <main style={{ flex: 1, padding: '36px 48px', overflowY: 'auto' }}>
+            {/* Header Judul */}
+            <div style={{ marginBottom: '28px' }}>
+              <h1 style={{ margin: '0 0 6px', fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+                MapahTrip Partner Club (MPC)
+              </h1>
+              <p style={{ margin: 0, fontSize: '0.92rem', color: '#64748B' }}>
+                Ajak teman, siswa LPK, atau rombongan buat visa Jepang di MapahTrip bisa Cuan Ratusan Ribu (Rp 100.000 / visa terbit).
+              </p>
+            </div>
+
+            {/* Sub-Tabs: Informasi vs Insentif (Gaya NFIC) */}
+            <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid #E2E8F0', marginBottom: '28px' }}>
+              <button
+                type="button"
+                onClick={() => setPartnerSubTab('informasi')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: partnerSubTab === 'informasi' ? '3px solid #10B981' : '3px solid transparent',
+                  padding: '10px 4px 14px',
+                  color: partnerSubTab === 'informasi' ? '#0F172A' : '#64748B',
+                  fontWeight: partnerSubTab === 'informasi' ? 800 : 600,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    border: partnerSubTab === 'informasi' ? '5px solid #10B981' : '2px solid #CBD5E1',
+                    display: 'inline-block',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <span>Informasi</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPartnerSubTab('insentif')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: partnerSubTab === 'insentif' ? '3px solid #10B981' : '3px solid transparent',
+                  padding: '10px 4px 14px',
+                  color: partnerSubTab === 'insentif' ? '#0F172A' : '#64748B',
+                  fontWeight: partnerSubTab === 'insentif' ? 800 : 600,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    border: partnerSubTab === 'insentif' ? '5px solid #10B981' : '2px solid #CBD5E1',
+                    display: 'inline-block',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <span>Insentif</span>
+              </button>
+            </div>
+
+            {/* TAB 1: INFORMASI */}
+            {partnerSubTab === 'informasi' && (
+              <div style={{ maxWidth: '820px' }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
+                    Informasi Program
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B' }}>
+                    Daftar jadi Mitra MapahTrip, dan dapatkan komisi tunai resmi untuk setiap visa yang terbit.
+                  </p>
+                </div>
+
+                {/* Deskripsi Box (Sesuai Screenshot NFIC) */}
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '24px 28px',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)',
+                    marginBottom: '28px',
+                  }}
+                >
+                  <p style={{ margin: '0 0 20px', fontSize: '0.88rem', color: '#334155', lineHeight: 1.7 }}>
+                    <strong>MapahTrip Partner Club (MPC)</strong> adalah program kemitraan berbasis referral resmi yang dikembangkan oleh MapahTrip untuk memperluas jangkauan layanan visa Jepang melalui para mitra yang terdiri dari LPK (Lembaga Pelatihan Kerja), biro travel, alumni magang/pekerja di Jepang, sekolah bahasa, maupun masyarakat umum. Program ini memberikan kesempatan bagi para mitra untuk memperoleh komisi tunai tanpa modal dan tanpa biaya pendaftaran, hanya dengan membagikan kode referral khusus kepada pemohon visa Jepang.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    style={{
+                      backgroundColor: '#F1F5F9',
+                      color: '#0F172A',
+                      border: '1px solid #CBD5E1',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E2E8F0')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#475569' }}>
+                      description
+                    </span>
+                    <span>Syarat dan Ketentuan</span>
+                  </button>
+                </div>
+
+                {/* Tombol Hijau: Daftar Sekarang (Membuka Formulir Pendaftaran) */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingView('form')}
+                    style={{
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '14px 28px',
+                      borderRadius: '12px',
+                      fontSize: '0.95rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#059669';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#10B981';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <span>Daftar Sekarang</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      open_in_new
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: INSENTIF (DISESUAIKAN DENGAN GOOGLE SPREADSHEET MAPAHTRIP) */}
+            {partnerSubTab === 'insentif' && (
+              <div style={{ maxWidth: '820px' }}>
+                <div style={{ marginBottom: '22px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#ECFDF5', color: '#047857', fontSize: '0.75rem', fontWeight: 800, padding: '4px 10px', borderRadius: '20px', marginBottom: '8px' }}>
+                    <span>✨</span> SKEMA KOMISI RESMI MAPAHTRIP
+                  </div>
+                  <h2 style={{ margin: '0 0 6px', fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
+                    Skema Insentif &amp; Komisi Mitra
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: '#475569', lineHeight: 1.5 }}>
+                    <em>&ldquo;Ajak teman buat visa di MapahTrip bisa Cuan Ratusan Ribu! Makin banyak yang diajak buat visa di MapahTrip, makin tinggi Cuannya!&rdquo;</em>
+                  </p>
+                </div>
+
+                {/* Banner Utama: Rp 100.000 / Visa */}
+                <div style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '2px solid #10B981',
+                  borderRadius: '18px',
+                  padding: '24px',
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                      Komisi Referral Resmi
+                    </div>
+                    <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#10B981', lineHeight: 1.1 }}>
+                      Rp 100.000 <span style={{ fontSize: '0.95rem', color: '#475569', fontWeight: 600 }}>/ Visa terbit</span>
+                    </div>
+                    <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: '#334155' }}>
+                      Berlaku untuk seluruh kategori pengajuan visa Jepang (Magang/SSW Tokutei Ginou, Bisnis, Pelajar, Turis Single &amp; Multiple Entry).
+                    </p>
+                  </div>
+                  <div style={{
+                    backgroundColor: '#F0FDF4',
+                    border: '1px dashed #10B981',
+                    borderRadius: '12px',
+                    padding: '12px 18px',
+                    fontSize: '0.82rem',
+                    color: '#065F46',
+                    maxWidth: '280px'
+                  }}>
+                    <strong>📌 Ketentuan Pembayaran:</strong>
+                    <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#047857' }}>
+                      Pembayaran bonus Affiliate dilakukan setelah proses pengajuan Visa selesai &amp; disetujui.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulasi Pendapatan Card */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 800, color: '#0F172A' }}>
+                    📊 Simulasi Pendapatan Komisi Anda
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Ajak 1 Pemohon</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', margin: '6px 0 2px' }}>Rp 100.000</div>
+                      <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700 }}>Bonus Pertama</div>
+                    </div>
+                    <div style={{ border: '1px solid #10B981', borderRadius: '14px', padding: '16px', textAlign: 'center', backgroundColor: '#F0FDF4' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46' }}>Ajak 5 Pemohon</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#047857', margin: '6px 0 2px' }}>Rp 500.000</div>
+                      <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700 }}>Contoh di Spreadsheet</div>
+                    </div>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Ajak 10 Pemohon</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', margin: '6px 0 2px' }}>Rp 1.000.000</div>
+                      <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700 }}>Cuan 1 Juta Rupiah</div>
+                    </div>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Ajak 25 Pemohon</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', margin: '6px 0 2px' }}>Rp 2.500.000</div>
+                      <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700 }}>Skala LPK / Komunitas</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Format Kode Referral Info */}
+                <div style={{
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  marginBottom: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px'
+                }}>
+                  <div style={{ fontSize: '1.8rem' }}>🏷️</div>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>
+                      Format Kode Referral Otomatis Resmi
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '2px' }}>
+                      Mengikuti standar spreadsheet: <code style={{ backgroundColor: '#E2E8F0', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, color: '#0F172A' }}>MPH + (3 Digit Terakhir No. WA) + (2 Huruf Nama Depan)</code>. Contoh: WA akhiran 433 &amp; nama Elen = <strong>MPH433EL</strong>.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tombol Hijau: Daftar Sekarang */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingView('form')}
+                    style={{
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '14px 28px',
+                      borderRadius: '12px',
+                      fontSize: '0.95rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                    }}
+                  >
+                    <span>Daftar Sekarang</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      open_in_new
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* Modal Syarat & Ketentuan */}
+          {renderTermsModal()}
+        </div>
+      );
+    }
+
+    // ONBOARDING VIEW === 'form' (Formulir Pengisian Data Identitas Mitra)
     return (
       <div
         style={{
@@ -1393,7 +1954,30 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             width: '100%',
           }}
         >
-          {/* Header */}
+          {/* Tombol Kembali ke Menu Landing Page */}
+          <div style={{ marginBottom: '20px' }}>
+            <button
+              type="button"
+              onClick={() => setOnboardingView('menu')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#005BB5',
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: 0,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+              <span>Kembali ke Informasi Program</span>
+            </button>
+          </div>
+
+          {/* Header Form */}
           <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <div
               style={{
@@ -1414,13 +1998,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                 badge
               </span>
-              <span>Langkah 2: Lengkapi Data Identitas Mitra</span>
+              <span>Langkah 2: Formulir Pendaftaran Mitra</span>
             </div>
             <h2 style={{ margin: '0 0 8px', fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
               Formulir Pendaftaran Mitra
             </h2>
             <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5 }}>
-              Lengkapi identitas kemitraan resmi MapahTrip untuk pencairan komisi tunai dan verifikasi berkas visa Jepang.
+              Lengkapi identitas kemitraan resmi MapahTrip untuk pencairan komisi tunai dan penerbitan Kode Referral unik Anda.
             </p>
           </div>
 
@@ -1485,8 +2069,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 onChange={(e) => {
                   const val = e.target.value;
                   setProfileStatus(val);
-                  if (val === 'Umum') {
-                    setProfileLembaga('');
+                  if (val === 'Umum' && (!profileLembaga || profileLembaga === 'Japan Center Indonesia')) {
+                    setProfileLembaga('-');
                   }
                 }}
                 required
@@ -1536,11 +2120,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Lembaga / Instansi <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 500 }}>(opsional jika Umum)</span>
+                  Lembaga / Instansi <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 500 }}>(atau isi &quot;-&quot; jika perorangan)</span>
                 </label>
                 <input
                   type="text"
-                  placeholder={profileStatus === 'Umum' ? "Boleh dikosongkan (khusus pendaftar Umum)" : "nama LPK / biro travel / agensi / perusahaan"}
+                  placeholder='nama LPK / biro travel / agensi (atau isi "-")'
                   value={profileLembaga}
                   onChange={(e) => setProfileLembaga(e.target.value)}
                   style={{
@@ -1551,15 +2135,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     fontSize: '0.88rem',
                     outline: 'none',
                     boxSizing: 'border-box',
-                    backgroundColor: profileStatus === 'Umum' && !profileLembaga ? '#F8FAFC' : '#FFFFFF',
+                    backgroundColor: '#FFFFFF',
                   }}
                 />
-                {profileStatus === 'Umum' && (
-                  <span style={{ fontSize: '0.73rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontWeight: 600 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                    <span>Bebas dikosongkan untuk kategori Umum (perorangan/individu)</span>
-                  </span>
-                )}
+                <span style={{ fontSize: '0.73rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#005BB5' }}>info</span>
+                  <span>Boleh diisi &quot;-&quot; jika pendaftar Umum / perorangan atau tidak memiliki lembaga</span>
+                </span>
               </div>
             </div>
 

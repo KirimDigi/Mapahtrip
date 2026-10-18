@@ -23,7 +23,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
   const [nominalKeluar, setNominalKeluar] = useState(1650000);
   const [cashback, setCashback] = useState(150000);
   const [affiliateCode, setAffiliateCode] = useState('');
-  const [referralFee, setReferralFee] = useState(200000);
+  const [referralFee, setReferralFee] = useState(100000);
 
   const [berkas, setBerkas] = useState({
     formVisa: true,
