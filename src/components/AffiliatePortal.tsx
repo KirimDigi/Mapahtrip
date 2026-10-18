@@ -20,20 +20,18 @@ const PROVINSI_LIST = [
 
 const STATUS_MITRA_LIST = [
   'Umum',
-  'Siswa / Mahasiswa',
-  'Guru / Pengajar / Dosen',
-  'LPK (Lembaga Pelatihan Kerja)',
-  'Alumni / Pekerja di Jepang',
-  'Biro Tour & Travel / Agensi',
-  'Orang Tua / Wali Siswa',
-  'Komunitas Jepang / Studi Luar Negeri'
+  'LPK (Lembaga Pelatihan Kerja ke Jepang)',
+  'Biro Perjalanan / Agen Tour & Travel',
+  'Alumni / Pekerja di Jepang (Tokutei Ginou / Magang)',
+  'Sekolah Bahasa Jepang / Lembaga Kursus',
+  'Konsultan Visa / Agen Independen',
+  'Komunitas Jepang di Indonesia'
 ];
 
 const JENIS_IDENTITAS_LIST = [
   'KTP (Kartu Tanda Penduduk)',
   'Paspor RI',
-  'SIM (Surat Izin Mengemudi)',
-  'Kartu Tanda Pelajar / Mahasiswa'
+  'SIM (Surat Izin Mengemudi)'
 ];
 
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
@@ -1532,11 +1530,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Lembaga
+                  Lembaga / Instansi <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 500 }}>(opsional jika Umum)</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="nama sekolah/kampus/instansi (opsional jika Umum)"
+                  placeholder="nama LPK / biro travel / agensi / perusahaan"
                   value={profileLembaga}
                   onChange={(e) => setProfileLembaga(e.target.value)}
                   style={{
