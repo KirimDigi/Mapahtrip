@@ -240,7 +240,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     // GENERATE KODE REFERRAL BARU KETIKA DATA SUDAH DIISI
     let activeCode = currentUser.affiliateCode;
     if (!activeCode) {
-      const sourceName = (profileLembaga || profileNama || 'MITRA').trim();
+      const sourceName = (profileStatus === 'Umum' ? profileNama : (profileLembaga || profileNama || 'MITRA')).trim();
       const cleanName = sourceName.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6) || 'MITRA';
       let uniqueCode = '';
       let attempt = 0;
@@ -1482,7 +1482,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </label>
               <select
                 value={profileStatus}
-                onChange={(e) => setProfileStatus(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setProfileStatus(val);
+                  if (val === 'Umum') {
+                    setProfileLembaga('');
+                  }
+                }}
                 required
                 style={{
                   width: '100%',
@@ -1534,7 +1540,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="nama LPK / biro travel / agensi / perusahaan"
+                  placeholder={profileStatus === 'Umum' ? "Boleh dikosongkan (khusus pendaftar Umum)" : "nama LPK / biro travel / agensi / perusahaan"}
                   value={profileLembaga}
                   onChange={(e) => setProfileLembaga(e.target.value)}
                   style={{
@@ -1545,8 +1551,15 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     fontSize: '0.88rem',
                     outline: 'none',
                     boxSizing: 'border-box',
+                    backgroundColor: profileStatus === 'Umum' && !profileLembaga ? '#F8FAFC' : '#FFFFFF',
                   }}
                 />
+                {profileStatus === 'Umum' && (
+                  <span style={{ fontSize: '0.73rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontWeight: 600 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                    <span>Bebas dikosongkan untuk kategori Umum (perorangan/individu)</span>
+                  </span>
+                )}
               </div>
             </div>
 
