@@ -217,6 +217,54 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       cleanWa = '62' + cleanWa;
     }
 
+    // Kumpulkan seluruh kode referral yang sudah pernah terdaftar di sistem (anti-duplikat)
+    let allUsers: AffiliateUser[] = [];
+    try {
+      const existingUsersStr = localStorage.getItem('mapahtrip_all_affiliates');
+      allUsers = existingUsersStr ? JSON.parse(existingUsersStr) : [];
+    } catch {
+      allUsers = [];
+    }
+
+    const existingCodes = new Set<string>();
+    existingCodes.add('LPK-JAPANCENTER'); // kode demo bawaan
+
+    allUsers.forEach((u) => {
+      if (u.affiliateCode) existingCodes.add(u.affiliateCode.toUpperCase().trim());
+    });
+
+    pengajuanList.forEach((p) => {
+      if (p.affiliateCode) existingCodes.add(p.affiliateCode.toUpperCase().trim());
+    });
+
+    // GENERATE KODE REFERRAL BARU KETIKA DATA SUDAH DIISI
+    let activeCode = currentUser.affiliateCode;
+    if (!activeCode) {
+      const sourceName = (profileLembaga || profileNama || 'MITRA').trim();
+      const cleanName = sourceName.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6) || 'MITRA';
+      let uniqueCode = '';
+      let attempt = 0;
+
+      do {
+        attempt++;
+        const randNum = Math.floor(1000 + Math.random() * 9000);
+        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const extraChar = attempt > 1 ? alphabet[Math.floor(Math.random() * alphabet.length)] : '';
+        const candidate = `MT-${cleanName}${randNum}${extraChar}`;
+
+        if (!existingCodes.has(candidate)) {
+          uniqueCode = candidate;
+          existingCodes.add(candidate);
+          break;
+        }
+      } while (attempt < 100);
+
+      if (!uniqueCode) {
+        uniqueCode = `MT-${cleanName}${Date.now().toString().slice(-5)}`;
+      }
+      activeCode = uniqueCode;
+    }
+
     const updatedUser: AffiliateUser = {
       ...currentUser,
       nama: profileNama.trim(),
@@ -228,6 +276,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       jenisIdentitas: profileJenisIdentitas,
       nomorIdentitas: profileNomorIdentitas.trim(),
       fotoDiri: profileFotoDiri,
+      affiliateCode: activeCode,
       isProfileComplete: true,
     };
 
@@ -300,57 +349,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       return;
     }
 
-    // 3. Kumpulkan SELURUH kode referral yang sudah pernah ada (anti-duplikat)
-    const existingCodes = new Set<string>();
-    existingCodes.add('LPK-JAPANCENTER'); // kode demo bawaan
-
-    allUsers.forEach((u) => {
-      if (u.affiliateCode) existingCodes.add(u.affiliateCode.toUpperCase().trim());
-    });
-
-    pengajuanList.forEach((p) => {
-      if (p.affiliateCode) existingCodes.add(p.affiliateCode.toUpperCase().trim());
-    });
-
-    // 4. Algoritma Pembuatan Kode Unik 100% Anti-Double
-    const cleanName = regName.trim().split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6) || 'MITRA';
-    let uniqueCode = '';
-    let attempt = 0;
-
-    // Loop verifikasi hingga dipastikan KODE BELUM PERNAH ADA di database / sistem
-    do {
-      attempt++;
-      // Kombinasi: 4 Digit Angka Acak + Huruf Unik jika ada kemiripan
-      const randNum = Math.floor(1000 + Math.random() * 9000); // 1000 - 9999
-      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-      const extraChar = attempt > 1 ? alphabet[Math.floor(Math.random() * alphabet.length)] : '';
-      const candidate = `MT-${cleanName}${randNum}${extraChar}`;
-
-      if (!existingCodes.has(candidate)) {
-        uniqueCode = candidate;
-        existingCodes.add(candidate);
-        break;
-      }
-    } while (attempt < 100);
-
-    // Cadangan darurat berbasis timestamp jika 100 percobaan bentrok
-    if (!uniqueCode) {
-      uniqueCode = `MT-${cleanName}${Date.now().toString().slice(-5)}`;
-      existingCodes.add(uniqueCode);
-    }
-
-    // 5. Buat profil mitra baru dengan kode referral resmi yang dijamin unik
+    // 3. Buat akun mitra baru (Kode Referral belum diterbitkan, baru diberikan SETELAH isi data formulir)
     const newUser: AffiliateUser = {
       id: 'aff_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       nama: regName.trim(),
       email: emailClean,
-      affiliateCode: uniqueCode,
+      affiliateCode: '', // Kode belum ada, harus mengisi formulir data diri terlebih dahulu
       password: regPassword,
       createdAt: new Date().toISOString(),
       isProfileComplete: false,
     };
 
-    // 6. Simpan permanen ke daftar mitra
+    // 4. Simpan akun ke daftar mitra
     try {
       allUsers.push(newUser);
       localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(allUsers));
@@ -359,7 +369,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     }
 
     setCurrentUser(newUser);
-    setAuthSuccessMsg(`Selamat! Akun Anda aktif dengan Kode Referral Unik: ${uniqueCode}`);
+    setAuthSuccessMsg('Akun pendaftaran berhasil dibuat! Silakan lengkapi formulir identitas di bawah untuk menerbitkan Kode Referral resmi Anda.');
   };
 
   // Handle Login
@@ -1421,11 +1431,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             </p>
           </div>
 
-          {/* Success Banner Info */}
+          {/* Info Banner: Kode Diberikan Setelah Isi Data */}
           <div
             style={{
-              backgroundColor: '#F0FDF4',
-              border: '1px solid #BBF7D0',
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
               borderRadius: '12px',
               padding: '12px 16px',
               display: 'flex',
@@ -1435,13 +1445,17 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               fontSize: '0.84rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>
-                check_circle
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1E40AF' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>
+                lock_clock
               </span>
-              <span>Kode Referral Unik Anda: <strong>{currentUser.affiliateCode}</strong></span>
+              <span>
+                <strong>Kode Referral Resmi</strong> akan otomatis diterbitkan dan diberikan setelah Anda melengkapi seluruh formulir data diri di bawah ini.
+              </span>
             </div>
-            <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 700 }}>Akun Aktif</span>
+            <span style={{ fontSize: '0.74rem', color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '3px 10px', borderRadius: '6px', fontWeight: 700 }}>
+              Menunggu Data
+            </span>
           </div>
 
           {/* Error Alert */}
@@ -1923,9 +1937,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
               >
-                <span>Simpan &amp; Buka Dashboard Mitra</span>
+                <span>Simpan Data &amp; Terbitkan Kode Referral ➔</span>
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  arrow_forward
+                  key
                 </span>
               </button>
             </div>
