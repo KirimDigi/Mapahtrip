@@ -6,6 +6,34 @@ interface AffiliatePortalProps {
   onSwitchMode: (mode: 'customer' | 'admin') => void;
 }
 
+
+const PROVINSI_LIST = [
+  'Aceh', 'Bali', 'Banten', 'Bengkulu', 'DI Yogyakarta', 'DKI Jakarta',
+  'Gorontalo', 'Jambi', 'Jawa Barat', 'Jawa Tengah', 'Jawa Timur',
+  'Kalimantan Barat', 'Kalimantan Selatan', 'Kalimantan Tengah', 'Kalimantan Timur', 'Kalimantan Utara',
+  'Kepulauan Bangka Belitung', 'Kepulauan Riau', 'Lampung', 'Maluku', 'Maluku Utara',
+  'Nusa Tenggara Barat', 'Nusa Tenggara Timur', 'Papua', 'Papua Barat', 'Papua Barat Daya',
+  'Papua Pegunungan', 'Papua Selatan', 'Papua Tengah', 'Riau', 'Sulawesi Barat',
+  'Sulawesi Selatan', 'Sulawesi Tengah', 'Sulawesi Tenggara', 'Sulawesi Utara',
+  'Sumatera Barat', 'Sumatera Selatan', 'Sumatera Utara'
+];
+
+const STATUS_MITRA_LIST = [
+  'LPK (Lembaga Pelatihan Kerja ke Jepang)',
+  'Lembaga Pendidikan / Kampus / Sekolah',
+  'Biro Perjalanan / Agen Tour & Travel',
+  'Alumni / Pekerja di Jepang (Tokutei Ginou / Magang)',
+  'Komunitas Jepang / Studi Luar Negeri',
+  'Konsultan / Agen Mandiri / Perorangan'
+];
+
+const JENIS_IDENTITAS_LIST = [
+  'KTP (Kartu Tanda Penduduk)',
+  'Paspor RI',
+  'SIM (Surat Izin Mengemudi)',
+  'Kartu Tanda Pelajar / Mahasiswa'
+];
+
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   pengajuanList,
   onSwitchMode,
@@ -48,6 +76,181 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [activeTab, setActiveTab] = useState<'kandidat' | 'jadwal'>('kandidat');
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  // Onboarding & Profile Verification State (Nurul Fikri / Visa Partner Form)
+  const [profileStatus, setProfileStatus] = useState('');
+  const [profileNama, setProfileNama] = useState('');
+  const [profileLembaga, setProfileLembaga] = useState('');
+  const [profileNoWa, setProfileNoWa] = useState('');
+  const [profileAlamat, setProfileAlamat] = useState('');
+  const [profileProvinsi, setProfileProvinsi] = useState('');
+  const [profileJenisIdentitas, setProfileJenisIdentitas] = useState('KTP (Kartu Tanda Penduduk)');
+  const [profileNomorIdentitas, setProfileNomorIdentitas] = useState('');
+  const [profileFotoDiri, setProfileFotoDiri] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState('');
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+
+  // Sync profile form when user changes or logs in
+  useEffect(() => {
+    if (currentUser) {
+      setProfileNama(currentUser.nama || '');
+      setProfileStatus(currentUser.statusMitra || '');
+      setProfileLembaga(currentUser.lembaga || '');
+      setProfileNoWa(currentUser.noWa || '');
+      setProfileAlamat(currentUser.alamat || '');
+      setProfileProvinsi(currentUser.provinsi || '');
+      setProfileJenisIdentitas(currentUser.jenisIdentitas || 'KTP (Kartu Tanda Penduduk)');
+      setProfileNomorIdentitas(currentUser.nomorIdentitas || '');
+      setProfileFotoDiri(currentUser.fotoDiri || null);
+    }
+  }, [currentUser]);
+
+  // Clean up camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      setProfileError('');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setIsCameraActive(true);
+    } catch {
+      setProfileError('Tidak dapat mengakses kamera perangkat. Silakan gunakan tombol "Unggah File Foto Diri" dari galeri.');
+      setIsCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setProfileFotoDiri(dataUrl);
+        stopCamera();
+      }
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setProfileError('Ukuran file foto maksimal 5MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileFotoDiri(reader.result as string);
+        setProfileError('');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileError('');
+
+    if (!profileStatus) {
+      setProfileError('Silakan pilih status mitra terlebih dahulu.');
+      return;
+    }
+    if (!profileNama.trim()) {
+      setProfileError('Nama lengkap wajib diisi.');
+      return;
+    }
+    if (!profileNoWa.trim()) {
+      setProfileError('Nomor WhatsApp wajib diisi.');
+      return;
+    }
+    if (!profileAlamat.trim()) {
+      setProfileError('Alamat tinggal wajib diisi.');
+      return;
+    }
+    if (!profileProvinsi) {
+      setProfileError('Silakan pilih provinsi tinggal Anda.');
+      return;
+    }
+    if (!profileNomorIdentitas.trim()) {
+      setProfileError('Nomor identitas wajib diisi.');
+      return;
+    }
+    if (!profileFotoDiri) {
+      setProfileError('Silakan ambil atau unggah foto diri Anda.');
+      return;
+    }
+
+    if (!currentUser) return;
+
+    // Normalisasi WhatsApp number
+    let cleanWa = profileNoWa.replace(/[^0-9]/g, '');
+    if (cleanWa.startsWith('0')) {
+      cleanWa = '62' + cleanWa.slice(1);
+    } else if (!cleanWa.startsWith('62')) {
+      cleanWa = '62' + cleanWa;
+    }
+
+    const updatedUser: AffiliateUser = {
+      ...currentUser,
+      nama: profileNama.trim(),
+      statusMitra: profileStatus,
+      lembaga: profileLembaga.trim(),
+      noWa: cleanWa,
+      alamat: profileAlamat.trim(),
+      provinsi: profileProvinsi,
+      jenisIdentitas: profileJenisIdentitas,
+      nomorIdentitas: profileNomorIdentitas.trim(),
+      fotoDiri: profileFotoDiri,
+      isProfileComplete: true,
+    };
+
+    // Update in allUsers storage
+    try {
+      const existingUsersStr = localStorage.getItem('mapahtrip_all_affiliates');
+      const allUsers: AffiliateUser[] = existingUsersStr ? JSON.parse(existingUsersStr) : [];
+      const userIdx = allUsers.findIndex(u => u.id === currentUser.id);
+      if (userIdx !== -1) {
+        allUsers[userIdx] = updatedUser;
+      } else {
+        allUsers.push(updatedUser);
+      }
+      localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(allUsers));
+    } catch {
+      // ignore
+    }
+
+    setCurrentUser(updatedUser);
+    stopCamera();
+    setShowProfileModal(false);
+  };
+
 
   // Sync current user to localStorage
   useEffect(() => {
@@ -144,6 +347,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       affiliateCode: uniqueCode,
       password: regPassword,
       createdAt: new Date().toISOString(),
+      isProfileComplete: false,
     };
 
     // 6. Simpan permanen ke daftar mitra
@@ -177,6 +381,14 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         email: 'demo@mapahtrip.id',
         affiliateCode: 'LPK-JAPANCENTER',
         createdAt: new Date().toISOString(),
+        isProfileComplete: true,
+        statusMitra: 'LPK (Lembaga Pelatihan Kerja ke Jepang)',
+        lembaga: 'Japan Center Indonesia',
+        noWa: '6281234567890',
+        alamat: 'Jl. Gatot Subroto No. 45, Kuningan',
+        provinsi: 'DKI Jakarta',
+        jenisIdentitas: 'KTP (Kartu Tanda Penduduk)',
+        nomorIdentitas: '3171012345678901',
       };
       setCurrentUser(demoUser);
       return;
@@ -1148,6 +1360,600 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     );
   }
 
+  
+  // =========================================================================
+  // VIEW 1.5: PROFILE ONBOARDING (DATA MITRA SESUAI FORM PENDAFTARAN)
+  // Diwajibkan diisi setelah akun dibuat sebelum masuk ke Dashboard
+  // =========================================================================
+  if (currentUser && !currentUser.isProfileComplete) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          backgroundColor: '#F8FAFC',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 16px',
+          fontFamily: 'inherit',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
+            padding: '36px 32px',
+            maxWidth: '680px',
+            width: '100%',
+          }}
+        >
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: 'rgba(0, 91, 181, 0.08)',
+                color: '#005BB5',
+                padding: '6px 16px',
+                borderRadius: '9999px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                marginBottom: '12px',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                badge
+              </span>
+              <span>Langkah 2: Lengkapi Data Identitas Mitra</span>
+            </div>
+            <h2 style={{ margin: '0 0 8px', fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+              Formulir Pendaftaran Mitra
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5 }}>
+              Lengkapi identitas kemitraan resmi MapahTrip untuk pencairan komisi tunai dan verifikasi berkas visa Jepang.
+            </p>
+          </div>
+
+          {/* Success Banner Info */}
+          <div
+            style={{
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '24px',
+              fontSize: '0.84rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>
+                check_circle
+              </span>
+              <span>Kode Referral Unik Anda: <strong>{currentUser.affiliateCode}</strong></span>
+            </div>
+            <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 700 }}>Akun Aktif</span>
+          </div>
+
+          {/* Error Alert */}
+          {profileError && (
+            <div
+              style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #FECACA',
+                borderRadius: '12px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#991B1B',
+                fontSize: '0.84rem',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                error
+              </span>
+              <span>{profileError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {/* 1. Status Mitra */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Status Mitra <span style={{ color: '#EF4444' }}>*</span>
+              </label>
+              <select
+                value={profileStatus}
+                onChange={(e) => setProfileStatus(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: profileStatus ? '#0F172A' : '#94A3B8',
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                }}
+              >
+                <option value="">pilih status</option>
+                {STATUS_MITRA_LIST.map((st) => (
+                  <option key={st} value={st} style={{ color: '#0F172A' }}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Nama Lengkap & Lembaga */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Nama Lengkap <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="nama lengkap"
+                  value={profileNama}
+                  onChange={(e) => setProfileNama(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Lembaga
+                </label>
+                <input
+                  type="text"
+                  placeholder="nama sekolah/kampus/instansi"
+                  value={profileLembaga}
+                  onChange={(e) => setProfileLembaga(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 3. No Whatsapp & Provinsi */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  No Whatsapp <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="nomor dengan format 628xxxxxxxxxx"
+                  value={profileNoWa}
+                  onChange={(e) => setProfileNoWa(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Provinsi <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <select
+                  value={profileProvinsi}
+                  onChange={(e) => setProfileProvinsi(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #CBD5E1',
+                    backgroundColor: '#FFFFFF',
+                    color: profileProvinsi ? '#0F172A' : '#94A3B8',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="">Pilih Provinsi</option>
+                  {PROVINSI_LIST.map((prov) => (
+                    <option key={prov} value={prov} style={{ color: '#0F172A' }}>
+                      {prov}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 4. Alamat Tinggal */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Alamat <span style={{ color: '#EF4444' }}>*</span>
+              </label>
+              <textarea
+                placeholder="alamat tinggal"
+                value={profileAlamat}
+                onChange={(e) => setProfileAlamat(e.target.value)}
+                required
+                rows={2}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid #CBD5E1',
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {/* 5. Jenis Identitas & Nomor Identitas */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Jenis Identitas <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <select
+                  value={profileJenisIdentitas}
+                  onChange={(e) => setProfileJenisIdentitas(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #CBD5E1',
+                    backgroundColor: '#FFFFFF',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="">Pilih Jenis Identitas</option>
+                  {JENIS_IDENTITAS_LIST.map((idType) => (
+                    <option key={idType} value={idType}>
+                      {idType}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Nomor Identitas <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="nomor identitas"
+                  value={profileNomorIdentitas}
+                  onChange={(e) => setProfileNomorIdentitas(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 6. Ambil Foto Diri */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Ambil Foto Diri <span style={{ color: '#EF4444' }}>*</span>
+              </label>
+
+              <div
+                style={{
+                  border: '2px dashed #CBD5E1',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  backgroundColor: '#F8FAFC',
+                  textAlign: 'center',
+                }}
+              >
+                {/* Preview if photo exists */}
+                {profileFotoDiri ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '120px',
+                        height: '120px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        border: '3px solid #10B981',
+                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)',
+                      }}
+                    >
+                      <img
+                        src={profileFotoDiri}
+                        alt="Foto Diri Mitra"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontSize: '0.82rem', fontWeight: 700 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>
+                        verified
+                      </span>
+                      <span>Foto Diri Berhasil Diambil</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileFotoDiri(null);
+                          startCamera();
+                        }}
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          color: '#0284C7',
+                          border: '1px solid #CBD5E1',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Ambil Ulang
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProfileFotoDiri(null)}
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          color: '#EF4444',
+                          border: '1px solid #FECACA',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                ) : isCameraActive ? (
+                  /* Camera Video Feed Live */
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                    <div
+                      style={{
+                        width: '260px',
+                        height: '200px',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        backgroundColor: '#000000',
+                        position: 'relative',
+                      }}
+                    >
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={capturePhoto}
+                        style={{
+                          backgroundColor: '#10B981',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          padding: '9px 18px',
+                          borderRadius: '10px',
+                          fontSize: '0.84rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                          photo_camera
+                        </span>
+                        <span>Jepret Foto</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        style={{
+                          backgroundColor: '#E2E8F0',
+                          color: '#475569',
+                          border: 'none',
+                          padding: '9px 14px',
+                          borderRadius: '10px',
+                          fontSize: '0.84rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Camera / Upload buttons */
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '54px',
+                        height: '54px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(0, 91, 181, 0.08)',
+                        color: '#005BB5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
+                        account_circle
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '2px' }}>
+                        Ambil Foto Diri / Pasfoto
+                      </span>
+                      <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                        Buka kamera untuk foto langsung atau unggah foto dari perangkat Anda
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        style={{
+                          backgroundColor: '#005BB5',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          padding: '9px 18px',
+                          borderRadius: '10px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(0, 91, 181, 0.25)',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                          photo_camera
+                        </span>
+                        <span>Buka Kamera (Foto Diri)</span>
+                      </button>
+
+                      <label
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          color: '#334155',
+                          border: '1px solid #CBD5E1',
+                          padding: '9px 16px',
+                          borderRadius: '10px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B' }}>
+                          upload_file
+                        </span>
+                        <span>Pilih dari Galeri</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          onChange={handleFileUpload}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div style={{ marginTop: '12px' }}>
+              <button
+                type="submit"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#10B981',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  fontSize: '0.95rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+              >
+                <span>Simpan &amp; Buka Dashboard Mitra</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                  arrow_forward
+                </span>
+              </button>
+            </div>
+          </form>
+
+          {/* Footer note */}
+          <div style={{ textAlign: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #F1F5F9' }}>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#64748B',
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Keluar / Ganti Akun Lain
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
   // =========================================================================
   // VIEW 2: LOGGED-IN AFFILIATE PORTAL (DASHBOARD FOR THE PARTNER)
   // =========================================================================
@@ -1178,9 +1984,44 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               display: 'inline-block',
             }}
           />
-          <strong style={{ fontSize: '0.9rem', letterSpacing: '-0.01em' }}>
-            Portal Mitra: {currentUser.nama}
-          </strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {currentUser.fotoDiri ? (
+              <img
+                src={currentUser.fotoDiri}
+                alt="Foto Profil"
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #10B981' }}
+              />
+            ) : (
+              <span className="material-symbols-outlined" style={{ fontSize: '24px', color: '#94A3B8' }}>
+                account_circle
+              </span>
+            )}
+            <strong style={{ fontSize: '0.9rem', letterSpacing: '-0.01em' }}>
+              Portal Mitra: {currentUser.nama}
+            </strong>
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                color: '#FFFFFF',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                badge
+              </span>
+              <span>Data Saya</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -1871,6 +2712,158 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       )}
       {/* Modal Syarat & Kebijakan Kemitraan MapahTrip */}
       {renderTermsModal()}
+
+      {/* Modal Lihat / Edit Data Profil Mitra */}
+      {showProfileModal && (
+        <div
+          onClick={() => setShowProfileModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '560px',
+              width: '100%',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #E2E8F0',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#F8FAFC',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="material-symbols-outlined" style={{ color: '#005BB5', fontSize: '24px' }}>
+                  badge
+                </span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
+                    Data Identitas Mitra
+                  </h3>
+                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    Terverifikasi di Sistem MapahTrip
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                style={{
+                  background: '#E2E8F0',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#475569',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.85rem' }}>
+              {/* Photo & Basic Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+                {currentUser.fotoDiri ? (
+                  <img
+                    src={currentUser.fotoDiri}
+                    alt="Foto Profil"
+                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #10B981' }}
+                  />
+                ) : (
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#94A3B8' }}>account_circle</span>
+                  </div>
+                )}
+                <div>
+                  <strong style={{ fontSize: '1rem', color: '#0F172A', display: 'block' }}>{currentUser.nama}</strong>
+                  <span style={{ fontSize: '0.78rem', color: '#0284C7', fontWeight: 700, display: 'block' }}>
+                    Kode: {currentUser.affiliateCode}
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: '#166534', backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, marginTop: '4px', display: 'inline-block' }}>
+                    ✓ Mitra Terverifikasi
+                  </span>
+                </div>
+              </div>
+
+              {/* Data Table */}
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '10px 14px', padding: '6px 0' }}>
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Status Mitra:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.statusMitra || 'Mitra Lembaga'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Lembaga / Instansi:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.lembaga || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>No. WhatsApp:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.noWa || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Email Terdaftar:</span>
+                <span style={{ color: '#0F172A' }}>{currentUser.email}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Provinsi:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.provinsi || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Alamat:</span>
+                <span style={{ color: '#0F172A' }}>{currentUser.alamat || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Jenis Identitas:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.jenisIdentitas || 'KTP'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Nomor Identitas:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.nomorIdentitas || '-'}</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                style={{
+                  backgroundColor: '#0F172A',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '8px 20px',
+                  borderRadius: '8px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

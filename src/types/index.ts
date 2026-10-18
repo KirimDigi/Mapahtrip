@@ -91,4 +91,12 @@ export interface AffiliateUser {
   kategori?: string;
   password?: string;
   createdAt: string;
+  statusMitra?: string;
+  lembaga?: string;
+  alamat?: string;
+  provinsi?: string;
+  jenisIdentitas?: string;
+  nomorIdentitas?: string;
+  fotoDiri?: string;
+  isProfileComplete?: boolean;
 }
