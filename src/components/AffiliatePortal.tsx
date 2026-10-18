@@ -19,12 +19,14 @@ const PROVINSI_LIST = [
 ];
 
 const STATUS_MITRA_LIST = [
-  'LPK (Lembaga Pelatihan Kerja ke Jepang)',
-  'Lembaga Pendidikan / Kampus / Sekolah',
-  'Biro Perjalanan / Agen Tour & Travel',
-  'Alumni / Pekerja di Jepang (Tokutei Ginou / Magang)',
-  'Komunitas Jepang / Studi Luar Negeri',
-  'Konsultan / Agen Mandiri / Perorangan'
+  'Umum',
+  'Siswa / Mahasiswa',
+  'Guru / Pengajar / Dosen',
+  'LPK (Lembaga Pelatihan Kerja)',
+  'Alumni / Pekerja di Jepang',
+  'Biro Tour & Travel / Agensi',
+  'Orang Tua / Wali Siswa',
+  'Komunitas Jepang / Studi Luar Negeri'
 ];
 
 const JENIS_IDENTITAS_LIST = [
@@ -1534,7 +1536,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="nama sekolah/kampus/instansi"
+                  placeholder="nama sekolah/kampus/instansi (opsional jika Umum)"
                   value={profileLembaga}
                   onChange={(e) => setProfileLembaga(e.target.value)}
                   style={{
