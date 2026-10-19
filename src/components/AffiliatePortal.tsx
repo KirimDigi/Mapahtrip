@@ -218,7 +218,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       return;
     }
     if (cleanKtp.length !== 16) {
-      setProfileError(`Nomor KTP / NIK harus terdiri dari tepat 16 digit angka (saat ini ${cleanKtp.length} digit).`);
+      setProfileError(`Nomor KTP / NIK belum sesuai identitas (harus 16 digit angka, saat ini ${cleanKtp.length} digit).`);
       return;
     }
 
@@ -2824,21 +2824,47 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   placeholder="nomor identitas"
                   value={profileNomorIdentitas}
                   onChange={(e) => {
-                    setProfileNomorIdentitas(e.target.value.replace(/\D/g, '').slice(0, 16));
-                    if (profileError) setProfileError('');
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                    setProfileNomorIdentitas(val);
+                    if (val.length === 16 && profileError && (profileError.includes('KTP') || profileError.includes('NIK'))) {
+                      setProfileError('');
+                    }
                   }}
                   required
                   style={{
                     width: '100%',
                     padding: '12px 14px',
                     borderRadius: '12px',
-                    border: profileError && profileNomorIdentitas.length !== 16 ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
-                    backgroundColor: profileError && profileNomorIdentitas.length !== 16 ? '#FEF2F2' : '#FFFFFF',
+                    border: profileError && (profileError.includes('KTP') || profileError.includes('NIK')) ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
+                    backgroundColor: profileError && (profileError.includes('KTP') || profileError.includes('NIK')) ? '#FEF2F2' : '#FFFFFF',
                     fontSize: '0.88rem',
                     outline: 'none',
                     boxSizing: 'border-box',
+                    transition: 'all 0.2s ease',
                   }}
                 />
+                {profileError && (profileError.includes('KTP') || profileError.includes('NIK')) && (
+                  <div
+                    style={{
+                      marginTop: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: '#DC2626',
+                      fontSize: '0.80rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#DC2626' }}>
+                      error
+                    </span>
+                    <span>
+                      {profileNomorIdentitas.length === 0
+                        ? 'Belum sesuai identitas KTP. Harap isi dengan 16 digit nomor KTP.'
+                        : `Belum sesuai identitas KTP (baru ${profileNomorIdentitas.length}/16 digit). Harap isi dengan 16 digit nomor KTP.`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
