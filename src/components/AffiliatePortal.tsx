@@ -832,15 +832,16 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             </div>
 
             {/* Tanda Tangan Pengesahan */}
-            <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Ditetapkan di: <strong>Jakarta</strong></div>
-                <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Berlaku sejak: <strong>1 Januari 2026</strong></div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A' }}>Direksi MapahTrip Digital Indonesia</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 900, color: '#10B981', margin: '4px 0 2px' }}>Divisi Kemitraan &amp; Layanan Visa</div>
-                <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Ttd. Manajemen Resmi MapahTrip</div>
+            <div style={{ marginTop: '16px', padding: '18px 20px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ textAlign: 'right', minWidth: '240px' }}>
+                <div style={{ fontSize: '0.74rem', color: '#64748B', marginBottom: '2px' }}>Ditetapkan di: <strong>Jakarta</strong></div>
+                <div style={{ fontSize: '0.74rem', color: '#64748B', marginBottom: '14px' }}>Berlaku sejak: <strong>1 Januari 2026</strong></div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A' }}>MapahTrip Digital Indonesia</div>
+                <div style={{ fontSize: '0.72rem', color: '#64748B', marginBottom: '36px' }}>Founder &amp; Direktur</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 900, color: '#0F172A', textDecoration: 'underline', letterSpacing: '0.04em' }}>
+                  ELDELIDIA
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748B' }}>Founder &amp; Direktur MapahTrip</div>
               </div>
             </div>
           </div>
@@ -862,27 +863,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               Dengan mendaftar sebagai mitra, Anda menyepakati seluruh pasal di atas.
             </span>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  window.print();
-                }}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#475569',
-                  border: '1px solid #CBD5E1',
-                  padding: '9px 16px',
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                🖨️ Cetak / PDF
-              </button>
               <button
                 type="button"
                 onClick={() => {
