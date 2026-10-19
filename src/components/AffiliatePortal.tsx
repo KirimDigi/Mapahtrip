@@ -110,6 +110,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [showNotRegisteredToast, setShowNotRegisteredToast] = useState(false);
   const toastTimerRef = React.useRef<any>(null);
   const [profileError, setProfileError] = useState('');
+  const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [registrationSuccessData, setRegistrationSuccessData] = useState<{
     code: string;
@@ -1787,14 +1788,177 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
           {/* Konten Utama Kanan (Sesuai Screenshot NFIC) */}
           <main style={{ flex: 1, padding: '36px 48px', overflowY: 'auto' }}>
-            {/* Header Judul */}
-            <div style={{ marginBottom: '22px' }}>
-              <h1 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 700, color: '#1E293B' }}>
-                MapahTrip Partner Club (MPC)
-              </h1>
-              <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748B' }}>
-                Ajak siswa LPK atau pemohon buat visa Jepang di MapahTrip, nikmati keuntungan komisi lebih besar.
-              </p>
+            {/* Header Judul & Notifikasi di Ujung Kanan */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px' }}>
+              <div>
+                <h1 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 700, color: '#1E293B' }}>
+                  MapahTrip Partner Club (MPC)
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748B' }}>
+                  Ajak siswa LPK atau pemohon buat visa Jepang di MapahTrip, nikmati keuntungan komisi lebih besar.
+                </p>
+              </div>
+
+              {/* Notifikasi di Ujung Kanan */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowNotifPopover(!showNotifPopover)}
+                  title="Notifikasi"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                    border: '1px solid #E2E8F0',
+                    backgroundColor: '#FFFFFF',
+                    color: '#475569',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F8FAFC';
+                    e.currentTarget.style.borderColor = '#CBD5E1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FFFFFF';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                    notifications
+                  </span>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '9px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: '#EF4444',
+                      border: '1.5px solid #FFFFFF',
+                    }}
+                  />
+                </button>
+
+                {/* Popover Dropdown Notifikasi */}
+                {showNotifPopover && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '48px',
+                      right: 0,
+                      width: '320px',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '16px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                      border: '1px solid #E2E8F0',
+                      zIndex: 100,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #F1F5F9',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>
+                          notifications_active
+                        </span>
+                        <strong style={{ fontSize: '0.88rem', color: '#0F172A' }}>Notifikasi</strong>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          backgroundColor: '#FEF2F2',
+                          color: '#EF4444',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        1 Baru
+                      </span>
+                    </div>
+
+                    <div style={{ padding: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                      <div
+                        style={{
+                          padding: '12px',
+                          borderRadius: '10px',
+                          backgroundColor: '#F8FAFC',
+                          display: 'flex',
+                          gap: '12px',
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#E0F2FE',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#0284C7',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                            campaign
+                          </span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: '0 0 3px', fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                            Selamat Datang di MPC!
+                          </p>
+                          <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748B', lineHeight: 1.4 }}>
+                            Silakan klik "Daftar Sekarang" untuk mendapatkan kode referral resmi dan aktivasi pencairan insentif.
+                          </p>
+                          <span style={{ fontSize: '0.7rem', color: '#94A3B8', marginTop: '6px', display: 'block' }}>
+                            Baru saja
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px 16px',
+                        borderTop: '1px solid #F1F5F9',
+                        backgroundColor: '#FAFAFA',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setShowNotifPopover(false)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748B',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Sub-Tabs: Informasi vs Insentif (Gaya NFIC) */}
