@@ -3197,7 +3197,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 }}
               >
                 Punya Rekan atau Siswa LPK?<br />
-                <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Tunai Resmi.</span>
+                <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Resmi via Transfer.</span>
               </h3>
 
               {/* Subtitle */}
@@ -3209,7 +3209,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   lineHeight: 1.5,
                 }}
               >
-                Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi tunai <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5', whiteSpace: 'nowrap' }}>Rp 100.000</strong> per visa terbit.
+                Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi transfer <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5', whiteSpace: 'nowrap' }}>Rp 100.000</strong> per visa terbit.
               </p>
 
               {/* Live Indicator */}

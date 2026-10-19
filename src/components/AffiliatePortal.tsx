@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Pengajuan, AffiliateUser } from '../types';
+import logoPutih from '../assets/mapahtrip_logo_putih.png';
 
 interface AffiliatePortalProps {
   pengajuanList: Pengajuan[];
@@ -29,9 +30,24 @@ const STATUS_MITRA_LIST = [
 ];
 
 const JENIS_IDENTITAS_LIST = [
-  'KTP (Kartu Tanda Penduduk)',
-  'Paspor RI',
-  'SIM (Surat Izin Mengemudi)'
+  'KTP (Kartu Tanda Penduduk)'
+];
+
+const BANK_EWALLET_LIST = [
+  'Bank Central Asia (BCA)',
+  'Bank Mandiri',
+  'Bank Negara Indonesia (BNI)',
+  'Bank Rakyat Indonesia (BRI)',
+  'Bank Syariah Indonesia (BSI)',
+  'CIMB Niaga',
+  'Bank Permata',
+  'SeaBank',
+  'Bank Jago',
+  'GoPay',
+  'OVO',
+  'DANA',
+  'ShopeePay',
+  'Bank Lainnya',
 ];
 
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
@@ -85,18 +101,30 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [profileProvinsi, setProfileProvinsi] = useState('');
   const [profileJenisIdentitas, setProfileJenisIdentitas] = useState('KTP (Kartu Tanda Penduduk)');
   const [profileNomorIdentitas, setProfileNomorIdentitas] = useState('');
-  const [profileFotoDiri, setProfileFotoDiri] = useState<string | null>(null);
+  const [profileAkunIg, setProfileAkunIg] = useState('');
+  const [profileFollowerIg, setProfileFollowerIg] = useState('');
+  const [bankNama, setBankNama] = useState(currentUser?.namaBank || '');
+  const [bankNomor, setBankNomor] = useState(currentUser?.nomorRekening || '');
+  const [bankAtasNama, setBankAtasNama] = useState(currentUser?.atasNamaRekening || '');
+  const [bankSavedMsg, setBankSavedMsg] = useState('');
+  const [showNotRegisteredToast, setShowNotRegisteredToast] = useState(false);
+  const toastTimerRef = React.useRef<any>(null);
   const [profileError, setProfileError] = useState('');
-  const [isCameraActive, setIsCameraActive] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [registrationSuccessData, setRegistrationSuccessData] = useState<{
+    code: string;
+    nama: string;
+    ktp: string;
+    status: string;
+    lembaga?: string;
+    akunIg?: string;
+  } | null>(null);
 
   // NFIC-style Menu / Tab State for Partner Onboarding
-  const [onboardingView, setOnboardingView] = useState<'menu' | 'form'>('menu');
+  const [onboardingView, setOnboardingView] = useState<'menu' | 'form' | 'dashboard'>('menu');
   const [partnerSubTab, setPartnerSubTab] = useState<'informasi' | 'insentif'>('informasi');
 
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const streamRef = React.useRef<MediaStream | null>(null);
-
+  
   // Sync profile form when user changes or logs in
   useEffect(() => {
     if (currentUser) {
@@ -108,74 +136,56 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       setProfileProvinsi(currentUser.provinsi || '');
       setProfileJenisIdentitas(currentUser.jenisIdentitas || 'KTP (Kartu Tanda Penduduk)');
       setProfileNomorIdentitas(currentUser.nomorIdentitas || '');
-      setProfileFotoDiri(currentUser.fotoDiri || null);
+      setProfileAkunIg(currentUser.akunIg || '');
+      setProfileFollowerIg(currentUser.followerIg || '');
+      setBankNama(currentUser.namaBank || '');
+      setBankNomor(currentUser.nomorRekening || '');
+      setBankAtasNama(currentUser.atasNamaRekening || currentUser.nama || '');
     }
   }, [currentUser]);
 
-  // Clean up camera stream on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
+
+  // Handle Save Bank / E-Wallet for commission disbursement
+  const handleSaveBank = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (!bankNama) {
+      alert('Silakan pilih bank atau dompet digital terlebih dahulu.');
+      return;
+    }
+    if (!bankNomor.trim()) {
+      alert('Nomor rekening atau nomor akun e-wallet wajib diisi.');
+      return;
+    }
+    if (!bankAtasNama.trim()) {
+      alert('Nama pemilik rekening (atas nama) wajib diisi.');
+      return;
+    }
+
+    const updatedUser: AffiliateUser = {
+      ...currentUser,
+      namaBank: bankNama,
+      nomorRekening: bankNomor.trim(),
+      atasNamaRekening: bankAtasNama.trim(),
     };
-  }, []);
 
-  const startCamera = async () => {
     try {
-      setProfileError('');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+      const existingUsersStr = localStorage.getItem('mapahtrip_all_affiliates');
+      const allUsers: AffiliateUser[] = existingUsersStr ? JSON.parse(existingUsersStr) : [];
+      const userIdx = allUsers.findIndex((u) => u.id === currentUser.id);
+      if (userIdx !== -1) {
+        allUsers[userIdx] = updatedUser;
+      } else {
+        allUsers.push(updatedUser);
       }
-      setIsCameraActive(true);
+      localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(allUsers));
     } catch {
-      setProfileError('Tidak dapat mengakses kamera perangkat. Silakan gunakan tombol "Unggah File Foto Diri" dari galeri.');
-      setIsCameraActive(false);
+      // ignore
     }
-  };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    setIsCameraActive(false);
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        setProfileFotoDiri(dataUrl);
-        stopCamera();
-      }
-    }
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setProfileError('Ukuran file foto maksimal 5MB.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileFotoDiri(reader.result as string);
-        setProfileError('');
-      };
-      reader.readAsDataURL(file);
-    }
+    setCurrentUser(updatedUser);
+    setBankSavedMsg('✓ Rekening pencairan insentif berhasil disimpan!');
+    setTimeout(() => setBankSavedMsg(''), 4000);
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -202,12 +212,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       setProfileError('Silakan pilih provinsi tinggal Anda.');
       return;
     }
-    if (!profileNomorIdentitas.trim()) {
-      setProfileError('Nomor identitas wajib diisi.');
+    const cleanKtp = profileNomorIdentitas.replace(/\D/g, '');
+    if (!cleanKtp) {
+      setProfileError('Nomor KTP / NIK wajib diisi.');
       return;
     }
-    if (!profileFotoDiri) {
-      setProfileError('Silakan ambil atau unggah foto diri Anda.');
+    if (cleanKtp.length !== 16) {
+      setProfileError(`Nomor KTP / NIK harus terdiri dari tepat 16 digit angka (saat ini ${cleanKtp.length} digit).`);
       return;
     }
 
@@ -278,9 +289,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       noWa: cleanWa,
       alamat: profileAlamat.trim(),
       provinsi: profileProvinsi,
-      jenisIdentitas: profileJenisIdentitas,
-      nomorIdentitas: profileNomorIdentitas.trim(),
-      fotoDiri: profileFotoDiri,
+      jenisIdentitas: 'KTP (Kartu Tanda Penduduk)',
+      nomorIdentitas: cleanKtp,
+      akunIg: profileAkunIg.trim(),
+      followerIg: profileFollowerIg.trim(),
       affiliateCode: activeCode,
       isProfileComplete: true,
     };
@@ -301,8 +313,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     }
 
     setCurrentUser(updatedUser);
-    stopCamera();
-    setShowProfileModal(false);
+        setShowProfileModal(false);
   };
 
 
@@ -621,7 +632,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <li>Bahwa Divisi Kemitraan &amp; Operasional Visa MapahTrip merupakan unit kerja strategis dalam menyediakan akses pengurusan visa Jepang yang resmi, cepat, dan transparan.</li>
                 <li>Bahwa tingginya kebutuhan pengurusan visa Jepang (Magang/SSW Tokutei Ginou, Bisnis, Pelajar, dan Wisata) perlu direspons dengan skema kemitraan yang saling menguntungkan.</li>
-                <li>Bahwa ketentuan program kemitraan terbaru MapahTrip Partner Club (MPC) telah diperhitungkan secara cermat untuk memberikan insentif tunai yang transparan bagi mitra.</li>
+                <li>Bahwa ketentuan program kemitraan terbaru MapahTrip Partner Club (MPC) telah diperhitungkan secara cermat untuk memberikan Insentif Transfer yang transparan bagi mitra.</li>
                 <li>Bahwa sehubungan dengan hal tersebut di atas, perlu dibuatkan dan ditetapkan Peraturan Direksi.</li>
               </ol>
             </div>
@@ -632,9 +643,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 MENGINGAT :
               </strong>
               <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <li>Akta Pendirian Perusahaan MapahTrip Tahun 2024 tentang Layanan Pengurusan dan Pendampingan Dokumen Perjalanan.</li>
+                <li>Akta Pendirian Perusahaan MapahTrip Tahun 2026 tentang Layanan Pengurusan dan Pendampingan Dokumen Perjalanan.</li>
                 <li>Standar Operasional Prosedur (SOP) Kedutaan Besar Jepang, Konsulat Jenderal Jepang di Indonesia, dan VFS JVAC (Japan Visa Application Centre).</li>
-                <li>Peraturan Perusahaan MapahTrip Tahun 2024.</li>
+                <li>Peraturan Perusahaan MapahTrip Tahun 2026.</li>
               </ol>
             </div>
 
@@ -676,7 +687,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 PASAL 2 : DEFINISI PROGRAM
               </strong>
               <p style={{ margin: 0, color: '#475569' }}>
-                <strong>MapahTrip Partner Club (MPC)</strong> adalah program kemitraan berbasis afiliasi yang dikembangkan oleh MapahTrip untuk memperluas jangkauan layanan visa Jepang melalui para mitra (LPK, biro travel, alumni magang/pekerja di Jepang, sekolah bahasa, konsultan, maupun masyarakat umum). Program ini memberikan kesempatan bagi para mitra untuk memperoleh komisi tunai resmi atas keberhasilan mereferensikan pemohon visa Jepang menggunakan kode referral khusus.
+                <strong>MapahTrip Partner Club (MPC)</strong> adalah program kemitraan berbasis afiliasi yang dikembangkan oleh MapahTrip untuk memperluas jangkauan layanan visa Jepang melalui para mitra (LPK, biro travel, alumni magang/pekerja di Jepang, sekolah bahasa, konsultan, maupun masyarakat umum). Program ini memberikan kesempatan bagi para mitra untuk memperoleh komisi transfer resmi atas keberhasilan mereferensikan pemohon visa Jepang menggunakan kode referral khusus.
               </p>
             </div>
 
@@ -687,7 +698,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </strong>
               <ol style={{ margin: 0, paddingLeft: '18px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <li>Meningkatkan kemudahan akses pengurusan berkas visa Jepang yang tepat, cepat, dan sesuai regulasi Kedutaan/JVAC.</li>
-                <li>Menyediakan peluang bagi Mitra MPC untuk mendapatkan penghasilan tambahan (komisi tunai) tanpa modal dan tanpa pungutan biaya.</li>
+                <li>Menyediakan peluang bagi Mitra MPC untuk mendapatkan penghasilan tambahan (komisi transfer) tanpa modal dan tanpa pungutan biaya.</li>
                 <li>Membangun ekosistem kemitraan yang solid bersama LPK, biro tour &amp; travel, dan komunitas alumni Jepang di seluruh Indonesia.</li>
                 <li>Membangun hubungan profesional jangka panjang yang saling menguntungkan dan berkelanjutan.</li>
               </ol>
@@ -733,9 +744,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     <li>Mendapat Kode Referral resmi berformat unik (<code>MPH...</code>).</li>
                     <li>Mendapat flyer &amp; materi informasi persyaratan visa Jepang resmi.</li>
                     <li>Mendapat edukasi dan konsultasi berkas visa Jepang.</li>
-                    <li>Mendapat komisi tunai Rp 100.000 per visa terbit/selesai.</li>
+                    <li>Mendapat komisi transfer Rp 100.000 per visa terbit/selesai.</li>
                     <li>Mendapat akses monitoring status berkas pemohon secara transparan.</li>
-                    <li>Mendapat bukti transfer pencairan komisi tunai.</li>
+                    <li>Mendapat bukti transfer pencairan komisi transfer.</li>
                     <li>Mendapat jaminan perlindungan dan kerahasiaan data pribadi.</li>
                   </ul>
                 </div>
@@ -758,7 +769,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </strong>
               <div style={{ backgroundColor: '#ECFDF5', padding: '12px 16px', borderRadius: '10px', border: '1px solid #10B981', marginBottom: '8px' }}>
                 <div style={{ fontWeight: 800, color: '#047857', fontSize: '0.92rem' }}>
-                  Komisi Tunai Flat: Rp 100.000 / Visa Terbit
+                  komisi transfer Flat: Rp 100.000 / Visa Terbit
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#065F46', marginTop: '2px' }}>
                   Berlaku untuk seluruh kategori visa Jepang: Magang/SSW Tokutei Ginou, Visa Kerja, Visa Bisnis/Seminar, Visa Pelajar, dan Visa Turis Single/Multiple Entry.
@@ -1597,7 +1608,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   // Menampilkan landing page menu Informasi/Insentif terlebih dahulu,
   // lalu klik "Daftar Sekarang" untuk membuka formulir pendaftaran.
   // =========================================================================
-  if (currentUser && !currentUser.isProfileComplete) {
+  if (currentUser && (!currentUser.isProfileComplete || onboardingView === 'menu')) {
     if (onboardingView === 'menu') {
       return (
         <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', display: 'flex', color: '#0F172A', fontFamily: 'inherit' }}>
@@ -1616,42 +1627,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           >
             <div>
               {/* Brand Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '32px', paddingLeft: '8px' }}>
-                <div
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    backgroundColor: '#005BB5',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 900,
-                    fontSize: '16px',
-                  }}
-                >
-                  ⛩️
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px', paddingLeft: '8px' }}>
+                <img
+                  src={logoPutih}
+                  alt="MapahTrip Logo"
+                  style={{ height: '36px', width: 'auto', objectFit: 'contain' }}
+                />
                 <div>
                   <strong style={{ fontSize: '1.05rem', color: '#0F172A', display: 'block', lineHeight: 1.1 }}>
                     MapahTrip
                   </strong>
                   <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Partner Portal</span>
                 </div>
-                <span
-                  style={{
-                    backgroundColor: '#0284C7',
-                    color: '#FFFFFF',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    marginLeft: 'auto',
-                  }}
-                >
-                  v3
-                </span>
               </div>
 
               {/* Nav Category 1: Platform User */}
@@ -1843,12 +1830,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           {/* Konten Utama Kanan (Sesuai Screenshot NFIC) */}
           <main style={{ flex: 1, padding: '36px 48px', overflowY: 'auto' }}>
             {/* Header Judul */}
-            <div style={{ marginBottom: '28px' }}>
-              <h1 style={{ margin: '0 0 6px', fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+            <div style={{ marginBottom: '22px' }}>
+              <h1 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 700, color: '#1E293B' }}>
                 MapahTrip Partner Club (MPC)
               </h1>
-              <p style={{ margin: 0, fontSize: '0.92rem', color: '#64748B' }}>
-                Ajak teman, siswa LPK, atau rombongan buat visa Jepang di MapahTrip bisa Cuan Ratusan Ribu (Rp 100.000 / visa terbit).
+              <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748B' }}>
+                Ajak siswa LPK atau pemohon buat visa Jepang di MapahTrip, nikmati keuntungan komisi lebih besar.
               </p>
             </div>
 
@@ -1887,7 +1874,17 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setPartnerSubTab('insentif')}
+                onClick={() => {
+                  if (!currentUser?.isProfileComplete) {
+                    setShowNotRegisteredToast(true);
+                    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+                    toastTimerRef.current = setTimeout(() => {
+                      setShowNotRegisteredToast(false);
+                    }, 4000);
+                    return;
+                  }
+                  setPartnerSubTab('insentif');
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1921,11 +1918,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             {partnerSubTab === 'informasi' && (
               <div style={{ maxWidth: '820px' }}>
                 <div style={{ marginBottom: '16px' }}>
-                  <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
-                    Informasi Program
+                  <h2 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 700, color: '#1E293B' }}>
+                    Informasi
                   </h2>
-                  <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B' }}>
-                    Daftar jadi Mitra MapahTrip, dan dapatkan komisi tunai resmi untuk setiap visa yang terbit.
+                  <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748B' }}>
+                    Daftar jadi Mitra MPC, dan dapatkan insentifnya
                   </p>
                 </div>
 
@@ -1941,7 +1938,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   }}
                 >
                   <p style={{ margin: '0 0 20px', fontSize: '0.88rem', color: '#334155', lineHeight: 1.7 }}>
-                    <strong>MapahTrip Partner Club (MPC)</strong> adalah program kemitraan berbasis referral resmi yang dikembangkan oleh MapahTrip untuk memperluas jangkauan layanan visa Jepang melalui para mitra yang terdiri dari LPK (Lembaga Pelatihan Kerja), biro travel, alumni magang/pekerja di Jepang, sekolah bahasa, maupun masyarakat umum. Program ini memberikan kesempatan bagi para mitra untuk memperoleh komisi tunai tanpa modal dan tanpa biaya pendaftaran, hanya dengan membagikan kode referral khusus kepada pemohon visa Jepang.
+                    <strong>MapahTrip Partner Club (MPC)</strong> adalah program kemitraan berbasis referral resmi yang dikembangkan oleh MapahTrip untuk memperluas jangkauan layanan visa Jepang melalui para mitra yang terdiri dari LPK (Lembaga Pelatihan Kerja), biro travel, alumni magang/pekerja di Jepang, sekolah bahasa, maupun masyarakat umum. Program ini memberikan kesempatan bagi para mitra untuk memperoleh komisi transfer tanpa modal dan tanpa biaya pendaftaran, hanya dengan membagikan kode referral khusus kepada pemohon visa Jepang.
                   </p>
 
                   <button
@@ -2094,6 +2091,318 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   </div>
                 </div>
 
+                {/* SECTION: PENGISIAN BANK / E-WALLET PENCAIRAN INSENTIF */}
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: currentUser?.isProfileComplete ? '2px solid #10B981' : '1.5px dashed #CBD5E1',
+                    borderRadius: '18px',
+                    padding: '24px',
+                    marginBottom: '26px',
+                    boxShadow: currentUser?.isProfileComplete
+                      ? '0 6px 20px rgba(16, 185, 129, 0.08)'
+                      : '0 2px 8px rgba(0,0,0,0.02)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '12px',
+                          backgroundColor: currentUser?.isProfileComplete ? '#DCFCE7' : '#F1F5F9',
+                          color: currentUser?.isProfileComplete ? '#16A34A' : '#64748B',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                          account_balance_wallet
+                        </span>
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
+                          Rekening Bank &amp; E-Wallet Pencairan Insentif
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                          Rekening tujuan transfer komisi Rp 100.000 / visa terbit.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    {currentUser?.isProfileComplete ? (
+                      <span
+                        style={{
+                          backgroundColor: '#DCFCE7',
+                          color: '#15803D',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          border: '1px solid #86EFAC',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                        Formulir Terverifikasi &bull; Siap Diisi
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          backgroundColor: '#FEE2E2',
+                          color: '#B91C1C',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          border: '1px solid #FCA5A5',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>lock</span>
+                        Terkunci &bull; Belum Isi Formulir
+                      </span>
+                    )}
+                  </div>
+
+                  {/* KONDISI 1: JIKA BELUM ISI FORMULIR MITRA */}
+                  {!currentUser?.isProfileComplete ? (
+                    <div>
+                      {/* Alert Box Terkunci */}
+                      <div
+                        style={{
+                          backgroundColor: '#FEF2F2',
+                          border: '1px solid #FECACA',
+                          borderRadius: '12px',
+                          padding: '14px 16px',
+                          marginBottom: '16px',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '24px', color: '#EF4444', flexShrink: 0, marginTop: '2px' }}>
+                          lock
+                        </span>
+                        <div>
+                          <strong style={{ fontSize: '0.86rem', color: '#991B1B', display: 'block', marginBottom: '2px' }}>
+                            Pengisian Rekening Masih Terkunci
+                          </strong>
+                          <p style={{ margin: 0, fontSize: '0.8rem', color: '#7F1D1D', lineHeight: 1.45 }}>
+                            Pengisian rekening bank atau e-wallet baru bisa dilakukan setelah Anda melengkapi <strong>Formulir Pendaftaran Mitra</strong> &amp; memperoleh <strong>Kode Referral</strong> resmi.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Form Disabled / Read-Only Display Preview */}
+                      <div style={{ opacity: 0.5, pointerEvents: 'none', filter: 'grayscale(30%)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
+                              Pilihan Bank / Dompet Digital
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value="Contoh: BCA / Mandiri / BNI / GoPay / DANA"
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9', fontSize: '0.84rem', color: '#94A3B8' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
+                              Nomor Rekening / No. HP E-Wallet
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value="Contoh: 1234567890 / 0812xxxx"
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9', fontSize: '0.84rem', color: '#94A3B8' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
+                              Nama Pemilik Rekening (Atas Nama)
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value="Contoh: Sesuai Buku Tabungan / Akun E-Wallet"
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9', fontSize: '0.84rem', color: '#94A3B8' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tombol Ajakan: Isi Formulir Terlebih Dahulu */}
+                      <div style={{ marginTop: '14px', textAlign: 'left' }}>
+                        <button
+                          type="button"
+                          onClick={() => setOnboardingView('form')}
+                          style={{
+                            backgroundColor: '#0F172A',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            padding: '11px 20px',
+                            borderRadius: '10px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#38BDF8' }}>
+                            edit_document
+                          </span>
+                          <span>Isi Formulir Pendaftaran Terlebih Dahulu ➔</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* KONDISI 2: JIKA SUDAH ISI FORMULIR MITRA (AKTIF & BISA DIISI) */
+                    <form onSubmit={handleSaveBank}>
+                      {bankSavedMsg && (
+                        <div
+                          style={{
+                            backgroundColor: '#DCFCE7',
+                            border: '1px solid #86EFAC',
+                            color: '#15803D',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            marginBottom: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+                          <span>{bankSavedMsg}</span>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            Pilihan Bank / Dompet Digital <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          <select
+                            value={bankNama}
+                            onChange={(e) => setBankNama(e.target.value)}
+                            required
+                            style={{
+                              width: '100%',
+                              padding: '11px 12px',
+                              borderRadius: '10px',
+                              border: '1px solid #CBD5E1',
+                              backgroundColor: '#FFFFFF',
+                              fontSize: '0.86rem',
+                              outline: 'none',
+                              color: '#0F172A',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <option value="">-- Pilih Bank / E-Wallet --</option>
+                            {BANK_EWALLET_LIST.map((b) => (
+                              <option key={b} value={b}>
+                                {b}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            Nomor Rekening / No. HP E-Wallet <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="contoh: 1234567890 / 0812xxxx"
+                            value={bankNomor}
+                            onChange={(e) => setBankNomor(e.target.value.replace(/[^0-9]/g, ''))}
+                            required
+                            style={{
+                              width: '100%',
+                              padding: '11px 12px',
+                              borderRadius: '10px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.86rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              fontFamily: 'monospace',
+                              fontWeight: 600,
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            Nama Pemilik Rekening (Atas Nama) <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="nama sesuai buku tabungan / e-wallet"
+                            value={bankAtasNama}
+                            onChange={(e) => setBankAtasNama(e.target.value)}
+                            required
+                            style={{
+                              width: '100%',
+                              padding: '11px 12px',
+                              borderRadius: '10px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.86rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              fontWeight: 600,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                          💡 Pastikan nama pemilik rekening sesuai dengan identitas terdaftar agar proses transfer komisi tidak terkendala.
+                        </span>
+                        <button
+                          type="submit"
+                          style={{
+                            backgroundColor: '#10B981',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            padding: '10px 20px',
+                            borderRadius: '10px',
+                            fontSize: '0.86rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                            save
+                          </span>
+                          <span>Simpan Rekening Pencairan</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+
                 {/* Format Kode Referral Info */}
                 <div style={{
                   backgroundColor: '#F8FAFC',
@@ -2145,6 +2454,55 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </div>
             )}
           </main>
+
+          {/* Toast Notification Oranye */}
+
+          {/* Toast Notification Oranye: Belum Mendaftar MPC (Persis Gaya NFIC) */}
+          {showNotRegisteredToast && (
+            <div
+              style={{
+                position: 'fixed',
+                top: '28px',
+                right: '32px',
+                zIndex: 9999999,
+                backgroundColor: '#EA580C',
+                color: '#FFFFFF',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                boxShadow: '0 8px 30px rgba(234, 88, 12, 0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                letterSpacing: '0.01em',
+                pointerEvents: 'auto',
+                animation: 'fadeIn 0.2s ease-out',
+              }}
+            >
+              <span>Maaf, belum melakukan pendaftaran MPC</span>
+              <button
+                type="button"
+                onClick={() => setShowNotRegisteredToast(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  lineHeight: 1,
+                  opacity: 0.9,
+                }}
+                title="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Modal Syarat & Ketentuan */}
           {renderTermsModal()}
@@ -2227,7 +2585,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               Formulir Pendaftaran Mitra
             </h2>
             <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5 }}>
-              Lengkapi identitas kemitraan resmi MapahTrip untuk pencairan komisi tunai dan penerbitan Kode Referral unik Anda.
+              Lengkapi identitas kemitraan resmi MapahTrip untuk pencairan komisi transfer dan penerbitan Kode Referral unik Anda.
             </p>
           </div>
 
@@ -2498,259 +2856,69 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </div>
             </div>
 
-            {/* 6. Ambil Foto Diri */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Ambil Foto Diri <span style={{ color: '#EF4444' }}>*</span>
-              </label>
-
-              <div
-                style={{
-                  border: '2px dashed #CBD5E1',
-                  borderRadius: '16px',
-                  padding: '20px',
-                  backgroundColor: '#F8FAFC',
-                  textAlign: 'center',
-                }}
-              >
-                {/* Preview if photo exists */}
-                {profileFotoDiri ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '120px',
-                        height: '120px',
-                        borderRadius: '50%',
-                        overflow: 'hidden',
-                        border: '3px solid #10B981',
-                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)',
-                      }}
-                    >
-                      <img
-                        src={profileFotoDiri}
-                        alt="Foto Diri Mitra"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontSize: '0.82rem', fontWeight: 700 }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>
-                        verified
-                      </span>
-                      <span>Foto Diri Berhasil Diambil</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileFotoDiri(null);
-                          startCamera();
-                        }}
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          color: '#0284C7',
-                          border: '1px solid #CBD5E1',
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Ambil Ulang
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setProfileFotoDiri(null)}
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          color: '#EF4444',
-                          border: '1px solid #FECACA',
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                ) : isCameraActive ? (
-                  /* Camera Video Feed Live */
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                    <div
-                      style={{
-                        width: '260px',
-                        height: '200px',
-                        borderRadius: '16px',
-                        overflow: 'hidden',
-                        backgroundColor: '#000000',
-                        position: 'relative',
-                      }}
-                    >
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        type="button"
-                        onClick={capturePhoto}
-                        style={{
-                          backgroundColor: '#10B981',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          padding: '9px 18px',
-                          borderRadius: '10px',
-                          fontSize: '0.84rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                          photo_camera
-                        </span>
-                        <span>Jepret Foto</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={stopCamera}
-                        style={{
-                          backgroundColor: '#E2E8F0',
-                          color: '#475569',
-                          border: 'none',
-                          padding: '9px 14px',
-                          borderRadius: '10px',
-                          fontSize: '0.84rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Batal
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* Camera / Upload buttons */
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '54px',
-                        height: '54px',
-                        borderRadius: '50%',
-                        backgroundColor: 'rgba(0, 91, 181, 0.08)',
-                        color: '#005BB5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
-                        account_circle
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '2px' }}>
-                        Ambil Foto Diri / Pasfoto
-                      </span>
-                      <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
-                        Buka kamera untuk foto langsung atau unggah foto dari perangkat Anda
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '6px' }}>
-                      <button
-                        type="button"
-                        onClick={startCamera}
-                        style={{
-                          backgroundColor: '#005BB5',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          padding: '9px 18px',
-                          borderRadius: '10px',
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(0, 91, 181, 0.25)',
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                          photo_camera
-                        </span>
-                        <span>Buka Kamera (Foto Diri)</span>
-                      </button>
-
-                      <label
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          color: '#334155',
-                          border: '1px solid #CBD5E1',
-                          padding: '9px 16px',
-                          borderRadius: '10px',
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B' }}>
-                          upload_file
-                        </span>
-                        <span>Pilih dari Galeri</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="user"
-                          onChange={handleFileUpload}
-                          style={{ display: 'none' }}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <div style={{ marginTop: '12px' }}>
+            {/* Submit Button with Strict KTP Lock */}
+            <div style={{ marginTop: '16px' }}>
+              {profileNomorIdentitas.length !== 16 && (
+                <div
+                  style={{
+                    marginBottom: '10px',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    color: '#991B1B',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: 700,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EF4444' }}>
+                    lock
+                  </span>
+                  <span>
+                    {profileNomorIdentitas.length === 0
+                      ? 'Harap isi 16 digit nomor KTP untuk dapat mendaftar.'
+                      : `Nomor KTP belum 16 digit (${profileNomorIdentitas.length}/16). Tombol daftar terkunci.`}
+                  </span>
+                </div>
+              )}
               <button
                 type="submit"
+                disabled={profileNomorIdentitas.length !== 16}
                 style={{
                   width: '100%',
-                  backgroundColor: '#10B981',
+                  backgroundColor: profileNomorIdentitas.length === 16 ? '#10B981' : '#94A3B8',
                   color: '#FFFFFF',
                   border: 'none',
                   padding: '14px',
                   borderRadius: '14px',
                   fontSize: '0.95rem',
                   fontWeight: 800,
-                  cursor: 'pointer',
+                  cursor: profileNomorIdentitas.length === 16 ? 'pointer' : 'not-allowed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                  boxShadow: profileNomorIdentitas.length === 16 ? '0 4px 16px rgba(16, 185, 129, 0.35)' : 'none',
                   transition: 'all 0.2s ease',
+                  opacity: profileNomorIdentitas.length === 16 ? 1 : 0.65,
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+                onMouseEnter={(e) => {
+                  if (profileNomorIdentitas.length === 16) e.currentTarget.style.backgroundColor = '#059669';
+                }}
+                onMouseLeave={(e) => {
+                  if (profileNomorIdentitas.length === 16) e.currentTarget.style.backgroundColor = '#10B981';
+                }}
               >
-                <span>Simpan Data &amp; Terbitkan Kode Referral ➔</span>
+                <span>
+                  {profileNomorIdentitas.length === 16
+                    ? 'Simpan Data & Terbitkan Kode Referral 🔑'
+                    : `KTP Belum Lengkap (${profileNomorIdentitas.length}/16 Digit)`}
+                </span>
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  key
+                  {profileNomorIdentitas.length === 16 ? 'key' : 'lock'}
                 </span>
               </button>
             </div>
@@ -3690,8 +3858,19 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 <span style={{ color: '#64748B', fontWeight: 600 }}>Jenis Identitas:</span>
                 <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.jenisIdentitas || 'KTP'}</span>
 
-                <span style={{ color: '#64748B', fontWeight: 600 }}>Nomor Identitas:</span>
-                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.nomorIdentitas || '-'}</span>
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Nomor Identitas (KTP):</span>
+                <span style={{ color: '#0F172A', fontWeight: 700, fontFamily: 'monospace' }}>{currentUser.nomorIdentitas || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Akun IG:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.akunIg || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Follower IG:</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{currentUser.followerIg || '-'}</span>
+
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Rekening Pencairan:</span>
+                <span style={{ color: currentUser.namaBank ? '#10B981' : '#94A3B8', fontWeight: 700 }}>
+                  {currentUser.namaBank ? `${currentUser.namaBank} - ${currentUser.nomorRekening} (a.n ${currentUser.atasNamaRekening})` : 'Belum diatur'}
+                </span>
               </div>
             </div>
 
@@ -3714,6 +3893,315 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 Tutup
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showNotRegisteredToast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '28px',
+            right: '32px',
+            zIndex: 9999999,
+            backgroundColor: '#EA580C',
+            color: '#FFFFFF',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            boxShadow: '0 8px 30px rgba(234, 88, 12, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            fontSize: '0.86rem',
+            fontWeight: 700,
+            pointerEvents: 'auto',
+          }}
+        >
+          <span>Maaf, belum melakukan pendaftaran MPC</span>
+          <button
+            type="button"
+            onClick={() => setShowNotRegisteredToast(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: 800,
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* 8. Registration Success Modal (Notifikasi Berhasil & Penyerahan Kode Referral) */}
+      {registrationSuccessData && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(15, 23, 42, 0.78)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setRegistrationSuccessData(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              maxWidth: '520px',
+              width: '100%',
+              padding: '36px 30px',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+              textAlign: 'center',
+              position: 'relative',
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close X Button */}
+            <button
+              type="button"
+              onClick={() => setRegistrationSuccessData(null)}
+              style={{
+                position: 'absolute',
+                top: '18px',
+                right: '18px',
+                background: '#F1F5F9',
+                border: 'none',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#64748B',
+              }}
+              title="Tutup & Masuk ke Dashboard"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
+
+            {/* Top Celebration Icon */}
+            <div
+              style={{
+                width: '74px',
+                height: '74px',
+                borderRadius: '50%',
+                backgroundColor: '#DCFCE7',
+                border: '4px solid #BBF7D0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                color: '#16A34A',
+                boxShadow: '0 10px 25px rgba(22, 163, 74, 0.25)',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '42px' }}>
+                verified
+              </span>
+            </div>
+
+            <span
+              style={{
+                display: 'inline-block',
+                backgroundColor: '#ECFDF5',
+                color: '#059669',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                padding: '4px 14px',
+                borderRadius: '9999px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: '10px',
+                border: '1px solid #A7F3D0',
+              }}
+            >
+              🎉 Pendaftaran Berhasil
+            </span>
+
+            <h3
+              style={{
+                fontSize: '1.4rem',
+                fontWeight: 900,
+                color: '#0F172A',
+                margin: '0 0 8px',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Selamat Datang di Portal Mitra!
+            </h3>
+
+            <p
+              style={{
+                fontSize: '0.86rem',
+                color: '#64748B',
+                margin: '0 0 20px',
+                lineHeight: 1.5,
+              }}
+            >
+              Data identitas Anda telah berhasil diverifikasi. Kode Referral resmi Anda telah terbit dan siap digunakan untuk pelacakan komisi visa Jepang.
+            </p>
+
+            {/* Referral Code Banner Box */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #047857 100%)',
+                borderRadius: '18px',
+                padding: '20px',
+                color: '#FFFFFF',
+                marginBottom: '18px',
+                boxShadow: '0 8px 24px rgba(6, 95, 70, 0.25)',
+                border: '1px solid rgba(52, 211, 153, 0.3)',
+              }}
+            >
+              <div style={{ fontSize: '0.7rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#A7F3D0', fontWeight: 700, marginBottom: '6px' }}>
+                Kode Referral Resmi Anda
+              </div>
+              <div
+                style={{
+                  fontSize: '1.85rem',
+                  fontWeight: 900,
+                  letterSpacing: '0.12em',
+                  color: '#FFFFFF',
+                  fontFamily: 'monospace',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  marginBottom: '12px',
+                }}
+              >
+                {registrationSuccessData.code}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(registrationSuccessData.code);
+                    setCopiedCode(true);
+                    setTimeout(() => setCopiedCode(false), 2000);
+                  }}
+                  style={{
+                    backgroundColor: copiedCode ? '#10B981' : '#FFFFFF',
+                    color: copiedCode ? '#FFFFFF' : '#065F46',
+                    border: 'none',
+                    padding: '8px 18px',
+                    borderRadius: '10px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    {copiedCode ? 'check' : 'content_copy'}
+                  </span>
+                  <span>{copiedCode ? 'Tersalin!' : 'Salin Kode'}</span>
+                </button>
+              </div>
+
+              <div
+                style={{
+                  marginTop: '12px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontSize: '0.78rem',
+                  color: '#D1FAE5',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#34D399' }}>
+                  payments
+                </span>
+                <span>Komisi: <strong>Rp 100.000 / Visa</strong> via transfer bank</span>
+              </div>
+            </div>
+
+            {/* Detail Singkat Pendaftar */}
+            <div
+              style={{
+                backgroundColor: '#F8FAFC',
+                borderRadius: '14px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                border: '1px solid #E2E8F0',
+                textAlign: 'left',
+                fontSize: '0.8rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748B' }}>Nama Mitra</span>
+                <span style={{ fontWeight: 700, color: '#0F172A' }}>{registrationSuccessData.nama}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748B' }}>Status Mitra</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>{registrationSuccessData.status}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748B' }}>No. KTP / NIK (16 digit)</span>
+                <span style={{ fontWeight: 700, color: '#16A34A', fontFamily: 'monospace' }}>
+                  {registrationSuccessData.ktp} ✓
+                </span>
+              </div>
+              {registrationSuccessData.akunIg && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748B' }}>Akun IG</span>
+                  <span style={{ fontWeight: 600, color: '#0F172A' }}>{registrationSuccessData.akunIg}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Tombol Lanjut ke Dashboard */}
+            <button
+              type="button"
+              onClick={() => setRegistrationSuccessData(null)}
+              style={{
+                width: '100%',
+                backgroundColor: '#10B981',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '13px 20px',
+                borderRadius: '14px',
+                fontSize: '0.94rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 6px 20px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+            >
+              <span>Masuk ke Dashboard Portal Mitra</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                arrow_forward
+              </span>
+            </button>
           </div>
         </div>
       )}

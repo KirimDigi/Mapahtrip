@@ -97,6 +97,11 @@ export interface AffiliateUser {
   provinsi?: string;
   jenisIdentitas?: string;
   nomorIdentitas?: string;
+  akunIg?: string;
+  followerIg?: string;
+  namaBank?: string;
+  nomorRekening?: string;
+  atasNamaRekening?: string;
   fotoDiri?: string;
   isProfileComplete?: boolean;
 }
