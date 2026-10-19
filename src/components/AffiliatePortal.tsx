@@ -2819,15 +2819,21 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  maxLength={16}
                   placeholder="nomor identitas"
                   value={profileNomorIdentitas}
-                  onChange={(e) => setProfileNomorIdentitas(e.target.value)}
+                  onChange={(e) => {
+                    setProfileNomorIdentitas(e.target.value.replace(/\D/g, '').slice(0, 16));
+                    if (profileError) setProfileError('');
+                  }}
                   required
                   style={{
                     width: '100%',
                     padding: '12px 14px',
                     borderRadius: '12px',
-                    border: '1px solid #CBD5E1',
+                    border: profileError && profileNomorIdentitas.length !== 16 ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
+                    backgroundColor: profileError && profileNomorIdentitas.length !== 16 ? '#FEF2F2' : '#FFFFFF',
                     fontSize: '0.88rem',
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -2836,69 +2842,37 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </div>
             </div>
 
-            {/* Submit Button with Strict KTP Lock */}
+            {/* Submit Button */}
             <div style={{ marginTop: '16px' }}>
-              {profileNomorIdentitas.length !== 16 && (
-                <div
-                  style={{
-                    marginBottom: '10px',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    backgroundColor: '#FEF2F2',
-                    border: '1px solid #FECACA',
-                    color: '#991B1B',
-                    fontSize: '0.82rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontWeight: 700,
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EF4444' }}>
-                    lock
-                  </span>
-                  <span>
-                    {profileNomorIdentitas.length === 0
-                      ? 'Harap isi 16 digit nomor KTP untuk dapat mendaftar.'
-                      : `Nomor KTP belum 16 digit (${profileNomorIdentitas.length}/16). Tombol daftar terkunci.`}
-                  </span>
-                </div>
-              )}
               <button
                 type="submit"
-                disabled={profileNomorIdentitas.length !== 16}
                 style={{
                   width: '100%',
-                  backgroundColor: profileNomorIdentitas.length === 16 ? '#10B981' : '#94A3B8',
+                  backgroundColor: '#10B981',
                   color: '#FFFFFF',
                   border: 'none',
                   padding: '14px',
                   borderRadius: '14px',
                   fontSize: '0.95rem',
                   fontWeight: 800,
-                  cursor: profileNomorIdentitas.length === 16 ? 'pointer' : 'not-allowed',
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: profileNomorIdentitas.length === 16 ? '0 4px 16px rgba(16, 185, 129, 0.35)' : 'none',
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
                   transition: 'all 0.2s ease',
-                  opacity: profileNomorIdentitas.length === 16 ? 1 : 0.65,
                 }}
                 onMouseEnter={(e) => {
-                  if (profileNomorIdentitas.length === 16) e.currentTarget.style.backgroundColor = '#059669';
+                  e.currentTarget.style.backgroundColor = '#059669';
                 }}
                 onMouseLeave={(e) => {
-                  if (profileNomorIdentitas.length === 16) e.currentTarget.style.backgroundColor = '#10B981';
+                  e.currentTarget.style.backgroundColor = '#10B981';
                 }}
               >
-                <span>
-                  {profileNomorIdentitas.length === 16
-                    ? 'Simpan Data & Terbitkan Kode Referral 🔑'
-                    : `KTP Belum Lengkap (${profileNomorIdentitas.length}/16 Digit)`}
-                </span>
+                <span>Simpan Data &amp; Terbitkan Kode Referral &rarr;</span>
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  {profileNomorIdentitas.length === 16 ? 'key' : 'lock'}
+                  key
                 </span>
               </button>
             </div>
