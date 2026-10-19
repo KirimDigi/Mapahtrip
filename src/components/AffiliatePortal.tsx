@@ -2037,7 +2037,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         {/* Persistent Left Sidebar */}
         <aside
             style={{
-              width: '260px',
+              width: '240px',
               backgroundColor: '#FFFFFF',
               borderRight: '1px solid #E2E8F0',
               display: 'flex',
@@ -2257,7 +2257,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           </aside>
 
         {/* Right Main Content Area */}
-        <main style={{ flex: 1, minWidth: 0, padding: '24px 28px', overflowY: 'auto', overflowX: 'hidden' }}>
+        <main style={{ flex: 1, minWidth: 0, padding: '20px 20px', overflowY: 'auto', overflowX: 'hidden' }}>
           {portalTab === 'dasbor' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
         {/* Banner Welcome & Search */}
@@ -2578,18 +2578,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
             }}
           >
-            <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
-              <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.80rem' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
-                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '90px' }}>No. &amp; ID</th>
-                    <th style={{ padding: '14px 16px', minWidth: '180px' }}>Nama Pemohon / Kandidat</th>
-                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '110px' }}>No. Paspor</th>
-                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '120px' }}>Program Visa</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'center', whiteSpace: 'nowrap', width: '230px' }}>Kelengkapan Berkas (5 Poin)</th>
-                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '130px' }}>Status Pengajuan</th>
-                    <th style={{ padding: '14px 16px', minWidth: '150px' }}>Resi / Pengiriman</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'center', whiteSpace: 'nowrap', width: '100px' }}>Aksi</th>
+                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '80px' }}>No. &amp; ID</th>
+                    <th style={{ padding: '10px 8px', minWidth: '140px' }}>Nama Pemohon / Kandidat</th>
+                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '95px' }}>No. Paspor</th>
+                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '105px' }}>Program Visa</th>
+                    <th style={{ padding: '10px 6px', textAlign: 'center', whiteSpace: 'nowrap', width: '145px' }}>Kelengkapan Berkas (5 Poin)</th>
+                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '115px' }}>Status Pengajuan</th>
+                    <th style={{ padding: '10px 8px', minWidth: '130px' }}>Resi / Pengiriman</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap', width: '80px' }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2611,114 +2611,42 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                       >
                         {/* ID */}
-                        <td style={{ padding: '14px 16px', color: '#64748B', fontWeight: 600 }}>
+                        <td style={{ padding: '10px 8px', color: '#64748B', fontWeight: 600, fontSize: '0.78rem' }}>
                           <div>{item.noPengajuan}</div>
                           <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>#{idx + 1}</div>
                         </td>
 
                         {/* Nama */}
-                        <td style={{ padding: '14px 16px' }}>
-                          <div style={{ fontWeight: 700, color: '#0F172A' }}>{item.namaPemohon}</div>
+                        <td style={{ padding: '10px 8px' }}>
+                          <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.82rem' }}>{item.namaPemohon}</div>
                           <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
                             WA: {item.noTelp || '-'}
                           </div>
                         </td>
 
                         {/* Paspor */}
-                        <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
+                        <td style={{ padding: '10px 8px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', fontSize: '0.78rem' }}>
                           {item.noPaspor}
                         </td>
 
                         {/* Program */}
-                        <td style={{ padding: '14px 16px' }}>
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              backgroundColor: '#EFF6FF',
-                              color: '#1E40AF',
-                            }}
-                          >
-                            {item.program}
-                          </span>
+                        <td style={{ padding: '10px 8px' }}>
+                          <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', whiteSpace: 'nowrap' }}>{item.program}</span>
                         </td>
 
                         {/* Checklist Berkas */}
-                        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
-                            <span
-                              title="Formulir Visa"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                backgroundColor: item.berkas.formVisa ? '#DCFCE7' : '#FEE2E2',
-                                color: item.berkas.formVisa ? '#15803D' : '#B91C1C',
-                                fontWeight: 800,
-                              }}
-                            >
-                              FORM
-                            </span>
-                            <span
-                              title="KTP"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                backgroundColor: item.berkas.ktp ? '#DCFCE7' : '#FEE2E2',
-                                color: item.berkas.ktp ? '#15803D' : '#B91C1C',
-                                fontWeight: 800,
-                              }}
-                            >
-                              KTP
-                            </span>
-                            <span
-                              title="E-KTLN"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                backgroundColor: item.berkas.ektln ? '#DCFCE7' : '#FEE2E2',
-                                color: item.berkas.ektln ? '#15803D' : '#B91C1C',
-                                fontWeight: 800,
-                              }}
-                            >
-                              KTLN
-                            </span>
-                            <span
-                              title="COE Imigrasi Jepang"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                backgroundColor: item.berkas.coe ? '#DCFCE7' : '#FEE2E2',
-                                color: item.berkas.coe ? '#15803D' : '#B91C1C',
-                                fontWeight: 800,
-                              }}
-                            >
-                              COE
-                            </span>
-                            <span
-                              title="Pasfoto 4.5 x 3.5 cm"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                backgroundColor: item.berkas.foto ? '#DCFCE7' : '#FEE2E2',
-                                color: item.berkas.foto ? '#15803D' : '#B91C1C',
-                                fontWeight: 800,
-                              }}
-                            >
-                              FOTO
-                            </span>
+                        <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center', justifyContent: 'center' }}>
+                            <span title="Formulir Visa" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.formVisa ? '#DCFCE7' : '#FEE2E2', color: item.berkas.formVisa ? '#15803D' : '#B91C1C', fontWeight: 800 }}>FORM</span>
+                            <span title="KTP" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.ktp ? '#DCFCE7' : '#FEE2E2', color: item.berkas.ktp ? '#15803D' : '#B91C1C', fontWeight: 800 }}>KTP</span>
+                            <span title="E-KTLN" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.ektln ? '#DCFCE7' : '#FEE2E2', color: item.berkas.ektln ? '#15803D' : '#B91C1C', fontWeight: 800 }}>KTLN</span>
+                            <span title="COE Imigrasi Jepang" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.coe ? '#DCFCE7' : '#FEE2E2', color: item.berkas.coe ? '#15803D' : '#B91C1C', fontWeight: 800 }}>COE</span>
+                            <span title="Pasfoto 4.5 x 3.5 cm" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.foto ? '#DCFCE7' : '#FEE2E2', color: item.berkas.foto ? '#15803D' : '#B91C1C', fontWeight: 800 }}>FOTO</span>
                           </div>
                         </td>
 
                         {/* Status */}
-                        <td style={{ padding: '14px 16px' }}>
+                        <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
                           <span
                             style={{
                               display: 'inline-flex',
@@ -2759,7 +2687,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         </td>
 
                         {/* Resi / Pengiriman */}
-                        <td style={{ padding: '14px 16px' }}>
+                        <td style={{ padding: '10px 8px' }}>
                           {item.noResi ? (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: item.noResi.toLowerCase().includes('soehatta') ? '#7C3AED' : '#0369A1', fontWeight: 700, fontSize: '0.78rem' }}>
                               <span>{item.noResi}</span>
@@ -2775,7 +2703,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         </td>
 
                         {/* Action Button */}
-                        <td style={{ padding: '14px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             onClick={() => setSelectedKandidat(item)}
@@ -2783,14 +2711,14 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                               backgroundColor: '#F1F5F9',
                               color: '#0F172A',
                               border: '1px solid #CBD5E1',
-                              padding: '6px 14px',
-                              borderRadius: '8px',
-                              fontSize: '0.78rem',
+                              padding: '5px 12px',
+                              borderRadius: '7px',
+                              fontSize: '0.75rem',
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px',
+                              justifyContent: 'center',
                               whiteSpace: 'nowrap',
                               transition: 'all 0.15s ease',
                             }}
@@ -2804,9 +2732,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             }}
                           >
                             <span>Rincian</span>
-                            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748B' }}>
-                              visibility
-                            </span>
                           </button>
                         </td>
                       </tr>
