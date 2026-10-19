@@ -1649,28 +1649,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>dashboard</span>
                     <span>Dasbor</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => alert('Belum ada notifikasi baru.')}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#64748B',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>notifications</span>
-                    <span>Notifikasi</span>
-                  </button>
                 </div>
               </div>
 
