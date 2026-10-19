@@ -2257,9 +2257,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           </aside>
 
         {/* Right Main Content Area */}
-        <main style={{ flex: 1, padding: '28px 36px', overflowY: 'auto' }}>
+        <main style={{ flex: 1, minWidth: 0, padding: '24px 28px', overflowY: 'auto', overflowX: 'hidden' }}>
           {portalTab === 'dasbor' ? (
-            <div style={{ maxWidth: '1360px', margin: '0 auto', padding: '24px 20px' }}>
+            <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
         {/* Banner Welcome & Search */}
         <div
           style={{
@@ -2578,18 +2578,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
             }}
           >
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+            <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
-                    <th style={{ padding: '12px 16px' }}>No. &amp; ID</th>
-                    <th style={{ padding: '12px 16px' }}>Nama Pemohon / Kandidat</th>
-                    <th style={{ padding: '12px 16px' }}>No. Paspor</th>
-                    <th style={{ padding: '12px 16px' }}>Program Visa</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center' }}>Kelengkapan Berkas (5 Poin)</th>
-                    <th style={{ padding: '12px 16px' }}>Status Pengajuan</th>
-                    <th style={{ padding: '12px 16px' }}>Resi / Pengiriman</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center' }}>Aksi</th>
+                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '90px' }}>No. &amp; ID</th>
+                    <th style={{ padding: '14px 16px', minWidth: '180px' }}>Nama Pemohon / Kandidat</th>
+                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '110px' }}>No. Paspor</th>
+                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '120px' }}>Program Visa</th>
+                    <th style={{ padding: '14px 16px', textAlign: 'center', whiteSpace: 'nowrap', width: '230px' }}>Kelengkapan Berkas (5 Poin)</th>
+                    <th style={{ padding: '14px 16px', whiteSpace: 'nowrap', width: '130px' }}>Status Pengajuan</th>
+                    <th style={{ padding: '14px 16px', minWidth: '150px' }}>Resi / Pengiriman</th>
+                    <th style={{ padding: '14px 16px', textAlign: 'center', whiteSpace: 'nowrap', width: '100px' }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2775,7 +2775,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         </td>
 
                         {/* Action Button */}
-                        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <td style={{ padding: '14px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             onClick={() => setSelectedKandidat(item)}
@@ -2783,14 +2783,30 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                               backgroundColor: '#F1F5F9',
                               color: '#0F172A',
                               border: '1px solid #CBD5E1',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
+                              padding: '6px 14px',
+                              borderRadius: '8px',
+                              fontSize: '0.78rem',
                               fontWeight: 700,
                               cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#E2E8F0';
+                              e.currentTarget.style.borderColor = '#94A3B8';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#F1F5F9';
+                              e.currentTarget.style.borderColor = '#CBD5E1';
                             }}
                           >
-                            Rincian
+                            <span>Rincian</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748B' }}>
+                              visibility
+                            </span>
                           </button>
                         </td>
                       </tr>
