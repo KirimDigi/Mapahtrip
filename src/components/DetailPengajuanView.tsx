@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Pengajuan } from '../types';
+import { kirimPesanWA } from '../whatsapp';
 
 interface DetailPengajuanViewProps {
   pengajuan: Pengajuan;
@@ -13,6 +14,25 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
   onUpdateStatus,
 }) => {
   const [showRealPassport, setShowRealPassport] = useState(false);
+  const [isSendingWA, setIsSendingWA] = useState(false);
+
+  const handleKirimNotifWA = async () => {
+    if (!confirm(`Kirim notifikasi update status "${pengajuan.status}" via WhatsApp Gateway ke ${pengajuan.namaPemohon} (${pengajuan.noTelp})?`)) return;
+    setIsSendingWA(true);
+    try {
+      const pesan = `Halo Sdr/i ${pengajuan.namaPemohon},\n\nUpdate status pengajuan visa Jepang Anda di MapahTrip:\n• No. Pengajuan: ${pengajuan.noPengajuan}\n• Status Saat Ini: *${pengajuan.status}*\n• Konsulat: ${pengajuan.konsjen}\n• Estimasi Selesai: ${pengajuan.tglEstimasiSelesai}\n\nTerima kasih atas kepercayaannya.\nTim Operasional MapahTrip`;
+      const res = await kirimPesanWA(pengajuan.noTelp, pesan);
+      if (res && (res.success || res.status === 'success' || !res.error)) {
+        alert(`Notifikasi WhatsApp berhasil dikirim ke ${pengajuan.namaPemohon}!`);
+      } else {
+        alert(`Gagal mengirim WhatsApp via Gateway: ${res?.message || 'Pastikan gateway aktif di komputer.'}`);
+      }
+    } catch (err: any) {
+      alert(`Terjadi error saat menghubungi gateway: ${err.message}`);
+    } finally {
+      setIsSendingWA(false);
+    }
+  };
 
   const formatRupiah = (val: number) => {
     return 'Rp ' + val.toLocaleString('id-ID');
@@ -205,21 +225,42 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
 
           {/* Action CTAs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={handleKirimNotifWA}
+              disabled={isSendingWA}
+              style={{
+                color: '#047857',
+                borderColor: '#a7f3d0',
+                background: '#ecfdf5',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Kirim notifikasi update status langsung via Gateway WhatsApp KirimDIgi"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                {isSendingWA ? 'sync' : 'send_and_archive'}
+              </span>
+              <span>{isSendingWA ? 'Mengirim...' : 'Kirim Notif WA (Gateway)'}</span>
+            </button>
+
             <a
               href={`https://wa.me/${pengajuan.noTelp.replace(/[^0-9]/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-secondary"
               style={{
-                color: '#047857',
-                borderColor: '#a7f3d0',
-                background: '#ecfdf5',
+                color: '#334155',
+                borderColor: 'rgba(195, 198, 214, 0.4)',
+                background: 'var(--surface-container-low)',
               }}
+              title="Buka WhatsApp Web Manual"
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                 chat
               </span>
-              <span>WhatsApp Pemohon</span>
+              <span>Buka WA Web</span>
             </a>
 
             <button

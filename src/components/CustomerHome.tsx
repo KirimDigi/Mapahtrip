@@ -322,6 +322,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 
 
@@ -365,21 +366,17 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
 
       {/* 1. Customer Navigation Header */}
       <header
+        className="customer-header"
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backgroundColor: isDarkMode ? 'rgba(7, 12, 21, 0.95)' : 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid #E2E8F0',
-          padding: '0 24px',
-          height: '72px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          borderBottom: isDarkMode ? '1px solid #1E293B' : '1px solid #E2E8F0',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '52px' }}>
+        <div className="header-left-group">
           {/* Brand Logo */}
           <a
             href="#beranda"
@@ -390,26 +387,27 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 window.history.pushState(null, '', window.location.pathname);
               }
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}
           >
             <img
               src={isDarkMode ? logoPutih : logoHitam}
               alt="Logo MapahTrip"
               style={{
-                width: '38px',
-                height: '38px',
+                width: '36px',
+                height: '36px',
                 objectFit: 'contain',
               }}
             />
             <div
+              className="header-japan-pill"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '7px',
                 padding: '4px 11px 4px 8px',
                 borderRadius: '9999px',
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #E2E8F0',
+                backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
               }}
             >
@@ -439,7 +437,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               </div>
               <span
                 style={{
-                  color: '#0F172A',
+                  color: isDarkMode ? '#F8FAFC' : '#0F172A',
                   fontSize: '0.68rem',
                   fontWeight: 800,
                   letterSpacing: '0.04em',
@@ -452,8 +450,9 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             </div>
           </a>
 
-          {/* Nav links (Minimalist Luxury with Underline Accent & Hover Pill) */}
+          {/* Nav links (Desktop) */}
           <nav
+            className="desktop-nav"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -477,8 +476,8 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           </nav>
         </div>
 
-        {/* Right CTA: Live Status Pill & Dark Mode Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Right CTA: Live Status Pill, Dark Mode Toggle & Mobile Hamburger */}
+        <div className="header-right-group">
           {/* Dark / Light Mode Toggle Button */}
           <button
             type="button"
@@ -497,12 +496,6 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               transition: 'all 0.2s ease',
               outline: 'none',
               boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
             }}
             title={isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
             aria-label="Toggle Mode Gelap / Terang"
@@ -525,15 +518,18 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               </svg>
             )}
           </button>
+
+          {/* JVAC Live Status Pill */}
           <a
             href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20konsultasi%20pengajuan%20Visa%20Jepang"
             target="_blank"
             rel="noopener noreferrer"
+            className="header-jvac-pill"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '7px',
-              padding: '6px 14px',
+              gap: '6px',
+              padding: '6px 13px',
               borderRadius: '9999px',
               background: '#F0FDF4',
               border: '1px solid #BBF7D0',
@@ -545,14 +541,6 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               transition: 'all 0.15s ease',
               boxShadow: '0 1px 4px rgba(22, 101, 52, 0.06)',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#DCFCE7';
-              e.currentTarget.style.borderColor = '#86EFAC';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#F0FDF4';
-              e.currentTarget.style.borderColor = '#BBF7D0';
-            }}
             title="Klik untuk konsultasi slot JVAC hari ini"
           >
             <span
@@ -561,11 +549,10 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '9px',
-                height: '9px',
+                width: '8px',
+                height: '8px',
               }}
             >
-              {/* Outer Pulsing Radar Ring */}
               <span
                 style={{
                   position: 'absolute',
@@ -575,25 +562,100 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   animation: 'beaconPing 2s cubic-bezier(0, 0, 0.2, 1) infinite',
                 }}
               />
-              {/* Inner Radiant Glowing Core Dot */}
               <span
                 style={{
                   position: 'relative',
-                  width: '7.5px',
-                  height: '7.5px',
+                  width: '6.5px',
+                  height: '6.5px',
                   borderRadius: '50%',
                   backgroundColor: '#10B981',
-                  animation: 'beaconGlow 2s ease-in-out infinite',
                   display: 'inline-block',
                 }}
               />
             </span>
             <span>JVAC OPEN</span>
-            <span style={{ color: '#86EFAC' }}>•</span>
-            <span style={{ color: '#15803D', fontWeight: 600 }}>Slot Hari Ini</span>
+            <span className="jvac-dot-separator" style={{ color: '#86EFAC' }}>•</span>
+            <span className="jvac-slot-text" style={{ color: '#15803D', fontWeight: 600 }}>Slot Hari Ini</span>
           </a>
+
+          {/* Mobile Menu Hamburger Button */}
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{
+              display: 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              background: isDarkMode ? '#1E293B' : '#F1F5F9',
+              border: isDarkMode ? '1px solid #334155' : '1px solid #CBD5E1',
+              color: isDarkMode ? '#F8FAFC' : '#0F172A',
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+            aria-label="Toggle Navigasi Mobile"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+              {mobileMenuOpen ? 'close' : 'menu'}
+            </span>
+          </button>
         </div>
       </header>
+
+      {/* Mobile Navigation Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div className="mobile-nav-drawer">
+          {[
+            { label: 'Jenis Visa Jepang', href: '#jenis-visa', icon: 'flight' },
+            { label: 'Alur Proses & Syarat', href: '#alur', icon: 'sync_alt' },
+            { label: 'Lacak Status Paspor', href: '#tracking', icon: 'search' },
+            { label: 'Tanya Jawab (FAQ)', href: '#faq', icon: 'help_outline' },
+          ].map((item, idx) => (
+            <a
+              key={idx}
+              href={item.href}
+              className="mobile-nav-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005bb5' }}>
+                  {item.icon}
+                </span>
+                <span>{item.label}</span>
+              </span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94A3B8' }}>
+                chevron_right
+              </span>
+            </a>
+          ))}
+          <a
+            href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20konsultasi%20pengajuan%20Visa%20Jepang"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '12px',
+              borderRadius: '12px',
+              background: '#25D366',
+              color: '#ffffff',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              marginTop: '4px',
+            }}
+          >
+            <WhatsAppBrandIcon size={18} inverted={true} />
+            <span>Konsultasi Gratis via WhatsApp</span>
+          </a>
+        </div>
+      )}
 
       {/* 2. Hero Section */}
       <section id="beranda" style={{ padding: '60px 24px 80px', maxWidth: '1240px', margin: '0 auto' }}>
@@ -650,7 +712,6 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   fontWeight: 800,
                   color: '#0090FF',
                   letterSpacing: '-0.03em',
-                  whiteSpace: 'nowrap',
                 }}
               >
                 Simpel, Mudah &amp; Cepat
@@ -727,7 +788,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             </div>
 
             {/* 3 Metric Badges: Samakan Font Serif & Data Riil Pemohon */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginTop: '16px' }}>
+            <div className="hero-metric-grid">
               <div className="metric-card" style={{ padding: '16px 18px', borderRadius: '18px', background: '#ffffff', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <div className="font-serif" style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '2rem', fontWeight: 700, color: '#0B1220', lineHeight: 1.1 }}>
                   99%
@@ -1044,45 +1105,42 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
 
           {/* Cohesive Trust Bar: Satu baris terpadu mewah menggantikan 3 kotak kecil yang bertumpuk */}
           <div
+            className="hero-trust-bar"
             style={{
               borderRadius: '16px',
               background: '#FFFFFF',
               border: '1px solid #E2E8F0',
               padding: '12px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
               boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-              gap: '10px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
                 verified
               </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
                 2x Review Dokumen
               </span>
             </div>
 
-            <span style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
+            <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
                 event_available
               </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
                 Itinerary Harian JVAC
               </span>
             </div>
 
-            <span style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
+            <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
                 lock
               </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
                 Privasi Terenkripsi
               </span>
             </div>
@@ -1256,7 +1314,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
         </div>
 
         {/* 8 Cards: Luxury Editorial Service Catalog (No Checkerboard, Unified Bespoke Layout) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '22px' }}>
+        <div className="visa-cards-grid">
           {VISA_OPTIONS
             .filter((item) => activeVisaTab === 'all' || item.category === activeVisaTab).map((item) => {
               const isFeatured = item.id === 'tourist-single' || item.id === 'evisa-waiver';
@@ -2240,14 +2298,34 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             </div>
 
             {/* RIGHT COLUMN: 4 Feature Cards (Berjejer Tepat Di Samping Kanan Tulisan) */}
-            <div>
+            <div className="kenapa-cards-wrapper">
+              {/* Mobile Horizontal Swipe Indicator Hint */}
               <div
+                className="kenapa-mobile-swipe-hint"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                  gap: '18px',
+                  display: 'none',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginBottom: '12px',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  background: '#e0f2fe',
+                  color: '#0284c7',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  width: 'fit-content',
                 }}
               >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                  swipe
+                </span>
+                <span>Geser ke samping (01 - 04)</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                  arrow_forward
+                </span>
+              </div>
+
+              <div className="kenapa-cards-grid">
                 {[
                   {
                     num: '01',
@@ -2463,20 +2541,40 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           >
             Tanpa antri, tanpa bingung form Jepang. Semua via WhatsApp &amp; online.
           </p>
+
+          {/* Mobile Horizontal Swipe Indicator Hint */}
+          <div
+            className="alur-mobile-swipe-hint"
+            style={{
+              display: 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              marginTop: '12px',
+              padding: '4px 12px',
+              borderRadius: '9999px',
+              background: '#e0f2fe',
+              color: '#0284c7',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              swipe
+            </span>
+            <span>Geser ke samping (Langkah 01 - 04)</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              arrow_forward
+            </span>
+          </div>
         </div>
 
         {/* 4 Steps Container (Garis Alur di Tengah Antar Kotak) */}
-        <div
-          style={{
-            overflowX: 'auto',
-            paddingTop: '12px',
-            paddingBottom: '20px',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          <div style={{ minWidth: '880px', maxWidth: '1280px', margin: '0 auto', position: 'relative' }}>
+        <div className="alur-scroll-wrapper">
+          <div className="alur-steps-inner">
             {/* Horizontal Guide Line through center of cards */}
             <div
+              className="alur-steps-line"
               style={{
                 position: 'absolute',
                 top: '50%',
@@ -2490,15 +2588,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             />
 
             {/* 4 Steps Grid */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                gap: '24px',
-                position: 'relative',
-                zIndex: 1,
-              }}
-            >
+            <div className="alur-steps-grid">
               {[
                 {
                   step: '01',
@@ -2948,15 +3038,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
         {/* UNIFIED LUXURY DUO CARDS: KONSULTASI VISA & PROGRAM MITRA */}
         {/* Harmonious Jewel-Toned Bento Grid (No Black-vs-White Clash) */}
         {/* ======================================================== */}
-        <div
-          style={{
-            marginTop: '52px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: '24px',
-            alignItems: 'stretch',
-          }}
-        >
+        <div className="duo-bento-grid">
           {/* Card 1: Konsultasi Visa Jepang (Clean Pearl White Theme) */}
           <div
             style={{
@@ -3396,7 +3478,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           </div>
 
           {/* Right Columns Group: Jenis Visa, Sosial Media, Bantuan, Kantor & JVAC */}
-          <div style={{ display: 'flex', gap: '36px', flexWrap: 'wrap', flex: '0 1 auto' }}>
+          <div className="footer-columns-group" style={{ display: 'flex', gap: '36px', flexWrap: 'wrap', flex: '0 1 auto' }}>
             {/* Column 2: Jenis Visa */}
             <div style={{ flex: '0 0 auto', minWidth: '140px' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Jenis Visa</div>
