@@ -2,8 +2,8 @@ import logoHitam from '../assets/mapahtrip_logo_hitam.png';
 import logoPutih from '../assets/mapahtrip_logo_putih.png';
 import buildingPhoto from '../assets/MapahTrip.jpg';
 import React, { useState, useEffect } from 'react';
-import type { Pengajuan } from '../types';
-import { searchPasporInDB } from '../lib/supabase';
+import type { Pengajuan, KonsjenKota } from '../types';
+import { searchPasporInDB, createPengajuanInDB } from '../lib/supabase';
 
 interface CustomerHomeProps {
   pengajuanList: Pengajuan[];
@@ -282,6 +282,57 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
   const [isSearching, setIsSearching] = useState(false);
   const [selectedVisaModal, setSelectedVisaModal] = useState<any | null>(null);
 
+  // Form Fields Sesuai Kolom Spreadsheet "Data Pengaju" (Gambar 4) & Konsulat (Status Antrean)
+  const [formNama, setFormNama] = useState('');
+  const [formNoWa, setFormNoWa] = useState('');
+  const [formKonsjen, setFormKonsjen] = useState<KonsjenKota>('Jakarta');
+  const [formDomisili, setFormDomisili] = useState('Jawa Barat');
+  const [formDomisiliLainnya, setFormDomisiliLainnya] = useState('');
+  const [formNoPaspor, setFormNoPaspor] = useState('');
+  const [formPaket, setFormPaket] = useState<'Reguler' | 'Premium' | 'TAC'>('Reguler');
+
+  const handleSelectDomisili = (selected: string) => {
+    setFormDomisili(selected);
+    if (selected.includes('Surabaya') || selected.includes('Jawa Timur') || selected.includes('Kalimantan')) {
+      setFormKonsjen('Surabaya');
+    } else if (selected.includes('Denpasar') || selected.includes('Bali') || selected.includes('Nusa Tenggara')) {
+      setFormKonsjen('Denpasar');
+    } else if (selected.includes('Medan') || selected.includes('Sumatera Utara') || selected.includes('Sumatera Barat') || selected.includes('Riau') || selected.includes('Aceh')) {
+      setFormKonsjen('Medan');
+    } else if (selected.includes('Makassar') || selected.includes('Sulawesi') || selected.includes('Maluku') || selected.includes('Papua')) {
+      setFormKonsjen('Makassar');
+    } else {
+      setFormKonsjen('Jakarta');
+    }
+  };
+
+  // Form Fields Sesuai Kolom Spreadsheet "Kelengkapan Berkas" (Upload File Berkas)
+  const [formFiles, setFormFiles] = useState<{
+    formVisa: File | null;
+    ktp: File | null;
+    ektln: File | null;
+    coe: File | null;
+    foto: File | null;
+  }>({
+    formVisa: null,
+    ktp: null,
+    ektln: null,
+    coe: null,
+    foto: null,
+  });
+
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formSuccessMessage, setFormSuccessMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [modalStep, setModalStep] = useState<'detail' | 'form' | 'success'>('detail');
+
+  const handleOpenVisaModal = (item: any) => {
+    setSelectedVisaModal(item);
+    setModalStep('detail');
+    setFormSuccessMessage(null);
+    setFormError(null);
+  };
+
   // Pertanyaan & Input Kode Referral Pengunjung
   const [customerRefCode, setCustomerRefCode] = useState<string>(() => {
     try {
@@ -360,6 +411,88 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
       setIsSearching(false);
     }
   };
+
+  const handleKirimPendaftaran = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!formNama.trim()) {
+      setFormError('Nama Lengkap wajib diisi.');
+      return;
+    }
+    if (!formNoWa.trim()) {
+      setFormError('Nomor WhatsApp aktif wajib diisi.');
+      return;
+    }
+
+    const finalDomisili =
+      formDomisili === 'Lainnya' ? formDomisiliLainnya.trim() || 'Lainnya' : formDomisili;
+
+    const finalRefCode =
+      hasRefChoice === 'yes' && customerRefCode.trim()
+        ? customerRefCode.trim().toUpperCase()
+        : 'MAPAHTRIP';
+
+    setFormSubmitting(true);
+    setFormError(null);
+
+    // 1. Simpan ke Database Supabase (tabel pengajuan_visa sesuai kolom spreadsheet)
+    try {
+      await createPengajuanInDB({
+        nama: formNama.trim(),
+        domisili_ktp: finalDomisili,
+        konsjen: formKonsjen,
+        no_wa: formNoWa.trim(),
+        no_paspor: formNoPaspor.trim() || '-',
+        code_referral: finalRefCode,
+        form_visa: !!formFiles.formVisa,
+        ktp: !!formFiles.ktp,
+        ektln: !!formFiles.ektln,
+        coe: !!formFiles.coe,
+        foto: !!formFiles.foto,
+        program: selectedVisaModal?.title || 'Visa Jepang',
+        paket: formPaket,
+      });
+    } catch (err) {
+      console.warn('Gagal mencatat pengajuan ke DB:', err);
+    }
+
+    // 2. Kirim ke Google Spreadsheet (via Google Apps Script Webhook)
+    const sheetsWebhookUrl =
+      (import.meta as any).env?.VITE_GOOGLE_SHEETS_WEBHOOK_URL ||
+      localStorage.getItem('mapahtrip_sheets_webhook_url') ||
+      'https://script.google.com/macros/s/AKfycbw3xQqFfTAcwGzfsV03oYlE83X-wWUhjmCef4JqH_9V8xwMpQrBSwdFtdym8cd4Tfwnaw/exec';
+
+    if (sheetsWebhookUrl) {
+      try {
+        await fetch(sheetsWebhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            timestamp: new Date().toLocaleString('id-ID'),
+            nama: formNama.trim(),
+            domisili_ktp: finalDomisili,
+            konsjen: formKonsjen,
+            no_wa: formNoWa.trim(),
+            no_paspor: formNoPaspor.trim() || '-',
+            code_referral: finalRefCode,
+            program: selectedVisaModal?.title || 'Visa Jepang',
+            paket: formPaket,
+            form_visa: formFiles.formVisa ? formFiles.formVisa.name : 'Ada',
+            ktp: formFiles.ktp ? formFiles.ktp.name : 'Ada',
+            ektln: formFiles.ektln ? formFiles.ektln.name : 'Ada',
+            coe: formFiles.coe ? formFiles.coe.name : 'Ada',
+            foto: formFiles.foto ? formFiles.foto.name : 'Ada',
+          }),
+        });
+      } catch (sheetErr) {
+        console.warn('Google Sheets Webhook note:', sheetErr);
+      }
+    }
+
+    setFormSubmitting(false);
+    setModalStep('success');
+  };
+
 
   return (
     <div className={isDarkMode ? 'dark-theme' : ''} style={{ backgroundColor: isDarkMode ? '#070C15' : '#FCFDFF', minHeight: '100vh', color: isDarkMode ? '#F8FAFC' : '#0F172A', transition: 'background-color 0.3s ease, color 0.3s ease' }}>
@@ -746,10 +879,9 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 </span>
               </a>
 
-              <a
-                href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20konsultasi%20pengajuan%20Visa%20Jepang"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => handleOpenVisaModal(VISA_OPTIONS[0])}
                 className="wa-cta-btn"
                 style={{
                   display: 'inline-flex',
@@ -757,38 +889,25 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   gap: '8px',
                   padding: '13px 24px',
                   borderRadius: '9999px',
-                  background: '#ffffff',
-                  color: '#0F172A',
-                  border: '1.5px solid #cbd5e1',
+                  background: '#005BB5',
+                  color: '#ffffff',
+                  border: 'none',
                   fontSize: '0.95rem',
-                  fontWeight: 600,
-                  textDecoration: 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(0, 91, 181, 0.25)',
                 }}
               >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  style={{ flexShrink: 0 }}
-                >
-                  <path
-                    d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.83 9.83 0 0 0 12.04 2z"
-                    fill="#25D366"
-                  />
-                  <path
-                    d="M17.47 14.38c-.3-.15-1.78-.88-2.06-.98-.27-.1-.48-.15-.68.15-.2.3-.78.98-.95 1.18-.18.2-.35.23-.65.08-.3-.15-1.27-.47-2.42-1.5-.9-.8-1.5-1.79-1.68-2.09-.18-.3-.02-.46.13-.61.14-.14.3-.35.45-.53.15-.17.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.68-1.63-.93-2.24-.25-.59-.49-.51-.68-.52l-.58-.01c-.2 0-.53.08-.8.38s-1.06 1.03-1.06 2.51 1.08 2.91 1.23 3.11c.15.2 2.12 3.24 5.15 4.55.72.31 1.28.5 1.72.64.72.23 1.38.2 1.9.12.58-.09 1.78-.73 2.03-1.43.25-.7.25-1.3.18-1.43-.08-.13-.28-.2-.58-.35z"
-                    fill="#ffffff"
-                  />
-                </svg>
-                <span>Konsultasi Gratis</span>
-              </a>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  edit_document
+                </span>
+                <span>Daftar Visa Sekarang</span>
+              </button>
 
             </div>
 
             {/* 3 Metric Badges: Samakan Font Serif & Data Riil Pemohon */}
-            <div className="hero-metric-grid">
+            <div className="hero-metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', width: '100%' }}>
               <div className="metric-card" style={{ padding: '16px 18px', borderRadius: '18px', background: '#ffffff', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <div className="font-serif" style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '2rem', fontWeight: 700, color: '#0B1220', lineHeight: 1.1 }}>
                   99%
@@ -1107,6 +1226,10 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           <div
             className="hero-trust-bar"
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
               borderRadius: '16px',
               background: '#FFFFFF',
               border: '1px solid #E2E8F0',
@@ -1564,7 +1687,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
 
                   {/* Button Cek Syarat & Detail */}
                   <button
-                    onClick={() => setSelectedVisaModal(item)}
+                    onClick={() => handleOpenVisaModal(item)}
                     style={{
                       width: '100%',
                       padding: '11px 16px',
@@ -1602,19 +1725,19 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
         </div>
       </section>
 
-      {/* Modal Detail Syarat Lengkap Visa */}
+      {/* Modal Detail Syarat Lengkap & Formulir Pendaftaran Visa */}
       {selectedVisaModal && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
             zIndex: 100,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
             backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px',
+            padding: '16px',
           }}
           onClick={() => setSelectedVisaModal(null)}
         >
@@ -1622,29 +1745,30 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '24px',
-              maxWidth: '560px',
+              maxWidth: '620px',
               width: '100%',
-              maxHeight: '90vh',
+              maxHeight: '92vh',
               overflowY: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              padding: '32px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              padding: '28px',
               position: 'relative',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Modal */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div
                   style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '14px',
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
                     backgroundColor: '#EFF6FF',
                     color: '#2563EB',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    flexShrink: 0,
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>
@@ -1652,11 +1776,15 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   </span>
                 </div>
                 <div>
-                  <h3 className="font-serif" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                  <h3 className="font-serif" style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
                     {selectedVisaModal.title}
                   </h3>
-                  <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '2px' }}>
-                    {selectedVisaModal.subtitle} &bull; <strong style={{ color: '#0F172A' }}>{selectedVisaModal.pricePill}</strong>
+                  <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span>{selectedVisaModal.subtitle}</span>
+                    <span>&bull;</span>
+                    <strong style={{ color: '#005BB5' }}>{selectedVisaModal.pricePill}</strong>
+                    <span>&bull;</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>{selectedVisaModal.durationPill}</span>
                   </div>
                 </div>
               </div>
@@ -1674,287 +1802,1001 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   justifyContent: 'center',
                   cursor: 'pointer',
                   color: '#64748B',
+                  flexShrink: 0,
                 }}
               >
                 ✕
               </button>
             </div>
 
-            {/* Estimasi Durasi */}
-            <div
-              style={{
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: '14px',
-                padding: '12px 16px',
-                marginBottom: '20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+            {/* STEP 1: DETAIL PERSYARATAN LENGKAP (Tampilan Awal Saat Klik Cek Syarat & Detail) */}
+            {modalStep === 'detail' && (
               <div>
-                <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Estimasi Masa Tinggal
-                </span>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A' }}>
-                  {selectedVisaModal.durationPill}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Proses Konsulat
-                </span>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563EB' }}>
-                  3-7 Hari Kerja
-                </div>
-              </div>
-            </div>
-
-            {/* Checklist Persyaratan */}
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '0.925rem', fontWeight: 700, color: '#0F172A', marginBottom: '12px' }}>
-                📋 Dokumen Persyaratan yang Diperlukan:
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {selectedVisaModal.syaratLengkap.map((syarat: string, sIdx: number) => (
-                  <div
-                    key={sIdx}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '10px',
-                      fontSize: '0.85rem',
-                      color: '#334155',
-                      lineHeight: 1.45,
-                      backgroundColor: '#F8FAFC',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: '1px solid #EDF2F7',
-                    }}
-                  >
-                    <span style={{ color: '#16A34A', fontWeight: 800, marginTop: '1px' }}>✓</span>
-                    <span>{syarat}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Info Tambahan */}
-            <div
-              style={{
-                fontSize: '0.8rem',
-                color: '#64748B',
-                lineHeight: 1.5,
-                backgroundColor: '#EFF6FF',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                marginBottom: '24px',
-                border: '1px solid #DBEAFE',
-              }}
-            >
-              💡 <strong>Layanan MapahTrip:</strong> Tim konsultan kami akan memverifikasi seluruh dokumen Anda sebelum disubmit ke VFS JVAC / Konsulat untuk menjamin kelengkapan dan meminimalisir risiko penolakan.
-            </div>
-
-            {/* Pertanyaan & Form Kode Referral Mitra */}
-            <div
-              style={{
-                backgroundColor: '#F8FAFC',
-                border: hasRefChoice === 'yes' ? '1.5px solid #005BB5' : '1.5px solid #E2E8F0',
-                borderRadius: '16px',
-                padding: '14px 16px',
-                marginBottom: '18px',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
-                <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
-                    loyalty
-                  </span>
-                  Apakah kamu punya kode referral mitra?
-                </span>
-                {hasRefChoice === 'yes' && customerRefCode.trim() && (
-                  <span
-                    style={{
-                      fontSize: '0.72rem',
-                      backgroundColor: '#DCFCE7',
-                      color: '#15803D',
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                    }}
-                  >
-                    ✓ Kode Terpasang
-                  </span>
-                )}
-              </div>
-
-              {/* Pilihan: Ya punya vs Tidak punya */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: hasRefChoice === 'yes' ? '12px' : '0' }}>
-                <button
-                  type="button"
-                  onClick={() => setHasRefChoice('yes')}
+                {/* Estimasi Durasi */}
+                <div
                   style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    border: hasRefChoice === 'yes' ? '2px solid #005BB5' : '1px solid #CBD5E1',
-                    backgroundColor: hasRefChoice === 'yes' ? '#EFF6FF' : '#FFFFFF',
-                    color: hasRefChoice === 'yes' ? '#005BB5' : '#475569',
-                    fontWeight: 700,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '12px 16px',
+                    marginBottom: '18px',
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                    {hasRefChoice === 'yes' ? 'check_circle' : 'radio_button_unchecked'}
-                  </span>
-                  <span>Ya, Punya Kode</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHasRefChoice('no');
-                    setCustomerRefCode('');
-                    localStorage.removeItem('mapahtrip_customer_ref');
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    border: hasRefChoice === 'no' ? '2px solid #64748B' : '1px solid #CBD5E1',
-                    backgroundColor: hasRefChoice === 'no' ? '#F1F5F9' : '#FFFFFF',
-                    color: hasRefChoice === 'no' ? '#0F172A' : '#475569',
-                    fontWeight: 700,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                    {hasRefChoice === 'no' ? 'check_circle' : 'radio_button_unchecked'}
-                  </span>
-                  <span>Tidak Punya</span>
-                </button>
-              </div>
-
-              {/* Input Kode Referral Jika Memilih Ya */}
-              {hasRefChoice === 'yes' && (
-                <div style={{ marginTop: '10px' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '9px 12px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #005BB5',
-                      backgroundColor: '#FFFFFF',
-                      boxShadow: '0 0 0 3px rgba(0, 91, 181, 0.08)',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
-                      tag
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Estimasi Masa Tinggal
                     </span>
-                    <input
-                      type="text"
-                      value={customerRefCode}
-                      onChange={(e) => {
-                        const val = e.target.value.toUpperCase();
-                        setCustomerRefCode(val);
-                        localStorage.setItem('mapahtrip_customer_ref', val);
-                      }}
-                      placeholder="Masukkan Kode Referral (cth: MT-AGUS482)"
-                      style={{
-                        border: 'none',
-                        outline: 'none',
-                        width: '100%',
-                        fontSize: '0.86rem',
-                        fontWeight: 700,
-                        color: '#0F172A',
-                        letterSpacing: '0.04em',
-                        backgroundColor: 'transparent',
-                        textTransform: 'uppercase',
-                      }}
-                    />
-                    {customerRefCode && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCustomerRefCode('');
-                          localStorage.removeItem('mapahtrip_customer_ref');
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A' }}>
+                      {selectedVisaModal.durationPill}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Proses Konsulat
+                    </span>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563EB' }}>
+                      3-7 Hari Kerja
+                    </div>
+                  </div>
+                </div>
+
+                {/* Checklist Persyaratan */}
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ fontSize: '0.925rem', fontWeight: 700, color: '#0F172A', marginBottom: '10px' }}>
+                    📋 Dokumen Persyaratan yang Diperlukan:
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {selectedVisaModal.syaratLengkap.map((syarat: string, sIdx: number) => (
+                      <div
+                        key={sIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                          fontSize: '0.85rem',
+                          color: '#334155',
+                          lineHeight: 1.45,
+                          backgroundColor: '#F8FAFC',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: '1px solid #EDF2F7',
                         }}
-                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8', padding: 0 }}
                       >
-                        ✕
-                      </button>
+                        <span style={{ color: '#16A34A', fontWeight: 800, marginTop: '1px' }}>✓</span>
+                        <span>{syarat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Info Tambahan */}
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    color: '#64748B',
+                    lineHeight: 1.5,
+                    backgroundColor: '#EFF6FF',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    marginBottom: '18px',
+                    border: '1px solid #DBEAFE',
+                  }}
+                >
+                  💡 <strong>Layanan MapahTrip:</strong> Tim konsultan kami akan memverifikasi seluruh dokumen Anda sebelum disubmit ke VFS JVAC / Konsulat untuk menjamin kelengkapan dan meminimalisir risiko penolakan.
+                </div>
+
+                {/* Pertanyaan & Form Kode Referral Mitra */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: hasRefChoice === 'yes' ? '1.5px solid #005BB5' : '1.5px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '12px 14px',
+                    marginBottom: '20px',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                        loyalty
+                      </span>
+                      Apakah kamu punya kode referral mitra?
+                    </span>
+                    {hasRefChoice === 'yes' && customerRefCode.trim() && (
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          backgroundColor: '#DCFCE7',
+                          color: '#15803D',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                        }}
+                      >
+                        ✓ Kode Terpasang
+                      </span>
                     )}
                   </div>
-                  <p style={{ margin: '6px 0 0', fontSize: '0.74rem', color: '#64748B' }}>
-                    💡 Kode ini akan otomatis disertakan ke WhatsApp agar komisi mitra Anda tercatat.
-                  </p>
-                </div>
-              )}
-            </div>
 
-            {/* CTA Buttons */}
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <a
-                href={`https://wa.me/6281401735648?text=${encodeURIComponent(
-                  `Halo MapahTrip, saya ingin konsultasi pengajuan ${selectedVisaModal.title}.\n\n` +
-                  (hasRefChoice === 'yes' && customerRefCode.trim()
-                    ? `🏷️ Kode Referral Mitra: ${customerRefCode.trim()}\n\n`
-                    : `🏷️ Kode Referral: (Tanpa Referral)\n\n`) +
-                  `Mohon info estimasi jadwal, biaya, dan kelengkapan berkasnya. Terima kasih!`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  flex: 1,
-                  backgroundColor: '#25D366',
-                  color: '#FFFFFF',
-                  padding: '14px 20px',
-                  borderRadius: '9999px',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>💬 Konsultasi via WhatsApp</span>
-              </a>
-              <button
-                onClick={() => setSelectedVisaModal(null)}
-                style={{
-                  padding: '14px 20px',
-                  borderRadius: '9999px',
-                  border: '1px solid #E2E8F0',
-                  backgroundColor: '#FFFFFF',
-                  color: '#475569',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Tutup
-              </button>
-            </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: hasRefChoice === 'yes' ? '10px' : '0' }}>
+                    <button
+                      type="button"
+                      onClick={() => setHasRefChoice('yes')}
+                      style={{
+                        flex: 1,
+                        padding: '7px 12px',
+                        borderRadius: '9px',
+                        border: hasRefChoice === 'yes' ? '2px solid #005BB5' : '1px solid #CBD5E1',
+                        backgroundColor: hasRefChoice === 'yes' ? '#EFF6FF' : '#FFFFFF',
+                        color: hasRefChoice === 'yes' ? '#005BB5' : '#475569',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        {hasRefChoice === 'yes' ? 'check_circle' : 'radio_button_unchecked'}
+                      </span>
+                      <span>Ya, Punya Kode</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasRefChoice('no');
+                        setCustomerRefCode('');
+                        localStorage.removeItem('mapahtrip_customer_ref');
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '7px 12px',
+                        borderRadius: '9px',
+                        border: hasRefChoice === 'no' ? '2px solid #64748B' : '1px solid #CBD5E1',
+                        backgroundColor: hasRefChoice === 'no' ? '#F1F5F9' : '#FFFFFF',
+                        color: hasRefChoice === 'no' ? '#0F172A' : '#475569',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        {hasRefChoice === 'no' ? 'check_circle' : 'radio_button_unchecked'}
+                      </span>
+                      <span>Tidak Punya</span>
+                    </button>
+                  </div>
+
+                  {hasRefChoice === 'yes' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <input
+                        type="text"
+                        value={customerRefCode}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          setCustomerRefCode(val);
+                          localStorage.setItem('mapahtrip_customer_ref', val);
+                        }}
+                        placeholder="Masukkan Kode Referral (cth: MT-AGUS482)"
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #005BB5',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          color: '#0F172A',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          textTransform: 'uppercase',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* CTA BUTTON: PENGGANTI KONSULTASI VIA WHATSAPP -> DAFTAR (ISI FORMULIR) */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setModalStep('form')}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#005BB5',
+                      color: '#FFFFFF',
+                      padding: '14px 20px',
+                      borderRadius: '9999px',
+                      fontWeight: 700,
+                      fontSize: '0.92rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(0, 91, 181, 0.28)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#00478F')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#005BB5')}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                      assignment
+                    </span>
+                    <span>Daftar (Isi Formulir)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVisaModal(null)}
+                    style={{
+                      padding: '14px 20px',
+                      borderRadius: '9999px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      color: '#475569',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: FORMULIR PENDAFTARAN & UPLOAD BERKAS */}
+            {modalStep === 'form' && (
+              <div>
+                {/* Back to detail button */}
+                <button
+                  type="button"
+                  onClick={() => setModalStep('detail')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#005BB5',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    marginBottom: '14px',
+                    padding: 0,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    arrow_back
+                  </span>
+                  <span>Kembali ke Detail Persyaratan</span>
+                </button>
+
+                <div
+                  style={{
+                    backgroundColor: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    marginBottom: '16px',
+                    fontSize: '0.8rem',
+                    color: '#166534',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#16A34A', flexShrink: 0 }}>
+                    how_to_reg
+                  </span>
+                  <span>
+                    <strong>Formulir Pendaftaran.</strong> Lengkapi data di bawah ini untuk memulai pengajuan visa Anda.
+                  </span>
+                </div>
+
+                <form onSubmit={handleKirimPendaftaran}>
+                  {/* Error Banner */}
+                  {formError && (
+                    <div
+                      style={{
+                        backgroundColor: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        borderRadius: '10px',
+                        padding: '10px 14px',
+                        marginBottom: '16px',
+                        fontSize: '0.82rem',
+                        color: '#B91C1C',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                        error
+                      </span>
+                      <span>{formError}</span>
+                    </div>
+                  )}
+
+                  {/* Success Banner */}
+                  {formSuccessMessage && (
+                    <div
+                      style={{
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
+                        marginBottom: '16px',
+                        fontSize: '0.82rem',
+                        color: '#1E40AF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>
+                          check_circle
+                        </span>
+                        <span>{formSuccessMessage}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 1: DATA PENGAJU */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                        badge
+                      </span>
+                      <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                        1. Data Pengaju (Sesuai KTP)
+                      </h4>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {/* Nama Lengkap */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                          Nama Lengkap <span style={{ color: '#EF4444' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formNama}
+                          onChange={(e) => setFormNama(e.target.value)}
+                          placeholder="Contoh: Budi Santoso"
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid #CBD5E1',
+                            fontSize: '0.88rem',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            backgroundColor: '#F8FAFC',
+                            color: '#0F172A',
+                          }}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = '#005BB5')}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
+                        />
+                      </div>
+
+                      {/* Baris 2 Kolom: No WA & No Paspor */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {/* No. WA */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                            No. WhatsApp <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={formNoWa}
+                            onChange={(e) => setFormNoWa(e.target.value)}
+                            placeholder="08123456789"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#F8FAFC',
+                              color: '#0F172A',
+                            }}
+                          />
+                        </div>
+
+                        {/* No. Paspor */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                            No. Paspor <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>(opsional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formNoPaspor}
+                            onChange={(e) => setFormNoPaspor(e.target.value.toUpperCase())}
+                            placeholder="E6811789 atau -"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#F8FAFC',
+                              color: '#0F172A',
+                              textTransform: 'uppercase',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Baris 2 Kolom: Wilayah Konsulat & Domisili KTP */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {/* Wilayah Konsulat Pengajuan (Konsjen) */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                            Wilayah Konsulat <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          <select
+                            value={formKonsjen}
+                            onChange={(e) => setFormKonsjen(e.target.value as KonsjenKota)}
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid #005BB5',
+                              fontSize: '0.86rem',
+                              fontWeight: 600,
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#EFF6FF',
+                              color: '#005BB5',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value="Jakarta">Jakarta (Kedutaan / JVAC Kuningan)</option>
+                            <option value="Surabaya">Surabaya (Konsulat Jenderal Surabaya)</option>
+                            <option value="Denpasar">Denpasar (Konsulat Jenderal Bali)</option>
+                            <option value="Medan">Medan (Konsulat Jenderal Medan)</option>
+                            <option value="Makassar">Makassar (Kantor Konsuler Makassar)</option>
+                          </select>
+                        </div>
+
+                        {/* Domisili KTP */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                            Domisili KTP <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          <select
+                            value={formDomisili}
+                            onChange={(e) => handleSelectDomisili(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.86rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#F8FAFC',
+                              color: '#0F172A',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <optgroup label="Konsulat Jakarta & Sekitarnya">
+                              <option value="DKI Jakarta">DKI Jakarta / Jakarta</option>
+                              <option value="Jawa Barat">Jawa Barat</option>
+                              <option value="Banten">Banten</option>
+                              <option value="Jawa Tengah">Jawa Tengah</option>
+                              <option value="DI Yogyakarta">DI Yogyakarta</option>
+                              <option value="Lampung">Lampung</option>
+                              <option value="Sumatera Selatan">Sumatera Selatan</option>
+                            </optgroup>
+                            <optgroup label="Konsulat Surabaya & Sekitarnya">
+                              <option value="Surabaya">Surabaya</option>
+                              <option value="Jawa Timur">Jawa Timur</option>
+                              <option value="Kalimantan Timur">Kalimantan Timur</option>
+                              <option value="Kalimantan Barat / Selatan">Kalimantan Barat / Selatan</option>
+                            </optgroup>
+                            <optgroup label="Konsulat Denpasar & Sekitarnya">
+                              <option value="Denpasar">Denpasar</option>
+                              <option value="Bali">Bali</option>
+                              <option value="Nusa Tenggara Barat (NTB)">Nusa Tenggara Barat (NTB)</option>
+                              <option value="Nusa Tenggara Timur (NTT)">Nusa Tenggara Timur (NTT)</option>
+                            </optgroup>
+                            <optgroup label="Konsulat Medan & Sekitarnya">
+                              <option value="Medan">Medan</option>
+                              <option value="Sumatera Utara">Sumatera Utara</option>
+                              <option value="Sumatera Barat">Sumatera Barat</option>
+                              <option value="Riau / Kepulauan Riau">Riau / Kepulauan Riau</option>
+                              <option value="Aceh">Aceh</option>
+                            </optgroup>
+                            <optgroup label="Kantor Konsuler Makassar & Sekitarnya">
+                              <option value="Makassar">Makassar</option>
+                              <option value="Sulawesi Selatan">Sulawesi Selatan</option>
+                              <option value="Sulawesi Utara / Tengah">Sulawesi Utara / Tengah</option>
+                              <option value="Maluku / Papua">Maluku / Papua</option>
+                            </optgroup>
+                            <optgroup label="Lainnya">
+                              <option value="Lainnya">Lainnya / Tulis Sendiri...</option>
+                            </optgroup>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Notifikasi PIC & Status Antrean Konsulat Terpilih */}
+                      <div
+                        style={{
+                          backgroundColor: '#F0F9FF',
+                          border: '1px solid #BAE6FD',
+                          borderRadius: '10px',
+                          padding: '8px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.78rem',
+                          color: '#0369A1',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0284C7' }}>
+                            domain
+                          </span>
+                          <span>Konsulat Pengajuan: <strong>{formKonsjen}</strong></span>
+                        </span>
+                        <span style={{ fontWeight: 600, color: '#0369A1' }}>
+                          PIC Konsuler: <strong>{formKonsjen === 'Surabaya' ? 'Nanami Kay' : formKonsjen === 'Denpasar' ? 'Yulia' : formKonsjen === 'Makassar' ? 'Ulla' : 'Rizky Muhammad'}</strong>
+                        </span>
+                      </div>
+
+                      {formDomisili === 'Lainnya' && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
+                            Tuliskan Domisili KTP Anda
+                          </label>
+                          <input
+                            type="text"
+                            value={formDomisiliLainnya}
+                            onChange={(e) => setFormDomisiliLainnya(e.target.value)}
+                            placeholder="Tuliskan Provinsi / Domisili KTP Anda"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid #005BB5',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#FFFFFF',
+                              color: '#0F172A',
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Kode Referral Mitra */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
+                            Kode Referral Mitra
+                          </label>
+                          <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                            Default: <strong>MAPAHTRIP</strong>
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 12px',
+                            borderRadius: '10px',
+                            border: '1px solid #CBD5E1',
+                            backgroundColor: '#F8FAFC',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                            loyalty
+                          </span>
+                          <input
+                            type="text"
+                            value={customerRefCode}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setCustomerRefCode(val);
+                              localStorage.setItem('mapahtrip_customer_ref', val);
+                            }}
+                            placeholder="MAPAHTRIP atau Kode Mitra Anda"
+                            style={{
+                              border: 'none',
+                              outline: 'none',
+                              width: '100%',
+                              fontSize: '0.85rem',
+                              fontWeight: 700,
+                              color: '#0F172A',
+                              backgroundColor: 'transparent',
+                              textTransform: 'uppercase',
+                            }}
+                          />
+                          {customerRefCode && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomerRefCode('');
+                                localStorage.removeItem('mapahtrip_customer_ref');
+                              }}
+                              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8', padding: 0 }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2: PILIHAN PAKET */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                        workspace_premium
+                      </span>
+                      <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                        2. Pilihan Paket Layanan
+                      </h4>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {[
+                        { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit' },
+                        { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat' },
+                        { id: 'TAC' as const, title: 'TAC', desc: 'Pendampingan All-in' },
+                      ].map((pkg) => {
+                        const isSelected = formPaket === pkg.id;
+                        return (
+                          <div
+                            key={pkg.id}
+                            onClick={() => setFormPaket(pkg.id)}
+                            style={{
+                              padding: '10px 8px',
+                              borderRadius: '12px',
+                              border: isSelected ? '2px solid #005BB5' : '1px solid #E2E8F0',
+                              backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC',
+                              cursor: 'pointer',
+                              textAlign: 'center',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isSelected ? '#005BB5' : '#1E293B' }}>
+                              {pkg.title}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: isSelected ? '#1E40AF' : '#64748B', marginTop: '2px' }}>
+                              {pkg.desc}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION 3: KELENGKAPAN BERKAS DENGAN FILE UPLOAD */}
+                  <div style={{ marginBottom: '22px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                          upload_file
+                        </span>
+                        <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                          3. Kelengkapan Berkas (Unggah Dokumen)
+                        </h4>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Pilih / Upload File:</span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {[
+                        { key: 'formVisa' as const, label: 'Form Visa', sub: 'Formulir permohonan visa', accept: '.pdf,image/*' },
+                        { key: 'ktp' as const, label: 'KTP', sub: 'Fotokopi / scan e-KTP', accept: 'image/*,.pdf' },
+                        { key: 'ektln' as const, label: 'E-KTLN', sub: 'Elektronik Kartu Tenaga Kerja Luar Negeri', accept: '.pdf,image/*' },
+                        { key: 'coe' as const, label: 'COE', sub: 'Certificate of Eligibility', accept: '.pdf,image/*' },
+                        { key: 'foto' as const, label: 'Foto', sub: 'Pasfoto 4.5 × 3.5 cm latar putih', accept: 'image/*' },
+                      ].map((item) => {
+                        const file = formFiles[item.key];
+                        return (
+                          <div
+                            key={item.key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              borderRadius: '12px',
+                              border: file ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
+                              backgroundColor: file ? '#F0FDF4' : '#F8FAFC',
+                              transition: 'all 0.15s ease',
+                              gap: '10px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                              <span
+                                className="material-symbols-outlined"
+                                style={{
+                                  fontSize: '20px',
+                                  color: file ? '#16A34A' : '#005BB5',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {file ? 'check_circle' : 'attach_file'}
+                              </span>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  <strong style={{ fontSize: '0.85rem', color: '#0F172A' }}>
+                                    {item.label}
+                                  </strong>
+                                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                                    &bull; {item.sub}
+                                  </span>
+                                </div>
+                                {file && (
+                                  <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    📄 {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <input
+                                type="file"
+                                id={`upload-${item.key}`}
+                                accept={item.accept}
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0] || null;
+                                  setFormFiles((prev) => ({ ...prev, [item.key]: f }));
+                                }}
+                              />
+                              {file ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      color: '#15803D',
+                                      backgroundColor: '#DCFCE7',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                    }}
+                                  >
+                                    Terunggah
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormFiles((prev) => ({ ...prev, [item.key]: null }))}
+                                    style={{
+                                      border: 'none',
+                                      background: '#FEE2E2',
+                                      color: '#EF4444',
+                                      borderRadius: '50%',
+                                      width: '24px',
+                                      height: '24px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                    title="Hapus file"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor={`upload-${item.key}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    backgroundColor: '#FFFFFF',
+                                    border: '1.5px solid #005BB5',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 700,
+                                    color: '#005BB5',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                                    upload
+                                  </span>
+                                  <span>Pilih File</span>
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '8px' }}>
+                      💡 Unggah berkas yang sudah Anda miliki (Format: PDF, JPG, PNG). Dokumen yang belum siap dapat dibimbing penyusunannya oleh tim MapahTrip.
+                    </div>
+                  </div>
+
+                  {/* ACTION BUTTONS */}
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                    <button
+                      type="submit"
+                      disabled={formSubmitting}
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#005BB5',
+                        color: '#FFFFFF',
+                        padding: '14px 20px',
+                        borderRadius: '9999px',
+                        fontWeight: 700,
+                        fontSize: '0.92rem',
+                        border: 'none',
+                        cursor: formSubmitting ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(0, 91, 181, 0.28)',
+                        transition: 'all 0.15s ease',
+                        opacity: formSubmitting ? 0.7 : 1,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#00478F')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#005BB5')}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        send
+                      </span>
+                      <span>
+                        {formSubmitting ? 'Menyimpan ke Spreadsheet...' : 'Kirim Formulir Pendaftaran'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setModalStep('detail')}
+                      style={{
+                        padding: '14px 20px',
+                        borderRadius: '9999px',
+                        border: '1px solid #E2E8F0',
+                        backgroundColor: '#FFFFFF',
+                        color: '#64748B',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Kembali
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* STEP 3: SUKSES PENDAFTARAN KE SPREADSHEET */}
+            {modalStep === 'success' && (
+              <div style={{ textAlign: 'center', padding: '10px 4px' }}>
+                <div
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '50%',
+                    backgroundColor: '#DCFCE7',
+                    color: '#16A34A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '36px' }}>
+                    task_alt
+                  </span>
+                </div>
+
+                <h3 className="font-serif" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+                  Pendaftaran Berhasil Masuk!
+                </h3>
+                <p style={{ fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5, maxWidth: '460px', margin: '0 auto 18px' }}>
+                  Data pendaftaran Anda telah berhasil dicatat dan masuk ke antrean database &amp; lembar kerja spreadsheet.
+                </p>
+
+                {/* Ringkasan Data yang Masuk */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    textAlign: 'left',
+                    marginBottom: '20px',
+                  }}
+                >
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                      description
+                    </span>
+                    Ringkasan Data Pengajuan:
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.82rem' }}>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>Nama Pemohon:</span>
+                      <strong style={{ color: '#0F172A' }}>{formNama}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>No. WhatsApp:</span>
+                      <strong style={{ color: '#0F172A' }}>{formNoWa}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>Konsulat Tujuan:</span>
+                      <strong style={{ color: '#005BB5' }}>{formKonsjen}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>Domisili KTP:</span>
+                      <strong style={{ color: '#0F172A' }}>{formDomisili === 'Lainnya' ? formDomisiliLainnya : formDomisili}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>Paket Layanan:</span>
+                      <strong style={{ color: '#0F172A' }}>{formPaket}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>Kode Referral:</span>
+                      <strong style={{ color: '#16A34A' }}>{hasRefChoice === 'yes' && customerRefCode.trim() ? customerRefCode.trim().toUpperCase() : 'MAPAHTRIP'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVisaModal(null)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#005BB5',
+                      color: '#FFFFFF',
+                      padding: '13px 20px',
+                      borderRadius: '9999px',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(0, 91, 181, 0.28)',
+                    }}
+                  >
+                    Selesai &amp; Tutup
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

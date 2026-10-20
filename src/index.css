@@ -978,7 +978,23 @@ html, body, #root {
   color: #F8FAFC !important;
 }
 
-/* Hero Section Mobile Styles */
+/* Hero Section Styles (Both Desktop and Mobile Kesamping / Horizontal) */
+.hero-metric-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 14px !important;
+  width: 100% !important;
+}
+
+.hero-trust-bar {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
 @media (max-width: 768px) {
   #beranda {
     padding: 32px 16px 48px !important;
@@ -993,19 +1009,25 @@ html, body, #root {
     border-radius: 12px !important;
   }
   .hero-metric-grid .metric-card .font-serif {
-    font-size: 1.45rem !important;
+    font-size: 1.35rem !important;
   }
   .hero-metric-grid .metric-card div {
-    font-size: 0.68rem !important;
+    font-size: 0.65rem !important;
   }
   .hero-trust-bar {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 10px !important;
-    padding: 12px 14px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justifyContent: space-between !important;
+    gap: 6px !important;
+    padding: 10px 12px !important;
+    overflow-x: auto !important;
   }
   .hero-trust-bar span.trust-dot-sep {
-    display: none !important;
+    display: inline-block !important;
+  }
+  .hero-trust-bar div {
+    white-space: nowrap !important;
   }
 }
 

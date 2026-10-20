@@ -128,3 +128,55 @@ export async function searchPasporInDB(query: string): Promise<Pengajuan | null>
   if (error || !data) return null;
   return mapDBToPengajuan(data);
 }
+
+export async function createPengajuanInDB(payload: {
+  nama: string;
+  domisili_ktp: string;
+  no_wa: string;
+  no_paspor: string;
+  code_referral?: string;
+  form_visa: boolean;
+  ktp: boolean;
+  ektln: boolean;
+  coe: boolean;
+  foto: boolean;
+  program: string;
+  paket: string;
+  konsjen?: string;
+}) {
+  try {
+    const { data, error } = await supabase
+      .from('pengajuan_visa')
+      .insert([
+        {
+          nama: payload.nama,
+          domisili_ktp: payload.domisili_ktp,
+          no_wa: payload.no_wa,
+          no_paspor: payload.no_paspor || '-',
+          code_referral: payload.code_referral || 'MAPAHTRIP',
+          form_visa: payload.form_visa,
+          ktp: payload.ktp,
+          ektln: payload.ektln,
+          coe: payload.coe,
+          foto: payload.foto,
+          program: payload.program,
+          paket: payload.paket,
+          konsjen: payload.konsjen || 'Jakarta',
+          status: 'Menunggu Verifikasi',
+          keterangan: 'Pendaftaran mandiri via Website Mapahtrip.id',
+          tgl_sampai: new Date().toLocaleDateString('id-ID'),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.warn('Supabase insert note:', error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.warn('DB error:', err);
+    return null;
+  }
+}
