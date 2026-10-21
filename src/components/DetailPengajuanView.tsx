@@ -237,7 +237,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 alignItems: 'center',
                 gap: '6px',
               }}
-              title="Kirim notifikasi update status langsung via Gateway WhatsApp KirimDIgi"
+              title="Kirim notifikasi update status langsung via Gateway WhatsApp Mapahtrip"
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                 {isSendingWA ? 'sync' : 'send_and_archive'}

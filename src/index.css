@@ -887,6 +887,13 @@ html, body, #root {
   gap: 10px;
 }
 
+.header-btn-daftar:hover,
+.nav-link-daftar-inline:hover {
+  background-color: #004494 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 91, 181, 0.35) !important;
+}
+
 @media (max-width: 960px) {
   .header-left-group {
     gap: 12px;

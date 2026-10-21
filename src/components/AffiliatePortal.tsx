@@ -33,21 +33,142 @@ const JENIS_IDENTITAS_LIST = [
   'KTP (Kartu Tanda Penduduk)'
 ];
 
-const BANK_EWALLET_LIST = [
-  'Bank Central Asia (BCA)',
-  'Bank Mandiri',
-  'Bank Negara Indonesia (BNI)',
-  'Bank Rakyat Indonesia (BRI)',
-  'Bank Syariah Indonesia (BSI)',
-  'CIMB Niaga',
-  'Bank Permata',
-  'SeaBank',
-  'Bank Jago',
+const EWALLET_LIST = [
   'GoPay',
   'OVO',
   'DANA',
   'ShopeePay',
-  'Bank Lainnya',
+  'LinkAja',
+  'AstraPay',
+  'i.Saku (Indomaret)',
+  'DOKU',
+  'KasPro',
+  'Sakuku (BCA)',
+  'E-Wallet Lainnya',
+];
+
+const BANK_INDONESIA_GROUPS = [
+  {
+    kategori: 'Bank Utama & Himbara (BUMN)',
+    banks: [
+      'Bank Central Asia (BCA)',
+      'Bank Mandiri',
+      'Bank Rakyat Indonesia (BRI)',
+      'Bank Negara Indonesia (BNI)',
+      'Bank Syariah Indonesia (BSI)',
+      'Bank Tabungan Negara (BTN)',
+    ],
+  },
+  {
+    kategori: 'Bank Swasta Nasional',
+    banks: [
+      'CIMB Niaga',
+      'Bank Permata',
+      'Bank Danamon Indonesia',
+      'Bank Panin',
+      'Bank OCBC NISP',
+      'Bank Maybank Indonesia',
+      'Bank Mega',
+      'Bank Sinarmas',
+      'Bank BTPN (Jenius)',
+      'Bank UOB Indonesia',
+      'Bank Commonwealth',
+      'Bank HSBC Indonesia',
+      'Bank DBS Indonesia',
+      'Standard Chartered Bank',
+      'Bank KB Bukopin',
+      'Bank Mayapada',
+      'Bank Victoria International',
+      'Bank MNC Internasional',
+      'Bank Artha Graha Internasional',
+      'Bank Ganesha',
+      'Bank Maspion Indonesia',
+      'Bank Mestika Dharma',
+      'Bank Ina Perdana',
+      'Bank Sahabat Sampoerna',
+      'Bank Woori Saudara',
+      'Bank QNB Indonesia',
+      'Bank Shinhan Indonesia',
+      'Bank China Construction Bank (CCB) Indonesia',
+      'Bank ICBC Indonesia',
+      'Bank JTrust Indonesia',
+      'Bank SBI Indonesia',
+      'Bank Amar Indonesia',
+      'Bank IBK Indonesia',
+      'Bank Multiarta Sentosa (Bank MAS)',
+      'Bank Nationalnobu (Nobu Bank)',
+      'Bank Resona Perdania',
+    ],
+  },
+  {
+    kategori: 'Bank Digital Populer',
+    banks: [
+      'SeaBank Indonesia',
+      'Bank Jago',
+      'Blu by BCA Digital',
+      'Bank Aladin Syariah',
+      'Bank Raya Indonesia',
+      'Allo Bank',
+      'Bank Neo Commerce (BNC)',
+      'Line Bank (KEB Hana)',
+      'Superbank',
+      'TMRW by UOB',
+      'Digibank by DBS',
+    ],
+  },
+  {
+    kategori: 'Bank Pembangunan Daerah (BPD Seluruh Indonesia)',
+    banks: [
+      'Bank BJB (Jawa Barat & Banten)',
+      'Bank BJB Syariah',
+      'Bank DKI (Jakarta)',
+      'Bank Jateng (Jawa Tengah)',
+      'Bank Jateng Syariah',
+      'Bank Jatim (Jawa Timur)',
+      'Bank Jatim Syariah',
+      'Bank BPD DIY (Yogyakarta)',
+      'Bank BPD Bali',
+      'Bank Sumut (Sumatera Utara)',
+      'Bank Sumut Syariah',
+      'Bank Nagari (Sumatera Barat)',
+      'Bank Riau Kepri Syariah',
+      'Bank Sumsel Babel',
+      'Bank Sumsel Babel Syariah',
+      'Bank Lampung',
+      'Bank Jambi',
+      'Bank Bengkulu',
+      'Bank Kalbar (Kalimantan Barat)',
+      'Bank Kaltimtara (Kalimantan Timur & Kaltara)',
+      'Bank Kalsel (Kalimantan Selatan)',
+      'Bank Kalteng (Kalimantan Tengah)',
+      'Bank Sulselbar (Sulawesi Selatan & Barat)',
+      'Bank SulutGo (Sulawesi Utara & Gorontalo)',
+      'Bank Sulteng (Sulawesi Tengah)',
+      'Bank Sultra (Sulawesi Tenggara)',
+      'Bank Maluku Malut',
+      'Bank Papua',
+      'Bank NTB Syariah',
+      'Bank NTT',
+    ],
+  },
+  {
+    kategori: 'Bank Syariah Nasional',
+    banks: [
+      'Bank Muamalat Indonesia',
+      'BCA Syariah',
+      'Bank Mega Syariah',
+      'Bank BTPN Syariah',
+      'Bank Panin Dubai Syariah',
+      'Bank KB Bukopin Syariah',
+      'Bank Victoria Syariah',
+    ],
+  },
+  {
+    kategori: 'Lainnya',
+    banks: [
+      'Bank Lainnya',
+    ],
+  },
 ];
 
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
@@ -103,10 +224,20 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [profileNomorIdentitas, setProfileNomorIdentitas] = useState('');
   const [profileAkunIg, setProfileAkunIg] = useState('');
   const [profileFollowerIg, setProfileFollowerIg] = useState('');
+  const [pencairanKategori, setPencairanKategori] = useState<'bank' | 'ewallet' | ''>(() => {
+    if (currentUser?.namaBank) {
+      return EWALLET_LIST.some((ew) => ew.toLowerCase() === currentUser.namaBank?.toLowerCase())
+        ? 'ewallet'
+        : 'bank';
+    }
+    return '';
+  });
   const [bankNama, setBankNama] = useState(currentUser?.namaBank || '');
   const [bankNomor, setBankNomor] = useState(currentUser?.nomorRekening || '');
   const [bankAtasNama, setBankAtasNama] = useState(currentUser?.atasNamaRekening || '');
   const [bankSavedMsg, setBankSavedMsg] = useState('');
+  const [isEditingBank, setIsEditingBank] = useState(false);
+  const [bankCopied, setBankCopied] = useState(false);
   const [showNotRegisteredToast, setShowNotRegisteredToast] = useState(false);
   const toastTimerRef = React.useRef<any>(null);
   const [profileError, setProfileError] = useState('');
@@ -143,6 +274,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       setBankNama(currentUser.namaBank || '');
       setBankNomor(currentUser.nomorRekening || '');
       setBankAtasNama(currentUser.atasNamaRekening || currentUser.nama || '');
+      if (currentUser.namaBank) {
+        const isEwallet = EWALLET_LIST.some((ew) => ew.toLowerCase() === currentUser.namaBank?.toLowerCase());
+        setPencairanKategori(isEwallet ? 'ewallet' : 'bank');
+      } else {
+        setPencairanKategori('');
+      }
     }
   }, [currentUser]);
 
@@ -151,16 +288,20 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const handleSaveBank = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
+    if (!pencairanKategori) {
+      alert('Silakan pilih jenis pencairan (Bank atau E-Wallet) terlebih dahulu.');
+      return;
+    }
     if (!bankNama) {
-      alert('Silakan pilih bank atau dompet digital terlebih dahulu.');
+      alert(pencairanKategori === 'bank' ? 'Silakan pilih nama bank terlebih dahulu.' : 'Silakan pilih nama e-wallet terlebih dahulu.');
       return;
     }
     if (!bankNomor.trim()) {
-      alert('Nomor rekening atau nomor akun e-wallet wajib diisi.');
+      alert(pencairanKategori === 'bank' ? 'Nomor rekening bank wajib diisi.' : 'Nomor HP akun e-wallet wajib diisi.');
       return;
     }
     if (!bankAtasNama.trim()) {
-      alert('Nama pemilik rekening (atas nama) wajib diisi.');
+      alert('Nama pemilik rekening / akun (atas nama) wajib diisi.');
       return;
     }
 
@@ -186,6 +327,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     }
 
     setCurrentUser(updatedUser);
+    setIsEditingBank(false);
     setBankSavedMsg('✓ Rekening pencairan insentif berhasil disimpan!');
     setTimeout(() => setBankSavedMsg(''), 4000);
   };
@@ -1820,9 +1962,44 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </label>
                 <input
                   type="tel"
-                  placeholder="nomor dengan format 628xxxxxxxxxx"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="nomor dengan format 08xxxxxxxxxx atau 628xxxxxxxxxx"
                   value={profileNoWa}
-                  onChange={(e) => setProfileNoWa(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (
+                      [
+                        'Backspace',
+                        'Delete',
+                        'Tab',
+                        'Escape',
+                        'Enter',
+                        'ArrowLeft',
+                        'ArrowRight',
+                        'ArrowUp',
+                        'ArrowDown',
+                        'Home',
+                        'End',
+                      ].includes(e.key) ||
+                      e.ctrlKey ||
+                      e.metaKey
+                    ) {
+                      return;
+                    }
+                    if (!/^[0-9]$/.test(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onInput={(e: React.FormEvent<HTMLInputElement>) => {
+                    e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '');
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pasteData = e.clipboardData.getData('text') || '';
+                    const cleanDigits = pasteData.replace(/\D/g, '').slice(0, 16);
+                    setProfileNoWa(cleanDigits);
+                  }}
+                  onChange={(e) => setProfileNoWa(e.target.value.replace(/\D/g, ''))}
                   required
                   style={{
                     width: '100%',
@@ -3262,7 +3439,25 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     </div>
 
                     {/* Status Badge */}
-                    {currentUser?.isProfileComplete ? (
+                    {currentUser?.namaBank && currentUser?.nomorRekening ? (
+                      <span
+                        style={{
+                          backgroundColor: '#DCFCE7',
+                          color: '#15803D',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          border: '1px solid #86EFAC',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>verified</span>
+                        Rekening Terdaftar &bull; Siap Dicairkan
+                      </span>
+                    ) : currentUser?.isProfileComplete ? (
                       <span
                         style={{
                           backgroundColor: '#DCFCE7',
@@ -3332,21 +3527,32 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
                       {/* Form Disabled / Read-Only Display Preview */}
                       <div style={{ opacity: 0.5, pointerEvents: 'none', filter: 'grayscale(30%)' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '14px' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
-                              Pilihan Bank / Dompet Digital
+                              1. Jenis Pencairan
                             </label>
                             <input
                               type="text"
                               disabled
-                              value="Contoh: BCA / Mandiri / BNI / GoPay / DANA"
+                              value="Rekening Bank / E-Wallet"
                               style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9', fontSize: '0.84rem', color: '#94A3B8' }}
                             />
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
-                              Nomor Rekening / No. HP E-Wallet
+                              2. Nama Bank / E-Wallet
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value="BCA, Mandiri, BRI, DANA, GoPay..."
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9', fontSize: '0.84rem', color: '#94A3B8' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
+                              3. Nomor Rekening / No. HP
                             </label>
                             <input
                               type="text"
@@ -3357,12 +3563,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748B', marginBottom: '6px' }}>
-                              Nama Pemilik Rekening (Atas Nama)
+                              4. Nama Pemilik (Atas Nama)
                             </label>
                             <input
                               type="text"
                               disabled
-                              value="Contoh: Sesuai Buku Tabungan / Akun E-Wallet"
+                              value="Contoh: Sesuai Buku Tabungan / E-Wallet"
                               style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9', fontSize: '0.84rem', color: '#94A3B8' }}
                             />
                           </div>
@@ -3396,8 +3602,182 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         </button>
                       </div>
                     </div>
+                  ) : currentUser?.namaBank && currentUser?.nomorRekening && !isEditingBank ? (
+                    /* KONDISI 2A: REKENING SUDAH DISIMPAN & TERVERIFIKASI (KARTU ELEGAN) */
+                    <div>
+                      {bankSavedMsg && (
+                        <div
+                          style={{
+                            backgroundColor: '#DCFCE7',
+                            border: '1px solid #86EFAC',
+                            color: '#15803D',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            marginBottom: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+                          <span>{bankSavedMsg}</span>
+                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          backgroundColor: '#F0FDF4',
+                          border: '1.5px solid #86EFAC',
+                          borderRadius: '14px',
+                          padding: '18px 20px',
+                          boxShadow: '0 4px 15px rgba(16, 185, 129, 0.08)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', borderBottom: '1px solid #BBF7D0', paddingBottom: '14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div
+                              style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '10px',
+                                backgroundColor: '#10B981',
+                                color: '#FFFFFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                                {pencairanKategori === 'ewallet' ? 'smartphone' : 'account_balance'}
+                              </span>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#065F46', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>Rekening Pencairan Terdaftar</span>
+                                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>verified</span>
+                              </div>
+                              <div style={{ fontSize: '0.74rem', color: '#047857' }}>
+                                Tujuan transfer insentif resmi Rp 100.000 / visa terbit
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingBank(true)}
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              color: '#0F172A',
+                              border: '1.5px solid #CBD5E1',
+                              padding: '8px 16px',
+                              borderRadius: '9px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#005BB5' }}>edit</span>
+                            <span>Ubah Data Rekening</span>
+                          </button>
+                        </div>
+
+                        {/* Grid 4 Kolom Detail Rekening Tersimpan */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                            gap: '12px',
+                            marginBottom: '14px',
+                          }}
+                        >
+                          {/* 1. Jenis Pencairan */}
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              Jenis Pencairan
+                            </div>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>
+                              {pencairanKategori === 'ewallet' ? '📱 Dompet Digital (E-Wallet)' : '🏦 Bank Transfer'}
+                            </div>
+                          </div>
+
+                          {/* 2. Nama Bank / E-Wallet */}
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              {pencairanKategori === 'ewallet' ? 'Nama E-Wallet' : 'Nama Bank'}
+                            </div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#005BB5' }}>
+                              {currentUser.namaBank}
+                            </div>
+                          </div>
+
+                          {/* 3. Nomor Rekening / No. HP */}
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              {pencairanKategori === 'ewallet' ? 'Nomor HP Akun' : 'Nomor Rekening Bank'}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                              <span style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A', letterSpacing: '0.5px', fontFamily: 'monospace' }}>
+                                {currentUser.nomorRekening}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (currentUser.nomorRekening) {
+                                    navigator.clipboard.writeText(currentUser.nomorRekening);
+                                    setBankCopied(true);
+                                    setTimeout(() => setBankCopied(false), 2000);
+                                  }
+                                }}
+                                title="Salin nomor"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: '4px 6px',
+                                  cursor: 'pointer',
+                                  borderRadius: '6px',
+                                  color: bankCopied ? '#10B981' : '#64748B',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  backgroundColor: bankCopied ? '#DCFCE7' : '#F1F5F9',
+                                }}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                                  {bankCopied ? 'check' : 'content_copy'}
+                                </span>
+                                <span>{bankCopied ? 'Tersalin' : 'Salin'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 4. Nama Pemilik (Atas Nama) */}
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              Nama Pemilik (Atas Nama)
+                            </div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A' }}>
+                              {currentUser.atasNamaRekening || currentUser.nama}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem', color: '#047857', fontWeight: 600 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>verified_user</span>
+                          <span>Rekening ini siap menerima pencairan insentif otomatis saat visa pemohon yang Anda ajak disetujui.</span>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    /* KONDISI 2: JIKA SUDAH ISI FORMULIR MITRA (AKTIF & BISA DIISI) */
+                    /* KONDISI 2B: FORMULIR INPUT REKENING (BELUM DIISI ATAU SEDANG UBAH) */
                     <form onSubmit={handleSaveBank}>
                       {bankSavedMsg && (
                         <div
@@ -3420,44 +3800,141 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         </div>
                       )}
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+                        {/* 1. Kategori: Bank atau E-Wallet */}
                         <div>
                           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                            Pilihan Bank / Dompet Digital <span style={{ color: '#EF4444' }}>*</span>
+                            1. Jenis Pencairan <span style={{ color: '#EF4444' }}>*</span>
                           </label>
                           <select
-                            value={bankNama}
-                            onChange={(e) => setBankNama(e.target.value)}
+                            value={pencairanKategori}
+                            onChange={(e) => {
+                              const val = e.target.value as 'bank' | 'ewallet' | '';
+                              setPencairanKategori(val);
+                              setBankNama('');
+                            }}
                             required
                             style={{
                               width: '100%',
                               padding: '11px 12px',
                               borderRadius: '10px',
-                              border: '1px solid #CBD5E1',
-                              backgroundColor: '#FFFFFF',
+                              border: '1.5px solid #005BB5',
+                              backgroundColor: '#EFF6FF',
                               fontSize: '0.86rem',
                               outline: 'none',
-                              color: '#0F172A',
-                              fontWeight: 600,
+                              color: '#005BB5',
+                              fontWeight: 700,
+                              cursor: 'pointer',
                             }}
                           >
                             <option value="">-- Pilih Bank / E-Wallet --</option>
-                            {BANK_EWALLET_LIST.map((b) => (
-                              <option key={b} value={b}>
-                                {b}
-                              </option>
-                            ))}
+                            <option value="bank">🏦 Rekening Bank Transfer</option>
+                            <option value="ewallet">📱 Dompet Digital (E-Wallet)</option>
                           </select>
                         </div>
 
+                        {/* 2. Pilihan Bank / E-Wallet Dinamis */}
                         <div>
                           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                            Nomor Rekening / No. HP E-Wallet <span style={{ color: '#EF4444' }}>*</span>
+                            {pencairanKategori === 'ewallet'
+                              ? '2. Nama E-Wallet'
+                              : pencairanKategori === 'bank'
+                              ? '2. Nama Bank'
+                              : '2. Nama Bank / E-Wallet'}{' '}
+                            <span style={{ color: '#EF4444' }}>*</span>
+                          </label>
+                          {pencairanKategori === 'bank' ? (
+                            <select
+                              value={bankNama}
+                              onChange={(e) => setBankNama(e.target.value)}
+                              required
+                              style={{
+                                width: '100%',
+                                padding: '11px 12px',
+                                borderRadius: '10px',
+                                border: '1px solid #CBD5E1',
+                                backgroundColor: '#FFFFFF',
+                                fontSize: '0.86rem',
+                                outline: 'none',
+                                color: '#0F172A',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="">-- Pilih Bank di Indonesia --</option>
+                              {BANK_INDONESIA_GROUPS.map((group) => (
+                                <optgroup key={group.kategori} label={group.kategori}>
+                                  {group.banks.map((b) => (
+                                    <option key={b} value={b}>
+                                      {b}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          ) : pencairanKategori === 'ewallet' ? (
+                            <select
+                              value={bankNama}
+                              onChange={(e) => setBankNama(e.target.value)}
+                              required
+                              style={{
+                                width: '100%',
+                                padding: '11px 12px',
+                                borderRadius: '10px',
+                                border: '1px solid #CBD5E1',
+                                backgroundColor: '#FFFFFF',
+                                fontSize: '0.86rem',
+                                outline: 'none',
+                                color: '#0F172A',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="">-- Pilih E-Wallet --</option>
+                              {EWALLET_LIST.map((ew) => (
+                                <option key={ew} value={ew}>
+                                  {ew}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <select
+                              disabled
+                              style={{
+                                width: '100%',
+                                padding: '11px 12px',
+                                borderRadius: '10px',
+                                border: '1px solid #CBD5E1',
+                                backgroundColor: '#F1F5F9',
+                                fontSize: '0.86rem',
+                                outline: 'none',
+                                color: '#94A3B8',
+                                fontWeight: 600,
+                              }}
+                            >
+                              <option value="">-- Pilih Jenis Pencairan Dulu --</option>
+                            </select>
+                          )}
+                        </div>
+
+                        {/* 3. Nomor Rekening / Nomor HP */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            {pencairanKategori === 'ewallet'
+                              ? '3. No. HP Akun E-Wallet'
+                              : pencairanKategori === 'bank'
+                              ? '3. Nomor Rekening Bank'
+                              : '3. Nomor Rekening / HP'}{' '}
+                            <span style={{ color: '#EF4444' }}>*</span>
                           </label>
                           <input
                             type="text"
                             inputMode="numeric"
-                            placeholder="contoh: 1234567890 / 0812xxxx"
+                            placeholder={
+                              pencairanKategori === 'ewallet'
+                                ? 'contoh: 081234567890'
+                                : 'contoh: 1234567890'
+                            }
                             value={bankNomor}
                             onChange={(e) => setBankNomor(e.target.value.replace(/[^0-9]/g, ''))}
                             required
@@ -3475,13 +3952,21 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           />
                         </div>
 
+                        {/* 4. Nama Pemilik (Atas Nama) */}
                         <div>
                           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                            Nama Pemilik Rekening (Atas Nama) <span style={{ color: '#EF4444' }}>*</span>
+                            {pencairanKategori === 'ewallet'
+                              ? '4. Nama Akun E-Wallet (Atas Nama)'
+                              : '4. Nama Pemilik Rekening (Atas Nama)'}{' '}
+                            <span style={{ color: '#EF4444' }}>*</span>
                           </label>
                           <input
                             type="text"
-                            placeholder="nama sesuai buku tabungan / e-wallet"
+                            placeholder={
+                              pencairanKategori === 'ewallet'
+                                ? 'nama terdaftar di e-wallet'
+                                : 'nama sesuai buku tabungan'
+                            }
                             value={bankAtasNama}
                             onChange={(e) => setBankAtasNama(e.target.value)}
                             required
@@ -3503,28 +3988,55 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
                           💡 Pastikan nama pemilik rekening sesuai dengan identitas terdaftar agar proses transfer komisi tidak terkendala.
                         </span>
-                        <button
-                          type="submit"
-                          style={{
-                            backgroundColor: '#10B981',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            padding: '10px 20px',
-                            borderRadius: '10px',
-                            fontSize: '0.86rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)',
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                            save
-                          </span>
-                          <span>Simpan Rekening Pencairan</span>
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {currentUser?.namaBank && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBankNama(currentUser.namaBank || '');
+                                setBankNomor(currentUser.nomorRekening || '');
+                                setBankAtasNama(currentUser.atasNamaRekening || currentUser.nama || '');
+                                const isEw = EWALLET_LIST.some((ew) => ew.toLowerCase() === currentUser.namaBank?.toLowerCase());
+                                setPencairanKategori(isEw ? 'ewallet' : 'bank');
+                                setIsEditingBank(false);
+                              }}
+                              style={{
+                                backgroundColor: '#F1F5F9',
+                                color: '#475569',
+                                border: '1px solid #CBD5E1',
+                                padding: '10px 18px',
+                                borderRadius: '10px',
+                                fontSize: '0.86rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Batal
+                            </button>
+                          )}
+                          <button
+                            type="submit"
+                            style={{
+                              backgroundColor: '#10B981',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              padding: '10px 20px',
+                              borderRadius: '10px',
+                              fontSize: '0.86rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                              save
+                            </span>
+                            <span>Simpan Rekening Pencairan</span>
+                          </button>
+                        </div>
                       </div>
                     </form>
                   )}

@@ -4,6 +4,7 @@ import buildingPhoto from '../assets/MapahTrip.jpg';
 import React, { useState, useEffect } from 'react';
 import type { Pengajuan, KonsjenKota } from '../types';
 import { searchPasporInDB, createPengajuanInDB } from '../lib/supabase';
+import { kirimPesanWA } from '../whatsapp';
 
 interface CustomerHomeProps {
   pengajuanList: Pengajuan[];
@@ -333,6 +334,29 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
     setFormError(null);
   };
 
+  // Navigasi Scroll Presisi Tepat di Garis Batas Section (Bebas Glitch Offset Sticky Header)
+  const handleNavScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      const headerEl = document.querySelector('.customer-header');
+      const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 72;
+      const rect = element.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      // Posisi target persis di bawah garis header (offset tepat di batas garis section)
+      const targetY = Math.round(rect.top + scrollTop - headerHeight + 1);
+
+      window.scrollTo({
+        top: targetY,
+        behavior: 'smooth',
+      });
+
+      if (window.history.pushState) {
+        window.history.pushState(null, '', `#${targetId}`);
+      }
+    }
+  };
+
   // Pertanyaan & Input Kode Referral Pengunjung
   const [customerRefCode, setCustomerRefCode] = useState<string>(() => {
     try {
@@ -412,14 +436,81 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
     }
   };
 
+  // Helper untuk mengonversi berkas dokumen/gambar menjadi base64 (dengan kompresi ultra-cepat)
+  const processFileForUpload = (
+    file: File | null
+  ): Promise<{ name: string; type: string; base64: string } | null> => {
+    if (!file) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      // Jika berkas berupa gambar, kompres dengan ukuran ideal (max 1200px, ~80-120 KB) agar upload super cepat
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 1200;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+              const base64 = dataUrl.split(',')[1] || '';
+              resolve({
+                name: file.name.replace(/\.[^/.]+$/, '') + '.jpg',
+                type: 'image/jpeg',
+                base64,
+              });
+              return;
+            }
+            const rawBase64 = ((e.target?.result as string) || '').split(',')[1] || '';
+            resolve({ name: file.name, type: file.type || 'image/jpeg', base64: rawBase64 });
+          };
+          img.onerror = () => {
+            const rawBase64 = ((e.target?.result as string) || '').split(',')[1] || '';
+            resolve({ name: file.name, type: file.type || 'application/octet-stream', base64: rawBase64 });
+          };
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      } else {
+        // PDF atau dokumen lainnya
+        const reader = new FileReader();
+        reader.onload = () => {
+          const res = (reader.result as string).split(',')[1] || '';
+          resolve({
+            name: file.name,
+            type: file.type || 'application/pdf',
+            base64: res,
+          });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
   const handleKirimPendaftaran = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!formNama.trim()) {
       setFormError('Nama Lengkap wajib diisi.');
       return;
     }
-    if (!formNoWa.trim()) {
-      setFormError('Nomor WhatsApp aktif wajib diisi.');
+    if (!formNoWa.trim() || formNoWa.length < 8) {
+      setFormError('Nomor WhatsApp wajib diisi angka dengan benar (minimal 8 digit).');
       return;
     }
 
@@ -434,36 +525,51 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
     setFormSubmitting(true);
     setFormError(null);
 
-    // 1. Simpan ke Database Supabase (tabel pengajuan_visa sesuai kolom spreadsheet)
+    // 1. Siapkan file berkas untuk diunggah (kompresi lokal sangat cepat secara paralel)
+    let fileFormVisa = null;
+    let fileKtp = null;
+    let fileEktln = null;
+    let fileCoe = null;
+    let fileFoto = null;
+
     try {
-      await createPengajuanInDB({
-        nama: formNama.trim(),
-        domisili_ktp: finalDomisili,
-        konsjen: formKonsjen,
-        no_wa: formNoWa.trim(),
-        no_paspor: formNoPaspor.trim() || '-',
-        code_referral: finalRefCode,
-        form_visa: !!formFiles.formVisa,
-        ktp: !!formFiles.ktp,
-        ektln: !!formFiles.ektln,
-        coe: !!formFiles.coe,
-        foto: !!formFiles.foto,
-        program: selectedVisaModal?.title || 'Visa Jepang',
-        paket: formPaket,
-      });
-    } catch (err) {
-      console.warn('Gagal mencatat pengajuan ke DB:', err);
+      [fileFormVisa, fileKtp, fileEktln, fileCoe, fileFoto] = await Promise.all([
+        processFileForUpload(formFiles.formVisa),
+        processFileForUpload(formFiles.ktp),
+        processFileForUpload(formFiles.ektln),
+        processFileForUpload(formFiles.coe),
+        processFileForUpload(formFiles.foto),
+      ]);
+    } catch (fileErr) {
+      console.warn('Catatan pemrosesan file upload:', fileErr);
     }
 
-    // 2. Kirim ke Google Spreadsheet (via Google Apps Script Webhook)
+    // 2. Jalankan penyimpanan Database Supabase dan pengiriman Google Apps Script secara SIMULTAN / PARALEL
     const sheetsWebhookUrl =
       (import.meta as any).env?.VITE_GOOGLE_SHEETS_WEBHOOK_URL ||
       localStorage.getItem('mapahtrip_sheets_webhook_url') ||
-      'https://script.google.com/macros/s/AKfycbw3xQqFfTAcwGzfsV03oYlE83X-wWUhjmCef4JqH_9V8xwMpQrBSwdFtdym8cd4Tfwnaw/exec';
+      'https://script.google.com/macros/s/AKfycbz789i6peUgtZwAaGb35BvpT2jR7-DnvZou5I6xvLkSsPnE3w_bnAyEIu08wdcU1T2Reg/exec';
 
-    if (sheetsWebhookUrl) {
-      try {
-        await fetch(sheetsWebhookUrl, {
+    const saveToSupabase = createPengajuanInDB({
+      nama: formNama.trim(),
+      domisili_ktp: finalDomisili,
+      konsjen: formKonsjen,
+      no_wa: formNoWa.trim(),
+      no_paspor: formNoPaspor.trim() || '-',
+      code_referral: finalRefCode,
+      form_visa: !!formFiles.formVisa,
+      ktp: !!formFiles.ktp,
+      ektln: !!formFiles.ektln,
+      coe: !!formFiles.coe,
+      foto: !!formFiles.foto,
+      program: selectedVisaModal?.title || 'Visa Jepang',
+      paket: formPaket,
+    }).catch((err) => {
+      console.warn('Gagal mencatat pengajuan ke DB:', err);
+    });
+
+    const sendToGoogleSheets = sheetsWebhookUrl
+      ? fetch(sheetsWebhookUrl, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -477,17 +583,40 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             code_referral: finalRefCode,
             program: selectedVisaModal?.title || 'Visa Jepang',
             paket: formPaket,
-            form_visa: formFiles.formVisa ? formFiles.formVisa.name : 'Ada',
-            ktp: formFiles.ktp ? formFiles.ktp.name : 'Ada',
-            ektln: formFiles.ektln ? formFiles.ektln.name : 'Ada',
-            coe: formFiles.coe ? formFiles.coe.name : 'Ada',
-            foto: formFiles.foto ? formFiles.foto.name : 'Ada',
+            form_visa: fileFormVisa || (formFiles.formVisa ? formFiles.formVisa.name : '-'),
+            ktp: fileKtp || (formFiles.ktp ? formFiles.ktp.name : '-'),
+            ektln: fileEktln || (formFiles.ektln ? formFiles.ektln.name : '-'),
+            coe: fileCoe || (formFiles.coe ? formFiles.coe.name : '-'),
+            foto: fileFoto || (formFiles.foto ? formFiles.foto.name : '-'),
           }),
-        });
-      } catch (sheetErr) {
-        console.warn('Google Sheets Webhook note:', sheetErr);
-      }
-    }
+        }).catch((sheetErr) => {
+          console.warn('Google Sheets Webhook note:', sheetErr);
+        })
+      : Promise.resolve();
+
+    // 3. Kirim notifikasi WhatsApp otomatis via Gateway API (Session: Mapahtrip)
+    const namaPendaftar = formNama.trim();
+    const programVisa = selectedVisaModal?.title || 'Visa Jepang';
+    const noPasporText = formNoPaspor.trim() && formNoPaspor.trim() !== '-' ? formNoPaspor.trim() : '-';
+
+    const waMessage =
+      `Halo Kak *${namaPendaftar}*, terima kasih sudah mendaftar di *Mapah Trip*! 🇯🇵✨\n\n` +
+      `Data pendaftaran pengajuan visa Anda telah berhasil kami terima:\n` +
+      `📋 *Program:* ${programVisa} (${formPaket})\n` +
+      `🏛️ *Konsulat Tujuan:* Konsjen ${formKonsjen}\n` +
+      `📍 *Domisili KTP:* ${finalDomisili}\n` +
+      (noPasporText !== '-' ? `🛂 *No. Paspor:* ${noPasporText}\n` : '') +
+      `🏷️ *Kode Referral:* ${finalRefCode}\n\n` +
+      `Tim operasional Mapah Trip akan segera memverifikasi kelengkapan berkas Anda dan memberikan arahan tahapan berikutnya.\n\n` +
+      `Jika ada berkas tambahan atau pertanyaan seputar proses visa Jepang, silakan langsung membalas pesan WhatsApp ini ya Kak. Terima kasih! 🙏\n\n` +
+      `_Mapah Trip - Layanan Pengajuan Visa Jepang Resmi & Terpercaya_`;
+
+    const sendToWhatsApp = kirimPesanWA(formNoWa.trim(), waMessage).catch((waErr) => {
+      console.warn('Catatan pengiriman WhatsApp Gateway:', waErr);
+      return null;
+    });
+
+    await Promise.all([saveToSupabase, sendToGoogleSheets, sendToWhatsApp]);
 
     setFormSubmitting(false);
     setModalStep('success');
@@ -593,19 +722,48 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             }}
           >
             {[
-              { label: 'Jenis Visa', href: '#jenis-visa' },
-              { label: 'Alur Proses', href: '#alur' },
-              { label: 'Lacak Status', href: '#tracking' },
-              { label: 'FAQ', href: '#faq' },
-            ].map((item, idx) => (
-              <a
-                key={idx}
-                href={item.href}
-                className="nav-link-premium"
-              >
-                <span>{item.label}</span>
-              </a>
-            ))}
+              { label: 'Jenis Visa', href: '#jenis-visa', id: 'jenis-visa' },
+              { label: 'Alur Proses', href: '#alur', id: 'alur' },
+              { label: 'Lacak Status', href: '#tracking', id: 'tracking' },
+              { label: 'FAQ', href: '#faq', id: 'faq' },
+              { label: 'Daftar', href: '#jenis-visa', id: 'jenis-visa', isDaftar: true },
+            ].map((item, idx) =>
+              item.isDaftar ? (
+                <a
+                  key={idx}
+                  href={item.href}
+                  onClick={(e) => handleNavScroll(e, item.id)}
+                  className="nav-link-daftar-inline"
+                  style={{
+                    backgroundColor: '#005BB5',
+                    color: '#FFFFFF',
+                    textDecoration: 'none',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    padding: '6px 16px',
+                    borderRadius: '9999px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginLeft: '4px',
+                    boxShadow: '0 2px 6px rgba(0, 91, 181, 0.25)',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>{item.label}</span>
+                </a>
+              ) : (
+                <a
+                  key={idx}
+                  href={item.href}
+                  onClick={(e) => handleNavScroll(e, item.id)}
+                  className="nav-link-premium"
+                >
+                  <span>{item.label}</span>
+                </a>
+              )
+            )}
           </nav>
         </div>
 
@@ -742,16 +900,20 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
       {mobileMenuOpen && (
         <div className="mobile-nav-drawer">
           {[
-            { label: 'Jenis Visa Jepang', href: '#jenis-visa', icon: 'flight' },
-            { label: 'Alur Proses & Syarat', href: '#alur', icon: 'sync_alt' },
-            { label: 'Lacak Status Paspor', href: '#tracking', icon: 'search' },
-            { label: 'Tanya Jawab (FAQ)', href: '#faq', icon: 'help_outline' },
+            { label: 'Jenis Visa Jepang', href: '#jenis-visa', id: 'jenis-visa', icon: 'flight' },
+            { label: 'Alur Proses & Syarat', href: '#alur', id: 'alur', icon: 'sync_alt' },
+            { label: 'Lacak Status Paspor', href: '#tracking', id: 'tracking', icon: 'search' },
+            { label: 'Tanya Jawab (FAQ)', href: '#faq', id: 'faq', icon: 'help_outline' },
+            { label: 'Daftar Visa Jepang', href: '#jenis-visa', id: 'jenis-visa', icon: 'how_to_reg' },
           ].map((item, idx) => (
             <a
               key={idx}
               href={item.href}
               className="mobile-nav-link"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={(e) => {
+                setMobileMenuOpen(false);
+                handleNavScroll(e, item.id);
+              }}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005bb5' }}>
@@ -859,6 +1021,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', marginTop: '6px' }}>
               <a
                 href="#jenis-visa"
+                onClick={(e) => handleNavScroll(e, 'jenis-visa')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1029,247 +1192,247 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             </div>
           </div>
 
-        {/* Right Column: Visual Composite Card & 3 Mini Feature Badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-          <div
-            style={{
-              borderRadius: '24px',
-              backgroundColor: '#0b1220',
-              padding: '18px',
-              color: '#ffffff',
-              boxShadow: '0 16px 36px -10px rgba(11, 18, 32, 0.35)',
-              border: '1px solid #1e293b',
-              position: 'relative',
-              overflow: 'hidden',
-              minHeight: '440px',
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            {/* Background Image: MapahTrip.jpg */}
+          {/* Right Column: Visual Composite Card & 3 Mini Feature Badges */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
             <div
               style={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 0,
+                borderRadius: '24px',
+                backgroundColor: '#0b1220',
+                padding: '18px',
+                color: '#ffffff',
+                boxShadow: '0 16px 36px -10px rgba(11, 18, 32, 0.35)',
+                border: '1px solid #1e293b',
+                position: 'relative',
+                overflow: 'hidden',
+                minHeight: '440px',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
               }}
             >
-              <img
-                src={buildingPhoto}
-                alt="MapahTrip.id"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  filter: 'brightness(0.95) contrast(1.05)',
-                }}
-              />
+              {/* Background Image: MapahTrip.jpg */}
               <div
                 style={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'linear-gradient(180deg, rgba(11, 18, 32, 0.35) 0%, rgba(11, 18, 32, 0.1) 40%, rgba(11, 18, 32, 0.75) 100%)',
-                }}
-              />
-            </div>
-
-            {/* Top Pills Header */}
-            <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'flex-end' }}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 12px',
-                  borderRadius: '9999px',
-                  background: 'rgba(11, 18, 32, 0.75)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: 'rgba(255, 255, 255, 0.85)',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  letterSpacing: '0.03em',
+                  zIndex: 0,
                 }}
               >
-                <span>Tokyo • Osaka • Kyoto</span>
+                <img
+                  src={buildingPhoto}
+                  alt="MapahTrip.id"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    filter: 'brightness(0.95) contrast(1.05)',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(180deg, rgba(11, 18, 32, 0.35) 0%, rgba(11, 18, 32, 0.1) 40%, rgba(11, 18, 32, 0.75) 100%)',
+                  }}
+                />
               </div>
-            </div>
 
-            {/* Spacer for clear view of MapahTrip.id sign on the building */}
-            <div style={{ flex: 1, minHeight: '130px' }} />
+              {/* Top Pills Header */}
+              <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    background: 'rgba(11, 18, 32, 0.75)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  <span>Tokyo • Osaka • Kyoto</span>
+                </div>
+              </div>
 
-            {/* Bottom Two Overlay Cards */}
-            <div
-              style={{
-                position: 'relative',
-                zIndex: 10,
-                display: 'grid',
-                gridTemplateColumns: '1.6fr 1fr',
-                gap: '10px',
-                alignItems: 'stretch',
-              }}
-            >
-              {/* Left Card: Visa Approved (White in light, dark glass in dark mode) */}
+              {/* Spacer for clear view of MapahTrip.id sign on the building */}
+              <div style={{ flex: 1, minHeight: '130px' }} />
+
+              {/* Bottom Two Overlay Cards */}
               <div
-                className="building-overlay-white-card"
                 style={{
-                  borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.96)',
-                  backdropFilter: 'blur(12px)',
-                  color: '#0F172A',
-                  padding: '12px 14px',
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
+                  position: 'relative',
+                  zIndex: 10,
+                  display: 'grid',
+                  gridTemplateColumns: '1.6fr 1fr',
+                  gap: '10px',
+                  alignItems: 'stretch',
                 }}
               >
-                <div>
+                {/* Left Card: Visa Approved (White in light, dark glass in dark mode) */}
+                <div
+                  className="building-overlay-white-card"
+                  style={{
+                    borderRadius: '16px',
+                    background: 'rgba(255, 255, 255, 0.96)',
+                    backdropFilter: 'blur(12px)',
+                    color: '#0F172A',
+                    padding: '12px 14px',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        color: '#0284c7',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      VISA APPROVED
+                    </div>
+                    <h4 style={{ fontWeight: 800, fontSize: '0.875rem', color: '#0F172A', margin: '3px 0 1px' }}>
+                      Raisa A. - Tourist Single
+                    </h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748B', margin: 0 }}>
+                      Issued 4 hari kerja • 90 days
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px' }}>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        background: '#e0f2fe',
+                        color: '#0369a1',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      e-Paspor
+                    </span>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        background: '#0b1220',
+                        color: '#ffffff',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.03em',
+                      }}
+                    >
+                      GRANTED
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right Card: Estimasi (Dark) */}
+                <div
+                  style={{
+                    borderRadius: '16px',
+                    background: 'rgba(11, 18, 32, 0.92)',
+                    backdropFilter: 'blur(12px)',
+                    color: '#ffffff',
+                    padding: '12px 14px',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
                   <div
                     style={{
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
+                      fontSize: '0.62rem',
+                      fontWeight: 700,
                       textTransform: 'uppercase',
-                      color: '#0284c7',
+                      color: '#94a3b8',
                       letterSpacing: '0.06em',
                     }}
                   >
-                    VISA APPROVED
+                    ESTIMASI
                   </div>
-                  <h4 style={{ fontWeight: 800, fontSize: '0.875rem', color: '#0F172A', margin: '3px 0 1px' }}>
-                    Raisa A. - Tourist Single
-                  </h4>
-                  <p style={{ fontSize: '0.7rem', color: '#64748B', margin: 0 }}>
-                    Issued 4 hari kerja • 90 days
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px' }}>
-                  <span
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                      background: '#e0f2fe',
-                      color: '#0369a1',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    e-Paspor
-                  </span>
-                  <span
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                      background: '#0b1220',
-                      color: '#ffffff',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      letterSpacing: '0.03em',
-                    }}
-                  >
-                    GRANTED
-                  </span>
-                </div>
-              </div>
-
-              {/* Right Card: Estimasi (Dark) */}
-              <div
-                style={{
-                  borderRadius: '16px',
-                  background: 'rgba(11, 18, 32, 0.92)',
-                  backdropFilter: 'blur(12px)',
-                  color: '#ffffff',
-                  padding: '12px 14px',
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '0.62rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    color: '#94a3b8',
-                    letterSpacing: '0.06em',
-                  }}
-                >
-                  ESTIMASI
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '1.4rem',
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      letterSpacing: '-0.02em',
-                      lineHeight: 1.1,
-                      margin: '2px 0',
-                    }}
-                  >
-                    5-7 Hari
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: '#cbd5e1' }}>
-                    dari submit JVAC
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '1.4rem',
+                        fontWeight: 900,
+                        color: '#ffffff',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.1,
+                        margin: '2px 0',
+                      }}
+                    >
+                      5-7 Hari
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: '#cbd5e1' }}>
+                      dari submit JVAC
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Cohesive Trust Bar: Satu baris terpadu mewah menggantikan 3 kotak kecil yang bertumpuk */}
-          <div
-            className="hero-trust-bar"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              borderRadius: '16px',
-              background: '#FFFFFF',
-              border: '1px solid #E2E8F0',
-              padding: '12px 18px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
-                verified
-              </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                2x Review Dokumen
-              </span>
-            </div>
+            {/* Cohesive Trust Bar: Satu baris terpadu mewah menggantikan 3 kotak kecil yang bertumpuk */}
+            <div
+              className="hero-trust-bar"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                borderRadius: '16px',
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                padding: '12px 18px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
+                  verified
+                </span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                  2x Review Dokumen
+                </span>
+              </div>
 
-            <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
+              <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
-                event_available
-              </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                Itinerary Harian JVAC
-              </span>
-            </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
+                  event_available
+                </span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                  Itinerary Harian JVAC
+                </span>
+              </div>
 
-            <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
+              <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
-                lock
-              </span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                Privasi Terenkripsi
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
+                  lock
+                </span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                  Privasi Terenkripsi
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </section>
 
       {/* 3. Section Cek Status / Tracking Paspor Customer */}
@@ -2204,10 +2367,49 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                           </label>
                           <input
                             type="tel"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             required
                             value={formNoWa}
-                            onChange={(e) => setFormNoWa(e.target.value)}
+                            onKeyDown={(e) => {
+                              // Izinkan tombol kontrol: Backspace, Delete, Tab, Escape, Enter, panah navigasi, dan kombinasi Ctrl/Cmd (Copy/Paste/Select All)
+                              if (
+                                [
+                                  'Backspace',
+                                  'Delete',
+                                  'Tab',
+                                  'Escape',
+                                  'Enter',
+                                  'ArrowLeft',
+                                  'ArrowRight',
+                                  'ArrowUp',
+                                  'ArrowDown',
+                                  'Home',
+                                  'End',
+                                ].includes(e.key) ||
+                                e.ctrlKey ||
+                                e.metaKey
+                              ) {
+                                return;
+                              }
+                              // Jika tombol yang ditekan bukan angka 0-9, cegah input langsung
+                              if (!/^[0-9]$/.test(e.key)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onInput={(e: React.FormEvent<HTMLInputElement>) => {
+                              // Pastikan nilai di elemen input langsung dibersihkan dari non-digit
+                              e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '');
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              const pasteData = e.clipboardData.getData('text') || '';
+                              const cleanDigits = pasteData.replace(/\D/g, '').slice(0, 16);
+                              setFormNoWa(cleanDigits);
+                            }}
+                            onChange={(e) => setFormNoWa(e.target.value.replace(/\D/g, ''))}
                             placeholder="08123456789"
+                            maxLength={16}
                             style={{
                               width: '100%',
                               padding: '10px 14px',
@@ -2219,6 +2421,8 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                               backgroundColor: '#F8FAFC',
                               color: '#0F172A',
                             }}
+                            onFocus={(e) => (e.currentTarget.style.borderColor = '#005BB5')}
+                            onBlur={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
                           />
                         </div>
 
@@ -2676,7 +2880,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                         send
                       </span>
                       <span>
-                        {formSubmitting ? 'Menyimpan ke Spreadsheet...' : 'Kirim Formulir Pendaftaran'}
+                        {formSubmitting ? 'Mengunggah Berkas & Mendaftar...' : 'Kirim Formulir Pendaftaran'}
                       </span>
                     </button>
 
@@ -2980,7 +3184,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
       >
         <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
           <div className="kenapa-split-grid">
-            
+
             {/* LEFT COLUMN: Text Headline & Manifesto */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
               {/* Pill Badge */}
@@ -3582,639 +3786,639 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
         }}
       >
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <div
-            className="faq-header-pill"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 16px',
-              borderRadius: '9999px',
-              background: isDarkMode ? 'rgba(2, 132, 199, 0.18)' : '#e0f2fe',
-              border: isDarkMode ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid #bae6fd',
-              color: isDarkMode ? '#38BDF8' : '#0284c7',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              marginBottom: '12px',
-            }}
-          >
-            <span style={{ color: isDarkMode ? '#38BDF8' : '#0284c7' }}>TANYA JAWAB</span>
-            <span style={{ color: isDarkMode ? 'rgba(56, 189, 248, 0.5)' : '#bae6fd' }}>•</span>
-            <span style={{ color: isDarkMode ? '#38BDF8' : '#0284c7' }}>FAQ VISA JEPANG</span>
+          {/* Section Header */}
+          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+            <div
+              className="faq-header-pill"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 16px',
+                borderRadius: '9999px',
+                background: isDarkMode ? 'rgba(2, 132, 199, 0.18)' : '#e0f2fe',
+                border: isDarkMode ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid #bae6fd',
+                color: isDarkMode ? '#38BDF8' : '#0284c7',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                marginBottom: '12px',
+              }}
+            >
+              <span style={{ color: isDarkMode ? '#38BDF8' : '#0284c7' }}>TANYA JAWAB</span>
+              <span style={{ color: isDarkMode ? 'rgba(56, 189, 248, 0.5)' : '#bae6fd' }}>•</span>
+              <span style={{ color: isDarkMode ? '#38BDF8' : '#0284c7' }}>FAQ VISA JEPANG</span>
+            </div>
+            <h2
+              className="font-serif"
+              style={{
+                fontSize: 'clamp(1.75rem, 3vw, 2.3rem)',
+                fontWeight: 800,
+                color: '#0B1220',
+                letterSpacing: '-0.025em',
+                margin: '0 0 10px',
+              }}
+            >
+              Pertanyaan yang Sering Diajukan
+            </h2>
+            <p
+              style={{
+                fontSize: '0.94rem',
+                color: '#64748B',
+                maxWidth: '560px',
+                margin: '0 auto',
+                lineHeight: 1.5,
+              }}
+            >
+              Semua hal penting seputar pembuatan visa Jepang bersama MAPAHTRIP, transparan tanpa biaya tersembunyi.
+            </p>
           </div>
-          <h2
-            className="font-serif"
-            style={{
-              fontSize: 'clamp(1.75rem, 3vw, 2.3rem)',
-              fontWeight: 800,
-              color: '#0B1220',
-              letterSpacing: '-0.025em',
-              margin: '0 0 10px',
-            }}
-          >
-            Pertanyaan yang Sering Diajukan
-          </h2>
-          <p
-            style={{
-              fontSize: '0.94rem',
-              color: '#64748B',
-              maxWidth: '560px',
-              margin: '0 auto',
-              lineHeight: 1.5,
-            }}
-          >
-            Semua hal penting seputar pembuatan visa Jepang bersama MAPAHTRIP, transparan tanpa biaya tersembunyi.
-          </p>
-        </div>
 
-        {/* 2-Column Responsive Layout */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: '16px',
-            alignItems: 'start',
-          }}
-        >
-          {/* Kolom Kiri: Pertanyaan 01, 02, 03 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {[
-              {
-                idx: 0,
-                q: 'Apa bedanya e-Paspor dan paspor biasa untuk visa Jepang?',
-                a: 'e-Paspor bisa daftar Visa Waiver (bebas visa 15 hari, registrasi online 2-3 hari) atau e-Visa. Paspor biasa wajib apply stiker visa single/multiple via JVAC. Kami cekkan gratis paspor kamu termasuk yang mana.',
-              },
-              {
-                idx: 1,
-                q: 'Berapa lama proses visa Jepang di MAPAHTRIP?',
-                a: 'Setelah dokumen lengkap, proses di JVAC 5-7 hari kerja (single), 7-10 hari (multiple/bisnis). Plus 1-2 hari pengecekan dokumen oleh kami sebelum submit.',
-              },
-              {
-                idx: 2,
-                q: 'Apakah harus datang ke JVAC?',
-                a: 'Tidak perlu. Kecuali diminta interview khusus (sangat jarang). Kami yang wakili submit & pengambilan. Untuk yang di luar Jakarta, kirim paspor via kurir aman.',
-              },
-            ].map((item) => {
-              const isOpen = openFaqIndex === item.idx;
-              return (
-                <div
-                  key={item.idx}
-                  className="faq-accordion-item"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '16px',
-                    border: isOpen ? '1.5px solid #005bb5' : '1px solid #E2E8F0',
-                    boxShadow: isOpen
-                      ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
-                      : '0 2px 6px rgba(0, 0, 0, 0.02)',
-                    transition: 'all 0.2s ease',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
+          {/* 2-Column Responsive Layout */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+              gap: '16px',
+              alignItems: 'start',
+            }}
+          >
+            {/* Kolom Kiri: Pertanyaan 01, 02, 03 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {[
+                {
+                  idx: 0,
+                  q: 'Apa bedanya e-Paspor dan paspor biasa untuk visa Jepang?',
+                  a: 'e-Paspor bisa daftar Visa Waiver (bebas visa 15 hari, registrasi online 2-3 hari) atau e-Visa. Paspor biasa wajib apply stiker visa single/multiple via JVAC. Kami cekkan gratis paspor kamu termasuk yang mana.',
+                },
+                {
+                  idx: 1,
+                  q: 'Berapa lama proses visa Jepang di MAPAHTRIP?',
+                  a: 'Setelah dokumen lengkap, proses di JVAC 5-7 hari kerja (single), 7-10 hari (multiple/bisnis). Plus 1-2 hari pengecekan dokumen oleh kami sebelum submit.',
+                },
+                {
+                  idx: 2,
+                  q: 'Apakah harus datang ke JVAC?',
+                  a: 'Tidak perlu. Kecuali diminta interview khusus (sangat jarang). Kami yang wakili submit & pengambilan. Untuk yang di luar Jakarta, kirim paspor via kurir aman.',
+                },
+              ].map((item) => {
+                const isOpen = openFaqIndex === item.idx;
+                return (
+                  <div
+                    key={item.idx}
+                    className="faq-accordion-item"
                     style={{
-                      width: '100%',
-                      padding: '18px 20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '14px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '16px',
+                      border: isOpen ? '1.5px solid #005bb5' : '1px solid #E2E8F0',
+                      boxShadow: isOpen
+                        ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
+                        : '0 2px 6px rgba(0, 0, 0, 0.02)',
+                      transition: 'all 0.2s ease',
+                      overflow: 'hidden',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
+                      style={{
+                        width: '100%',
+                        padding: '18px 20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '14px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span
+                          className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '8px',
+                            backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
+                            color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          0{item.idx + 1}
+                        </span>
+                        <span
+                          className="faq-question-text"
+                          style={{
+                            fontSize: '0.95rem',
+                            fontWeight: 700,
+                            color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {item.q}
+                        </span>
+                      </div>
+
                       <span
-                        className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
+                        className="material-symbols-outlined"
                         style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '8px',
-                          backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
-                          color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          fontSize: '22px',
+                          color: isOpen ? '#005bb5' : '#94A3B8',
+                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.25s ease, color 0.2s ease',
                           flexShrink: 0,
-                          transition: 'all 0.2s ease',
                         }}
                       >
-                        0{item.idx + 1}
+                        expand_more
                       </span>
-                      <span
-                        className="faq-question-text"
+                    </button>
+
+                    {isOpen && (
+                      <div
+                        className="faq-answer-content"
                         style={{
-                          fontSize: '0.95rem',
-                          fontWeight: 700,
-                          color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
-                          lineHeight: 1.4,
+                          padding: '0 20px 18px 60px',
+                          color: isDarkMode ? '#CBD5E1' : '#475569',
+                          fontSize: '0.9rem',
+                          lineHeight: 1.6,
+                          borderTop: isDarkMode ? '1px dashed #1E293B' : '1px dashed #F1F5F9',
+                          paddingTop: '12px',
                         }}
                       >
-                        {item.q}
-                      </span>
-                    </div>
+                        {item.a}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-                    <span
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: '22px',
-                        color: isOpen ? '#005bb5' : '#94A3B8',
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.25s ease, color 0.2s ease',
-                        flexShrink: 0,
-                      }}
-                    >
-                      expand_more
-                    </span>
-                  </button>
-
-                  {isOpen && (
-                    <div
-                      className="faq-answer-content"
-                      style={{
-                        padding: '0 20px 18px 60px',
-                        color: isDarkMode ? '#CBD5E1' : '#475569',
-                        fontSize: '0.9rem',
-                        lineHeight: 1.6,
-                        borderTop: isDarkMode ? '1px dashed #1E293B' : '1px dashed #F1F5F9',
-                        paddingTop: '12px',
-                      }}
-                    >
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Kolom Kanan: Pertanyaan 04, 05 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {[
-              {
-                idx: 3,
-                q: 'Apakah MAPAHTRIP menyediakan reservasi tiket pesawat & hotel sementara?',
-                a: 'Ya, 100% sudah termasuk. Kami siapkan bukti reservasi tiket pesawat PP Jepang dan pemesanan hotel sementara + itinerary harian dalam bahasa Inggris/Jepang sesuai standar Kedutaan. Anda tidak perlu beli tiket pesawat lunas sebelum visa disetujui.',
-              },
-              {
-                idx: 4,
-                q: 'Bagaimana jika visa ditolak?',
-                a: 'Approval rate kami 99% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
-              },
-            ].map((item) => {
-              const isOpen = openFaqIndex === item.idx;
-              return (
-                <div
-                  key={item.idx}
-                  className="faq-accordion-item"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '16px',
-                    border: isOpen ? '1.5px solid #005bb5' : '1px solid #E2E8F0',
-                    boxShadow: isOpen
-                      ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
-                      : '0 2px 6px rgba(0, 0, 0, 0.02)',
-                    transition: 'all 0.2s ease',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
+            {/* Kolom Kanan: Pertanyaan 04, 05 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {[
+                {
+                  idx: 3,
+                  q: 'Apakah MAPAHTRIP menyediakan reservasi tiket pesawat & hotel sementara?',
+                  a: 'Ya, 100% sudah termasuk. Kami siapkan bukti reservasi tiket pesawat PP Jepang dan pemesanan hotel sementara + itinerary harian dalam bahasa Inggris/Jepang sesuai standar Kedutaan. Anda tidak perlu beli tiket pesawat lunas sebelum visa disetujui.',
+                },
+                {
+                  idx: 4,
+                  q: 'Bagaimana jika visa ditolak?',
+                  a: 'Approval rate kami 99% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
+                },
+              ].map((item) => {
+                const isOpen = openFaqIndex === item.idx;
+                return (
+                  <div
+                    key={item.idx}
+                    className="faq-accordion-item"
                     style={{
-                      width: '100%',
-                      padding: '18px 20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '14px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '16px',
+                      border: isOpen ? '1.5px solid #005bb5' : '1px solid #E2E8F0',
+                      boxShadow: isOpen
+                        ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
+                        : '0 2px 6px rgba(0, 0, 0, 0.02)',
+                      transition: 'all 0.2s ease',
+                      overflow: 'hidden',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
+                      style={{
+                        width: '100%',
+                        padding: '18px 20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '14px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span
+                          className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '8px',
+                            backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
+                            color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          0{item.idx + 1}
+                        </span>
+                        <span
+                          className="faq-question-text"
+                          style={{
+                            fontSize: '0.95rem',
+                            fontWeight: 700,
+                            color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {item.q}
+                        </span>
+                      </div>
+
                       <span
-                        className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
+                        className="material-symbols-outlined"
                         style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '8px',
-                          backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
-                          color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          fontSize: '22px',
+                          color: isOpen ? '#005bb5' : '#94A3B8',
+                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.25s ease, color 0.2s ease',
                           flexShrink: 0,
-                          transition: 'all 0.2s ease',
                         }}
                       >
-                        0{item.idx + 1}
+                        expand_more
                       </span>
-                      <span
-                        className="faq-question-text"
+                    </button>
+
+                    {isOpen && (
+                      <div
+                        className="faq-answer-content"
                         style={{
-                          fontSize: '0.95rem',
-                          fontWeight: 700,
-                          color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
-                          lineHeight: 1.4,
+                          padding: '0 20px 18px 60px',
+                          color: isDarkMode ? '#CBD5E1' : '#475569',
+                          fontSize: '0.9rem',
+                          lineHeight: 1.6,
+                          borderTop: isDarkMode ? '1px dashed #1E293B' : '1px dashed #F1F5F9',
+                          paddingTop: '12px',
                         }}
                       >
-                        {item.q}
-                      </span>
-                    </div>
-
-                    <span
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: '22px',
-                        color: isOpen ? '#005bb5' : '#94A3B8',
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.25s ease, color 0.2s ease',
-                        flexShrink: 0,
-                      }}
-                    >
-                      expand_more
-                    </span>
-                  </button>
-
-                  {isOpen && (
-                    <div
-                      className="faq-answer-content"
-                      style={{
-                        padding: '0 20px 18px 60px',
-                        color: isDarkMode ? '#CBD5E1' : '#475569',
-                        fontSize: '0.9rem',
-                        lineHeight: 1.6,
-                        borderTop: isDarkMode ? '1px dashed #1E293B' : '1px dashed #F1F5F9',
-                        paddingTop: '12px',
-                      }}
-                    >
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                        {item.a}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* ======================================================== */}
-        {/* ======================================================== */}
-        {/* ======================================================== */}
-        {/* ======================================================== */}
-        {/* ======================================================== */}
-        {/* UNIFIED LUXURY DUO CARDS: KONSULTASI VISA & PROGRAM MITRA */}
-        {/* Harmonious Jewel-Toned Bento Grid (No Black-vs-White Clash) */}
-        {/* ======================================================== */}
-        <div className="duo-bento-grid">
-          {/* Card 1: Konsultasi Visa Jepang (Clean Pearl White Theme) */}
-          <div
-            style={{
-              background: isDarkMode
-                ? 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)'
-                : 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
-              borderRadius: '24px',
-              border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
-              padding: '36px 32px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              boxShadow: isDarkMode
-                ? '0 20px 40px -15px rgba(0, 0, 0, 0.4)'
-                : '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
-              position: 'relative',
-              overflow: 'hidden',
-              minHeight: '270px',
-            }}
-          >
-            {/* Ambient Background Glow */}
+          {/* ======================================================== */}
+          {/* ======================================================== */}
+          {/* ======================================================== */}
+          {/* ======================================================== */}
+          {/* ======================================================== */}
+          {/* UNIFIED LUXURY DUO CARDS: KONSULTASI VISA & PROGRAM MITRA */}
+          {/* Harmonious Jewel-Toned Bento Grid (No Black-vs-White Clash) */}
+          {/* ======================================================== */}
+          <div className="duo-bento-grid">
+            {/* Card 1: Konsultasi Visa Jepang (Clean Pearl White Theme) */}
             <div
               style={{
-                position: 'absolute',
-                top: '-50px',
-                right: '-50px',
-                width: '180px',
-                height: '180px',
-                borderRadius: '50%',
                 background: isDarkMode
-                  ? 'radial-gradient(circle, rgba(0, 91, 181, 0.15) 0%, rgba(0, 91, 181, 0) 70%)'
-                  : 'radial-gradient(circle, rgba(0, 91, 181, 0.06) 0%, rgba(0, 91, 181, 0) 70%)',
-                pointerEvents: 'none',
+                  ? 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)'
+                  : 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
+                borderRadius: '24px',
+                border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
+                padding: '36px 32px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                boxShadow: isDarkMode
+                  ? '0 20px 40px -15px rgba(0, 0, 0, 0.4)'
+                  : '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
+                position: 'relative',
+                overflow: 'hidden',
+                minHeight: '270px',
               }}
-            />
-
-            <div>
-              {/* Top Tag */}
+            >
+              {/* Ambient Background Glow */}
               <div
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  color: isDarkMode ? '#60A5FA' : '#005BB5',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  marginBottom: '14px',
-                  backgroundColor: isDarkMode ? 'rgba(0, 91, 181, 0.2)' : 'rgba(0, 91, 181, 0.06)',
-                  padding: '4px 12px',
-                  borderRadius: '9999px',
-                  border: isDarkMode ? '1px solid rgba(0, 91, 181, 0.35)' : '1px solid rgba(0, 91, 181, 0.16)',
+                  position: 'absolute',
+                  top: '-50px',
+                  right: '-50px',
+                  width: '180px',
+                  height: '180px',
+                  borderRadius: '50%',
+                  background: isDarkMode
+                    ? 'radial-gradient(circle, rgba(0, 91, 181, 0.15) 0%, rgba(0, 91, 181, 0) 70%)'
+                    : 'radial-gradient(circle, rgba(0, 91, 181, 0.06) 0%, rgba(0, 91, 181, 0) 70%)',
+                  pointerEvents: 'none',
                 }}
-              >
-                <span>🇯🇵 KONSULTASI RESMI JVAC</span>
-              </div>
+              />
 
-              {/* Title */}
-              <h3
-                style={{
-                  color: isDarkMode ? '#FFFFFF' : '#0F172A',
-                  fontSize: '1.45rem',
-                  fontWeight: 800,
-                  margin: '0 0 10px',
-                  lineHeight: 1.3,
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                Siap Berangkat ke Jepang?<br />
-                <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Chat Japan Expert Sekarang.</span>
-              </h3>
-
-              {/* Subtitle */}
-              <p
-                style={{
-                  margin: '0 0 16px',
-                  fontSize: '0.88rem',
-                  color: isDarkMode ? '#94A3B8' : '#475569',
-                  lineHeight: 1.5,
-                }}
-              >
-                Konsultasikan jadwal proses, verifikasi dokumen, dan slot kuota VFS JVAC langsung dengan konsultan kami.
-              </p>
-
-              {/* Live Indicator */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem', marginBottom: '24px' }}>
-                <span
+              <div>
+                {/* Top Tag */}
+                <div
                   style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: '#10B981',
-                    boxShadow: '0 0 8px #10B981',
-                    display: 'inline-block',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: isDarkMode ? '#60A5FA' : '#005BB5',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    marginBottom: '14px',
+                    backgroundColor: isDarkMode ? 'rgba(0, 91, 181, 0.2)' : 'rgba(0, 91, 181, 0.06)',
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    border: isDarkMode ? '1px solid rgba(0, 91, 181, 0.35)' : '1px solid rgba(0, 91, 181, 0.16)',
                   }}
-                />
-                <span>Online sekarang • Respon cepat &lt; 5 menit</span>
+                >
+                  <span>🇯🇵 KONSULTASI RESMI JVAC</span>
+                </div>
+
+                {/* Title */}
+                <h3
+                  style={{
+                    color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                    fontSize: '1.45rem',
+                    fontWeight: 800,
+                    margin: '0 0 10px',
+                    lineHeight: 1.3,
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  Siap Berangkat ke Jepang?<br />
+                  <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Chat Japan Expert Sekarang.</span>
+                </h3>
+
+                {/* Subtitle */}
+                <p
+                  style={{
+                    margin: '0 0 16px',
+                    fontSize: '0.88rem',
+                    color: isDarkMode ? '#94A3B8' : '#475569',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Konsultasikan jadwal proses, verifikasi dokumen, dan slot kuota VFS JVAC langsung dengan konsultan kami.
+                </p>
+
+                {/* Live Indicator */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem', marginBottom: '24px' }}>
+                  <span
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10B981',
+                      boxShadow: '0 0 8px #10B981',
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span>Online sekarang • Respon cepat &lt; 5 menit</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <a
+                  href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20siap%20berangkat%20ke%20Jepang%20dan%20ingin%20konsultasi%20visa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    backgroundColor: '#25D366',
+                    color: '#FFFFFF',
+                    padding: '12px 22px',
+                    borderRadius: '9999px',
+                    fontSize: '0.88rem',
+                    fontWeight: 800,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.backgroundColor = '#20BA5A';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.backgroundColor = '#25D366';
+                  }}
+                >
+                  <WhatsAppBrandIcon size={20} inverted={true} />
+                  <span>WhatsApp Expert</span>
+                </a>
+
+                <a
+                  href="#jenis-visa"
+                  style={{
+                    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                    color: isDarkMode ? '#FFFFFF' : '#334155',
+                    border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
+                    padding: '12px 20px',
+                    borderRadius: '9999px',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
+                    e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
+                    e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <span>Lihat Jenis Visa</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    arrow_forward
+                  </span>
+                </a>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <a
-                href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20siap%20berangkat%20ke%20Jepang%20dan%20ingin%20konsultasi%20visa"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  backgroundColor: '#25D366',
-                  color: '#FFFFFF',
-                  padding: '12px 22px',
-                  borderRadius: '9999px',
-                  fontSize: '0.88rem',
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.backgroundColor = '#20BA5A';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.backgroundColor = '#25D366';
-                }}
-              >
-                <WhatsAppBrandIcon size={20} inverted={true} />
-                <span>WhatsApp Expert</span>
-              </a>
-
-              <a
-                href="#jenis-visa"
-                style={{
-                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
-                  color: isDarkMode ? '#FFFFFF' : '#334155',
-                  border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
-                  padding: '12px 20px',
-                  borderRadius: '9999px',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
-                  e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
-                  e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                <span>Lihat Jenis Visa</span>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                  arrow_forward
-                </span>
-              </a>
-            </div>
-          </div>
-
-          {/* Card 2: Program Mitra & Affiliate (Clean Pearl White Theme) */}
-          <div
-            style={{
-              background: isDarkMode
-                ? 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)'
-                : 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
-              borderRadius: '24px',
-              border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
-              padding: '36px 32px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              boxShadow: isDarkMode
-                ? '0 20px 40px -15px rgba(0, 0, 0, 0.4)'
-                : '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
-              position: 'relative',
-              overflow: 'hidden',
-              minHeight: '270px',
-            }}
-          >
-            {/* Ambient Background Glow */}
+            {/* Card 2: Program Mitra & Affiliate (Clean Pearl White Theme) */}
             <div
               style={{
-                position: 'absolute',
-                top: '-50px',
-                right: '-50px',
-                width: '180px',
-                height: '180px',
-                borderRadius: '50%',
                 background: isDarkMode
-                  ? 'radial-gradient(circle, rgba(0, 91, 181, 0.15) 0%, rgba(0, 91, 181, 0) 70%)'
-                  : 'radial-gradient(circle, rgba(0, 91, 181, 0.06) 0%, rgba(0, 91, 181, 0) 70%)',
-                pointerEvents: 'none',
+                  ? 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)'
+                  : 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
+                borderRadius: '24px',
+                border: isDarkMode ? '1px solid #334155' : '1px solid #E2E8F0',
+                padding: '36px 32px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                boxShadow: isDarkMode
+                  ? '0 20px 40px -15px rgba(0, 0, 0, 0.4)'
+                  : '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02)',
+                position: 'relative',
+                overflow: 'hidden',
+                minHeight: '270px',
               }}
-            />
-
-            <div>
-              {/* Top Tag */}
+            >
+              {/* Ambient Background Glow */}
               <div
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  color: isDarkMode ? '#60A5FA' : '#005BB5',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  marginBottom: '14px',
-                  backgroundColor: isDarkMode ? 'rgba(0, 91, 181, 0.2)' : 'rgba(0, 91, 181, 0.06)',
-                  padding: '4px 12px',
-                  borderRadius: '9999px',
-                  border: isDarkMode ? '1px solid rgba(0, 91, 181, 0.35)' : '1px solid rgba(0, 91, 181, 0.16)',
+                  position: 'absolute',
+                  top: '-50px',
+                  right: '-50px',
+                  width: '180px',
+                  height: '180px',
+                  borderRadius: '50%',
+                  background: isDarkMode
+                    ? 'radial-gradient(circle, rgba(0, 91, 181, 0.15) 0%, rgba(0, 91, 181, 0) 70%)'
+                    : 'radial-gradient(circle, rgba(0, 91, 181, 0.06) 0%, rgba(0, 91, 181, 0) 70%)',
+                  pointerEvents: 'none',
                 }}
-              >
-                <span>🤝 PROGRAM MITRA &amp; AFFILIATE 2026</span>
+              />
+
+              <div>
+                {/* Top Tag */}
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: isDarkMode ? '#60A5FA' : '#005BB5',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    marginBottom: '14px',
+                    backgroundColor: isDarkMode ? 'rgba(0, 91, 181, 0.2)' : 'rgba(0, 91, 181, 0.06)',
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    border: isDarkMode ? '1px solid rgba(0, 91, 181, 0.35)' : '1px solid rgba(0, 91, 181, 0.16)',
+                  }}
+                >
+                  <span>🤝 PROGRAM MITRA &amp; AFFILIATE 2026</span>
+                </div>
+
+                {/* Title */}
+                <h3
+                  style={{
+                    color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                    fontSize: '1.45rem',
+                    fontWeight: 800,
+                    margin: '0 0 10px',
+                    lineHeight: 1.3,
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  Punya Rekan atau Siswa LPK?<br />
+                  <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Resmi via Transfer.</span>
+                </h3>
+
+                {/* Subtitle */}
+                <p
+                  style={{
+                    margin: '0 0 16px',
+                    fontSize: '0.88rem',
+                    color: isDarkMode ? '#94A3B8' : '#475569',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi transfer <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5', whiteSpace: 'nowrap' }}>Rp 100.000</strong> per visa terbit.
+                </p>
+
+                {/* Live Indicator */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem', marginBottom: '24px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>
+                    paid
+                  </span>
+                  <span>Pendaftaran gratis 100% • Pencairan berkala transparan</span>
+                </div>
               </div>
 
-              {/* Title */}
-              <h3
-                style={{
-                  color: isDarkMode ? '#FFFFFF' : '#0F172A',
-                  fontSize: '1.45rem',
-                  fontWeight: 800,
-                  margin: '0 0 10px',
-                  lineHeight: 1.3,
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                Punya Rekan atau Siswa LPK?<br />
-                <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Resmi via Transfer.</span>
-              </h3>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <a
+                  href="#affiliate"
+                  style={{
+                    backgroundColor: '#005BB5',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '12px 22px',
+                    borderRadius: '9999px',
+                    fontSize: '0.88rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 14px rgba(0, 91, 181, 0.3)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#004A94';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#005BB5';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <span>Daftar Akun Mitra</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    arrow_forward
+                  </span>
+                </a>
 
-              {/* Subtitle */}
-              <p
-                style={{
-                  margin: '0 0 16px',
-                  fontSize: '0.88rem',
-                  color: isDarkMode ? '#94A3B8' : '#475569',
-                  lineHeight: 1.5,
-                }}
-              >
-                Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi transfer <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5', whiteSpace: 'nowrap' }}>Rp 100.000</strong> per visa terbit.
-              </p>
-
-              {/* Live Indicator */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem', marginBottom: '24px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>
-                  paid
-                </span>
-                <span>Pendaftaran gratis 100% • Pencairan berkala transparan</span>
+                <a
+                  href="#affiliate"
+                  style={{
+                    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                    color: isDarkMode ? '#FFFFFF' : '#334155',
+                    border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
+                    padding: '12px 20px',
+                    borderRadius: '9999px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    textDecoration: 'none',
+                    boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
+                    e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
+                    e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <span>Masuk Akun</span>
+                </a>
               </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <a
-                href="#affiliate"
-                style={{
-                  backgroundColor: '#005BB5',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  padding: '12px 22px',
-                  borderRadius: '9999px',
-                  fontSize: '0.88rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  textDecoration: 'none',
-                  boxShadow: '0 4px 14px rgba(0, 91, 181, 0.3)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#004A94';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#005BB5';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                <span>Daftar Akun Mitra</span>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  arrow_forward
-                </span>
-              </a>
-
-              <a
-                href="#affiliate"
-                style={{
-                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
-                  color: isDarkMode ? '#FFFFFF' : '#334155',
-                  border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
-                  padding: '12px 20px',
-                  borderRadius: '9999px',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  textDecoration: 'none',
-                  boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
-                  e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
-                  e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                <span>Masuk Akun</span>
-              </a>
             </div>
           </div>
         </div>
-              </div>
       </section>
 
       {/* 5. Footer Utama Sebelumnya (Dark) */}
@@ -4646,7 +4850,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
           <WhatsAppBrandIcon size={11} />
         </span>
       </a>
-    
+
 
     </div>
   );

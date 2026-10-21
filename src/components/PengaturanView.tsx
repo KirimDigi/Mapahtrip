@@ -1,7 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { mockKonsjen, mockStaff } from '../data/mockData';
+import { getWAGatewayUrl, getWASessionId, kirimPesanWA, normalizeWANumber } from '../whatsapp';
 
 export const PengaturanView: React.FC = () => {
+  const [gatewayUrl, setGatewayUrl] = useState(() => getWAGatewayUrl());
+  const [sessionId, setSessionId] = useState(() => getWASessionId());
+  const [testNumber, setTestNumber] = useState('');
+  const [testStatus, setTestStatus] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleSaveConfig = () => {
+    localStorage.setItem('mapahtrip_wa_gateway_url', gatewayUrl.trim());
+    localStorage.setItem('mapahtrip_wa_session_id', sessionId.trim());
+    setTestStatus('✓ Konfigurasi WhatsApp Gateway (URL & Session ID) berhasil disimpan!');
+    setTimeout(() => setTestStatus(null), 3000);
+  };
+
+  const handleTestKirimWA = async () => {
+    if (!testNumber.trim()) {
+      alert('Masukkan nomor WhatsApp tujuan uji coba terlebih dahulu.');
+      return;
+    }
+    setIsTesting(true);
+    setTestStatus(null);
+    try {
+      const normalized = normalizeWANumber(testNumber.trim());
+      const testMsg = `Halo! Ini adalah pesan uji coba koneksi WhatsApp Gateway MapahTrip (Session: ${sessionId}).\n\nWaktu: ${new Date().toLocaleString('id-ID')}\nStatus: Berhasil Terkoneksi ✅`;
+      const res = await kirimPesanWA(normalized, testMsg);
+      if (res && (res.success || res.status === 'success' || !res.error)) {
+        setTestStatus(`✅ Pesan WhatsApp uji coba berhasil dikirim ke ${normalized}!`);
+      } else {
+        setTestStatus(`⚠️ Gateway merespons: ${res?.message || `Periksa apakah session '${sessionId}' terhubung di terminal/dashboard.`}`);
+      }
+    } catch (err: any) {
+      setTestStatus(`❌ Gagal mengirim: ${err?.message || 'Pastikan server gateway aktif di port 2026.'}`);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const formatRupiah = (val: number) => {
     return 'Rp ' + val.toLocaleString('id-ID');
@@ -23,8 +59,144 @@ export const PengaturanView: React.FC = () => {
           Pengaturan Sistem
         </h1>
         <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>
-          Kelola master data Konsulat Jenderal, daftar Staff PIC, tarif konsuler, dan parameter operasional.
+          Kelola master data Konsulat Jenderal, daftar Staff PIC, tarif konsuler, dan integrasi WhatsApp Gateway API.
         </p>
+      </div>
+
+      {/* WhatsApp Gateway Integration Card */}
+      <div className="card" style={{ border: '1px solid #BBF7D0', backgroundColor: '#F0FDF4' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#10B981', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>chat</span>
+            </div>
+            <div>
+              <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: '#065F46' }}>
+                WhatsApp Gateway API (Session: {sessionId})
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#047857' }}>
+                Otomatis mengirim pesan konfirmasi pendaftaran &amp; update status visa ke pemohon.
+              </p>
+            </div>
+          </div>
+          <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+            Endpoint: port 2026 &bull; Session: {sessionId}
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '12px', border: '1px solid #D1FAE5' }}>
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Gateway Endpoint URL:
+                </label>
+                <input
+                  type="text"
+                  value={gatewayUrl}
+                  onChange={(e) => setGatewayUrl(e.target.value)}
+                  placeholder="http://localhost:2026/api/send"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.85rem',
+                    fontFamily: 'monospace',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Session ID:
+                </label>
+                <input
+                  type="text"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  placeholder="Mapahtrip"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                💡 Sesuai session terhubung di gateway: <strong>{sessionId}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handleSaveConfig}
+                className="btn-primary"
+                style={{ padding: '7px 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+              >
+                Simpan Konfigurasi
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              Uji Coba Kirim Pesan (Live Test):
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={testNumber}
+                onChange={(e) => setTestNumber(e.target.value)}
+                placeholder="Contoh: 081234567890 / 628xxx"
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  fontSize: '0.85rem',
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleTestKirimWA}
+                disabled={isTesting}
+                style={{
+                  backgroundColor: '#10B981',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: isTesting ? 'wait' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>send</span>
+                <span>{isTesting ? 'Mengirim...' : 'Tes Kirim'}</span>
+              </button>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>
+              Format otomatis mengenali nomor 08xx maupun 628xx.
+            </span>
+          </div>
+        </div>
+
+        {testStatus && (
+          <div style={{ marginTop: '12px', fontSize: '0.84rem', fontWeight: 600, color: testStatus.startsWith('✅') || testStatus.startsWith('✓') ? '#15803D' : '#B91C1C' }}>
+            {testStatus}
+          </div>
+        )}
       </div>
 
       {/* Konsjen Master Table */}
