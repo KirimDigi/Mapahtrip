@@ -162,7 +162,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </button>
 
         <span style={{ fontSize: '0.78rem', color: '#94A3B8', fontWeight: 700 }}>
-          PORTAL INTERNAL ⛩️
+          PORTAL STAF 👔
         </span>
       </div>
 
@@ -215,10 +215,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               letterSpacing: '-0.02em',
             }}
           >
-            Masuk ke Akun Internal
+            Masuk ke Akun Staf
           </h2>
           <p style={{ margin: 0, fontSize: '0.88rem', color: '#64748B' }}>
-            Masukkan email atau username dan kata sandi Anda
+            Masukkan email atau username dan kata sandi staf Anda
           </p>
         </div>
 
@@ -347,7 +347,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </label>
 
             <a
-              href="https://wa.me/6281401735648?text=Halo%20Admin%20MapahTrip,%20saya%20lupa%20kata%20sandi%20portal%20internal%20saya"
+              href="https://wa.me/6281401735648?text=Halo%20Admin%20MapahTrip,%20saya%20lupa%20kata%20sandi%20portal%20staf%20saya"
               target="_blank"
               rel="noopener noreferrer"
               style={{ fontSize: '0.8rem', color: '#005bb5', textDecoration: 'none', fontWeight: 600 }}
@@ -376,7 +376,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               gap: '8px',
             }}
           >
-            <span>Masuk ke Portal Internal ➔</span>
+            <span>Masuk ke Portal Staf ➔</span>
           </button>
         </form>
       </div>

@@ -184,7 +184,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
             Masuk ke Akun Owner
           </h2>
           <p style={{ margin: 0, fontSize: '0.88rem', color: '#64748B' }}>
-            Masukkan email atau username dan kata sandi Anda
+            Khusus pemilik usaha &amp; pengelola utama MapahTrip
           </p>
         </div>
 

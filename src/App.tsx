@@ -392,11 +392,23 @@ export function App() {
     );
   }
 
-    // 3. Staff & 4. Owner Modes (Operasional Konsuler vs Finansial Owner)
+  // 3. Staff & 4. Owner Modes (Operasional Staf vs Finansial Owner)
   // WAJIB LOGIN TERLEBIH DAHULU: Sebelum ke tampilan dashboard, user harus login terlebih dahulu!
-  const isInternalAuthenticated = isOwnerMode || (currentStaff !== null);
+  if (currentMode === 'owner' && !isOwnerAuth) {
+    return (
+      <OwnerLoginModal
+        isOpen={true}
+        onClose={() => {}}
+        onLoginSuccess={handleOwnerLoginSuccess}
+        onBackToHome={() => {
+          setCurrentMode('customer');
+          window.location.hash = '';
+        }}
+      />
+    );
+  }
 
-  if (!isInternalAuthenticated) {
+  if (currentMode === 'staff' && currentStaff === null) {
     return (
       <AdminLoginModal
         isOpen={true}
