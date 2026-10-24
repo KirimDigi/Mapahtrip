@@ -1,3 +1,4 @@
+import { samplePasfotoBase64, sampleKtpBase64, sampleCoeBase64, sampleFormVisaBase64 } from '../data/mockData';
 import React, { useState } from 'react';
 import type { Pengajuan } from '../types';
 import { kirimPesanWA } from '../whatsapp';
@@ -147,46 +148,92 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            {/* Avatar */}
+            {/* Avatar & Pasfoto Pemohon */}
             <div style={{ position: 'relative' }}>
-              <div
-                style={{
-                  width: '68px',
-                  height: '68px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #004fc0, #2b68e0)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 14px rgba(0, 79, 192, 0.25)',
-                }}
-                className="font-serif"
-              >
-                {pengajuan.namaPemohon
-                  .split(' ')
-                  .map((n) => n[0])
-                  .slice(0, 2)
-                  .join('')}
-              </div>
+              {(currentPengajuan.fotoBase64 || samplePasfotoBase64) ? (
+                <div
+                  onClick={() =>
+                    setPreviewDoc({
+                      title: `Pasfoto 4.5x3.5cm - ${currentPengajuan.namaPemohon}`,
+                      base64: currentPengajuan.fotoBase64 || samplePasfotoBase64,
+                      fileName: `Pasfoto_${currentPengajuan.namaPemohon.replace(/\s+/g, '_')}.jpg`,
+                    })
+                  }
+                  style={{
+                    width: '74px',
+                    height: '92px',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    border: '2.5px solid #005BB5',
+                    boxShadow: '0 4px 14px rgba(0, 91, 181, 0.25)',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    backgroundColor: '#FFFFFF',
+                  }}
+                  title="Klik untuk melihat foto ukuran penuh"
+                >
+                  <img
+                    src={currentPengajuan.fotoBase64 || samplePasfotoBase64}
+                    alt={currentPengajuan.namaPemohon}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(0, 91, 181, 0.85)',
+                      color: '#ffffff',
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      padding: '2px 0',
+                    }}
+                  >
+                    👁️ LIHAT FOTO
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #004fc0, #2b68e0)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    boxShadow: '0 4px 14px rgba(0, 79, 192, 0.25)',
+                  }}
+                  className="font-serif"
+                >
+                  {currentPengajuan.namaPemohon
+                    .split(' ')
+                    .map((n) => n[0])
+                    .slice(0, 2)
+                    .join('')}
+                </div>
+              )}
               <div
                 style={{
                   position: 'absolute',
-                  bottom: '-2px',
-                  right: '-2px',
-                  width: '24px',
-                  height: '24px',
+                  bottom: '-4px',
+                  right: '-4px',
+                  width: '26px',
+                  height: '26px',
                   borderRadius: '50%',
                   background: '#ffffff',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '13px',
+                  fontSize: '14px',
                 }}
-                title="Tujuan Jepang"
+                title="Tujuan Konsulat Jepang"
               >
                 🇯🇵
               </div>
@@ -333,16 +380,16 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {[
-              { key: 'formVisa', title: 'Formulir Aplikasi Visa Jepang', ok: currentPengajuan.berkas.formVisa, note: 'Tanda tangan asli pemohon' },
-              { key: 'pasporFisik', title: 'Paspor Fisik Asli', ok: currentPengajuan.berkas.pasporFisik, note: 'Masa berlaku > 12 bulan' },
-              { key: 'ektln', title: 'E-KTLN (Tenaga Kerja Luar Negeri)', ok: currentPengajuan.berkas.ektln, note: 'Terdaftar BP2MI aktif' },
-              { key: 'coe', title: 'Certificate of Eligibility (COE)', ok: currentPengajuan.berkas.coe, note: 'Asli & legalisir' },
-              { key: 'foto', title: 'Pas Foto 4.5 x 3.5 cm (Background Putih)', ok: currentPengajuan.berkas.foto || !!currentPengajuan.fotoBase64, note: 'Standar konsulat (< 100KB)' },
-              { key: 'ktp', title: 'Fotokopi KTP & Kartu Keluarga', ok: currentPengajuan.berkas.ktp, note: 'Tervalidasi' },
+              { key: 'formVisa', title: 'Formulir Aplikasi Visa Jepang', ok: currentPengajuan.berkas.formVisa, note: 'Tanda tangan asli pemohon', sample: sampleFormVisaBase64 },
+              { key: 'pasporFisik', title: 'Paspor Fisik Asli', ok: currentPengajuan.berkas.pasporFisik, note: 'Masa berlaku > 12 bulan', sample: samplePasfotoBase64 },
+              { key: 'ektln', title: 'E-KTLN (Tenaga Kerja Luar Negeri)', ok: currentPengajuan.berkas.ektln, note: 'Terdaftar BP2MI aktif', sample: sampleCoeBase64 },
+              { key: 'coe', title: 'Certificate of Eligibility (COE)', ok: currentPengajuan.berkas.coe, note: 'Asli & legalisir dari MOJ Jepang', sample: sampleCoeBase64 },
+              { key: 'foto', title: 'Pas Foto 4.5 × 3.5 cm (Background Putih)', ok: currentPengajuan.berkas.foto || !!currentPengajuan.fotoBase64, note: 'Standar konsulat (< 100KB)', sample: samplePasfotoBase64 },
+              { key: 'ktp', title: 'Fotokopi KTP & Kartu Keluarga', ok: currentPengajuan.berkas.ktp, note: 'Tervalidasi Dukcapil', sample: sampleKtpBase64 },
             ].map((doc) => {
               const docFile = currentPengajuan.uploadedDocs?.[doc.key];
-              const docBase64 = doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64) : docFile?.base64;
-              const hasFile = Boolean(docBase64);
+              const docBase64 = doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64 || doc.sample) : (docFile?.base64 || doc.sample);
+              const isRealUploaded = Boolean(doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64) : docFile?.base64);
 
               return (
                 <div
@@ -351,112 +398,149 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '10px 14px',
+                    padding: '12px 16px',
                     borderRadius: '12px',
-                    background: hasFile ? '#F0FDF4' : 'var(--surface-container-low)',
-                    border: hasFile ? '1.5px solid #86EFAC' : '1px solid rgba(195, 198, 214, 0.3)',
+                    background: isRealUploaded ? '#F0FDF4' : '#F8FAFC',
+                    border: isRealUploaded ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
                     gap: '12px',
                     flexWrap: 'wrap',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '180px', flex: 1 }}>
-                    {hasFile && docBase64?.startsWith('data:image') && (
-                      <img
-                        src={docBase64}
-                        alt={doc.title}
-                        onClick={() => setPreviewDoc({ title: `${doc.title} - ${currentPengajuan.namaPemohon}`, base64: docBase64, fileName: docFile?.name })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px', flex: 1 }}>
+                    {/* Thumbnail Preview Icon / Image */}
+                    {docBase64 && (
+                      <div
+                        onClick={() =>
+                          setPreviewDoc({
+                            title: `${doc.title} - ${currentPengajuan.namaPemohon}`,
+                            base64: docBase64,
+                            fileName: docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`,
+                          })
+                        }
                         style={{
-                          width: '38px',
-                          height: '48px',
-                          objectFit: 'cover',
-                          borderRadius: '6px',
-                          border: '1.5px solid #16A34A',
+                          width: '42px',
+                          height: '52px',
+                          borderRadius: '8px',
+                          border: isRealUploaded ? '2px solid #16A34A' : '1.5px dashed #0284C7',
+                          overflow: 'hidden',
                           cursor: 'pointer',
                           flexShrink: 0,
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                          backgroundColor: '#FFFFFF',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                          position: 'relative',
                         }}
-                        title="Klik untuk perbesar gambar"
-                      />
+                        title="Klik untuk membuka pratinjau dokumen"
+                      >
+                        <img
+                          src={docBase64}
+                          alt={doc.title}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(0,0,0,0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#FFFFFF',
+                            fontSize: '12px',
+                          }}
+                        >
+                          👁️
+                        </div>
+                      </div>
                     )}
+
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0F172A' }}>{doc.title}</div>
-                      <div style={{ fontSize: '0.74rem', color: hasFile ? '#166534' : 'var(--on-surface-variant)' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{doc.title}</span>
+                        {isRealUploaded ? (
+                          <span style={{ fontSize: '0.68rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            ✓ Diunggah Pemohon
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.68rem', backgroundColor: '#E0F2FE', color: '#0369A1', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                            Contoh Template Tersedia
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: isRealUploaded ? '#166534' : '#64748B', marginTop: '2px' }}>
                         {docFile?.name ? `📄 ${docFile.name} (${docFile.sizeKB || '?'} KB)` : doc.note}
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
-                    {hasFile ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewDoc({ title: `${doc.title} - ${currentPengajuan.namaPemohon}`, base64: docBase64!, fileName: docFile?.name })}
-                          style={{
-                            background: '#005BB5',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '6px 12px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            boxShadow: '0 2px 6px rgba(0, 91, 181, 0.2)',
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>visibility</span>
-                          <span>Lihat Gambar</span>
-                        </button>
-                        <a
-                          href={docBase64}
-                          download={docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`}
-                          style={{
-                            background: '#FFFFFF',
-                            color: '#0F172A',
-                            border: '1px solid #CBD5E1',
-                            borderRadius: '8px',
-                            padding: '5px 10px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            textDecoration: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                          title="Unduh Berkas"
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>download</span>
-                          <span>Unduh</span>
-                        </a>
-                      </>
-                    ) : (
-                      <span
-                        style={{
-                          padding: '3px 8px',
-                          borderRadius: '9999px',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          background: doc.ok ? 'var(--success-bg)' : 'var(--error-bg)',
-                          color: doc.ok ? 'var(--success)' : 'var(--error)',
-                        }}
-                      >
-                        {doc.ok ? 'Lengkap (Fisik)' : 'Belum Ada'}
+                  {/* Action Buttons: LIHAT GAMBAR & UNDUH */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                    {/* Tombol Utama: LIHAT GAMBAR */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewDoc({
+                          title: `${doc.title} - ${currentPengajuan.namaPemohon}`,
+                          base64: docBase64,
+                          fileName: docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`,
+                        })
+                      }
+                      style={{
+                        background: '#005BB5',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '7px 14px',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        boxShadow: '0 2px 6px rgba(0, 91, 181, 0.25)',
+                      }}
+                      title="Lihat dokumen ukuran penuh"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        visibility
                       </span>
-                    )}
+                      <span>Lihat Dokumen</span>
+                    </button>
 
-                    {/* Upload / Ganti file */}
+                    {/* Tombol Unduh */}
+                    <a
+                      href={docBase64}
+                      download={docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`}
+                      style={{
+                        background: '#FFFFFF',
+                        color: '#0F172A',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '8px',
+                        padding: '6px 12px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                      title="Unduh Berkas ke Laptop"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                        download
+                      </span>
+                      <span>Unduh</span>
+                    </a>
+
+                    {/* Tombol Upload / Ganti Berkas untuk Staf */}
                     <label
                       style={{
                         background: '#FFFFFF',
                         color: '#475569',
-                        border: '1px solid #CBD5E1',
+                        border: '1px dashed #94A3B8',
                         borderRadius: '8px',
-                        padding: '5px 10px',
+                        padding: '6px 10px',
                         fontSize: '0.74rem',
                         fontWeight: 600,
                         cursor: isUploadingDoc === doc.key ? 'wait' : 'pointer',
@@ -464,10 +548,12 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                         alignItems: 'center',
                         gap: '4px',
                       }}
-                      title="Unggah atau perbarui berkas ini"
+                      title="Unggah berkas baru atau ganti dokumen pemohon"
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>upload</span>
-                      <span>{isUploadingDoc === doc.key ? 'Mengunggah...' : (hasFile ? 'Ganti' : 'Upload')}</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                        upload_file
+                      </span>
+                      <span>{isUploadingDoc === doc.key ? 'Mengunggah...' : (isRealUploaded ? 'Ganti' : 'Upload Fisik')}</span>
                       <input
                         type="file"
                         accept="image/*,.pdf"
