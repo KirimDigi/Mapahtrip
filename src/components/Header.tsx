@@ -54,7 +54,20 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Konsjen Online: 5 Kota</span>
         </div>
 
-        {/* Notifications */}
+        {/* Action Button: Input Pemohon Baru */}
+        <button
+          className="btn btn-primary"
+          onClick={onOpenNewPengajuan}
+          title="Buka form input data pemohon visa baru"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            person_add
+          </span>
+          <span>Input Pemohon Baru</span>
+        </button>
+
+        {/* Notifications (Pojok Kanan) */}
         <button
           style={{
             position: 'relative',
@@ -68,8 +81,11 @@ export const Header: React.FC<HeaderProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
+            transition: 'background 0.2s',
           }}
           title="Notifikasi Operasional"
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-container-high)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-container-low)')}
         >
           <span className="material-symbols-outlined">notifications</span>
           <span
@@ -84,14 +100,6 @@ export const Header: React.FC<HeaderProps> = ({
               boxShadow: '0 0 0 2px #fff',
             }}
           />
-        </button>
-
-        {/* Action Button */}
-        <button className="btn btn-primary" onClick={onOpenNewPengajuan}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-            add
-          </span>
-          <span>Pengajuan</span>
         </button>
       </div>
     </header>

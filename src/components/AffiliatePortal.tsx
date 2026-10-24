@@ -1,10 +1,36 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Pengajuan, AffiliateUser } from '../types';
+import type { Pengajuan, AffiliateUser, StatusPengajuan } from '../types';
 import logoPutih from '../assets/mapahtrip_logo_putih.png';
+import { REAL_AFFILIATE_LEADERBOARD } from '../data/affiliateLeaderboardData';
+import { kirimPesanWA } from '../whatsapp';
+import {
+  supabase,
+  registerMitraInDB,
+  loginMitraFromDB,
+  updateMitraProfileInDB,
+  updateMitraBankInDB,
+  fetchAllMitraFromDB,
+} from '../lib/supabase';
 
 interface AffiliatePortalProps {
   pengajuanList: Pengajuan[];
   onSwitchMode: (mode: 'customer' | 'admin') => void;
+  onUpdateBerkas?: (
+    id: string,
+    berkasKey: keyof Pengajuan['berkas'],
+    value: boolean
+  ) => void;
+  onUpdateStage?: (
+    id: string,
+    stageData: {
+      tglBerkasMasuk?: string;
+      tglApply?: string;
+      tglSelesai?: string;
+      tglKirim?: string;
+      status?: StatusPengajuan;
+      noResi?: string;
+    }
+  ) => void;
 }
 
 
@@ -174,19 +200,63 @@ const BANK_INDONESIA_GROUPS = [
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   pengajuanList,
   onSwitchMode,
+  onUpdateBerkas,
+  onUpdateStage,
 }) => {
+  // Sinkronisasi lokal saat ada pemohon mendaftar dari tab lain
+  const [localVersion, setLocalVersion] = useState(0);
+  useEffect(() => {
+    const handleStorage = () => setLocalVersion((v) => v + 1);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   // Authentication State
   const [currentUser, setCurrentUser] = useState<AffiliateUser | null>(() => {
     try {
       const saved = localStorage.getItem('mapahtrip_current_affiliate');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if ((parsed.id === 'aff_demo' || parsed.email === 'demo@mapahtrip.id') && !parsed.affiliateCode) {
+          parsed.affiliateCode = 'MPH425MI';
+          parsed.isProfileComplete = true;
+        }
+        return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
   });
 
   // Auth Mode: 'register' or 'login'
-  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+  const [authMode, setAuthMode] = useState<'register' | 'login'>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (hash.includes('login') || hash.includes('masuk') || search.includes('login')) {
+        return 'login';
+      }
+    }
+    return 'register';
+  });
+
+  // Sync authMode when hash changes in URL
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (hash.includes('login') || hash.includes('masuk') || search.includes('login')) {
+        setAuthMode('login');
+        setAuthError('');
+      } else if (hash.includes('register') || hash.includes('daftar')) {
+        setAuthMode('register');
+        setAuthError('');
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   // Form State
   const [regName, setRegName] = useState('');
@@ -204,7 +274,25 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const [authError, setAuthError] = useState('');
-  const [authSuccessMsg, setAuthSuccessMsg] = useState('');
+  const [authSuccessMsg] = useState('');
+
+  // Sinkronisasi data mitra dari Supabase Cloud saat pertama kali dimuat
+  useEffect(() => {
+    fetchAllMitraFromDB().then((dbMitra) => {
+      if (dbMitra && dbMitra.length > 0) {
+        try {
+          const localStr = localStorage.getItem('mapahtrip_all_affiliates');
+          const localUsers: AffiliateUser[] = localStr ? JSON.parse(localStr) : [];
+          const userMap = new Map<string, AffiliateUser>();
+          localUsers.forEach((u) => userMap.set(u.email.toLowerCase(), u));
+          dbMitra.forEach((u) => userMap.set(u.email.toLowerCase(), u));
+          localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(Array.from(userMap.values())));
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }, []);
 
   // Dashboard Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -212,7 +300,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [selectedKandidat, setSelectedKandidat] = useState<Pengajuan | null>(null);
   const [activeTab, setActiveTab] = useState<'kandidat' | 'jadwal'>('kandidat');
   const [copiedCode, setCopiedCode] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   // Onboarding & Profile Verification State (Nurul Fikri / Visa Partner Form)
   const [profileStatus, setProfileStatus] = useState('');
   const [profileNama, setProfileNama] = useState('');
@@ -241,7 +328,25 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [showNotRegisteredToast, setShowNotRegisteredToast] = useState(false);
   const toastTimerRef = React.useRef<any>(null);
   const [profileError, setProfileError] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [successReferralModal, setSuccessReferralModal] = useState<{
+    isOpen: boolean;
+    code: string;
+    nama: string;
+  } | null>(null);
+  const [copiedSuccessCode, setCopiedSuccessCode] = useState(false);
+  const [registeredSuccessModal, setRegisteredSuccessModal] = useState<AffiliateUser | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
+  const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mapahtrip_read_notifs') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [notifFilter, setNotifFilter] = useState<'all' | 'new' | 'status' | 'fee'>('all');
+  const [showLiveCustomerToast, setShowLiveCustomerToast] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [registrationSuccessData, setRegistrationSuccessData] = useState<{
     code: string;
@@ -255,9 +360,578 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   // NFIC-style Menu / Tab State for Partner Onboarding
   const [onboardingView, setOnboardingView] = useState<'menu' | 'form' | 'dashboard'>('menu');
   const [portalTab, setPortalTab] = useState<'dasbor' | 'mpc'>('dasbor');
-  const [partnerSubTab, setPartnerSubTab] = useState<'informasi' | 'insentif'>('informasi');
+  const [partnerSubTab, setPartnerSubTab] = useState<'informasi' | 'insentif' | 'peringkat'>('informasi');
+  const [selectedBuktiTransfer, setSelectedBuktiTransfer] = useState<{
+    id: string;
+    noRef: string;
+    tanggalTransfer: string;
+    namaPemohon: string;
+    programVisa: string;
+    konsulat: string;
+    nominal: number;
+    namaBank: string;
+    nomorRekening: string;
+    atasNama: string;
+    status: 'Berhasil Ditransfer' | 'Menunggu Proses Visa';
+    tglSelesaiVisa?: string;
+    metode: string;
+  } | null>(null);
+  const [filterTransferStatus, setFilterTransferStatus] = useState<'all' | 'selesai' | 'pending'>('all');
 
-  
+  // Real Leaderboard State (Spreadsheet MapahTrip)
+  const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | 'top10' | 'lpk' | 'individu'>('all');
+  const [leaderboardSearch, setLeaderboardSearch] = useState('');
+  const [copiedLeaderboardCode, setCopiedLeaderboardCode] = useState<string | null>(null);
+
+  // Filtered Leaderboard Data Real (Murni Mitra Luar Berprestasi)
+  const filteredLeaderboard = useMemo(() => {
+    return REAL_AFFILIATE_LEADERBOARD.filter((item) => {
+      // 1. Staff MapahTrip internal kantor selalu disembunyikan 100% dari leaderboard mitra
+      if (item.isStaff || item.kategori === 'Staff') return false;
+
+      // 2. Mitra dengan nilai 0 (belum ada visa selesai & belum ada insentif) disembunyikan dari leaderboard
+      if (item.nominal <= 0 && item.totalVisaApproved <= 0) return false;
+
+      // Filter kategori / rank
+      if (leaderboardFilter === 'top10' && item.rank > 10) return false;
+      if (leaderboardFilter === 'lpk' && item.kategori !== 'LPK') return false;
+      if (leaderboardFilter === 'individu' && item.kategori !== 'Individu') return false;
+
+      if (leaderboardSearch.trim()) {
+        const q = leaderboardSearch.toLowerCase();
+        return (
+          item.nama.toLowerCase().includes(q) ||
+          item.code.toLowerCase().includes(q) ||
+          item.kategori.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [leaderboardFilter, leaderboardSearch]);
+
+  // Format Rupiah Helper
+  const formatRupiah = (val: number) => {
+    return 'Rp ' + val.toLocaleString('id-ID');
+  };
+
+  // Helper Verifikasi Berkas Bertahap (FORM, KTP, KTLN, COE, FOTO diceklis sesuai tahapan proses)
+  const getStageChecklist = (
+    status: string = '',
+    berkas?: { formVisa?: boolean; ktp?: boolean; ektln?: boolean; coe?: boolean; foto?: boolean }
+  ) => {
+    const st = (status || '').toLowerCase();
+    const isSelesaiOrReady =
+      st.includes('selesai') ||
+      st.includes('terbit') ||
+      st.includes('siap') ||
+      st.includes('ambil') ||
+      st.includes('hari ini');
+    const isDiproses = st.includes('proses');
+
+    return {
+      formVisa: true, // Formulir pendaftaran otomatis selesai terisi saat pendaftar submit
+      ktp: true, // KTP / Identitas otomatis masuk dan tervalidasi saat pendaftaran
+      ektln: isSelesaiOrReady ? true : Boolean(berkas?.ektln),
+      coe: isSelesaiOrReady ? true : Boolean(berkas?.coe),
+      foto: isSelesaiOrReady || isDiproses ? true : Boolean(berkas?.foto),
+    };
+  };
+
+  // State override ceklis berkas interaktif secara realtime (0ms lag)
+  const [localBerkasOverrides, setLocalBerkasOverrides] = useState<Record<string, Partial<Pengajuan['berkas']>>>({});
+
+  const getCandidateBerkas = (item: Pengajuan) => {
+    const overrides = localBerkasOverrides[item.id] || {};
+    return {
+      formVisa: overrides.formVisa !== undefined ? overrides.formVisa : Boolean(item.berkas?.formVisa),
+      ktp: overrides.ktp !== undefined ? overrides.ktp : Boolean(item.berkas?.ktp),
+      ektln: overrides.ektln !== undefined ? overrides.ektln : Boolean(item.berkas?.ektln),
+      coe: overrides.coe !== undefined ? overrides.coe : Boolean(item.berkas?.coe),
+      foto: overrides.foto !== undefined ? overrides.foto : Boolean(item.berkas?.foto),
+    };
+  };
+
+  // Handler interaktif untuk ceklis berkas mandiri (FORM, KTP, KTLN, COE, FOTO)
+  const handleToggleBerkas = (
+    item: Pengajuan,
+    key: 'formVisa' | 'ktp' | 'ektln' | 'coe' | 'foto'
+  ) => {
+    const currentStatus = getCandidateBerkas(item);
+    const newVal = !currentStatus[key];
+
+    // 1. Simpan ke local state override instan
+    setLocalBerkasOverrides((prev) => ({
+      ...prev,
+      [item.id]: {
+        ...(prev[item.id] || item.berkas || {}),
+        [key]: newVal,
+      },
+    }));
+
+    // 2. Beritahu App.tsx state
+    if (onUpdateBerkas) {
+      onUpdateBerkas(item.id, key, newVal);
+    }
+
+    // 3. Simpan permanen ke localStorage
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const localList: Pengajuan[] = JSON.parse(raw);
+        const updated = localList.map((p) =>
+          p.id === item.id ? { ...p, berkas: { ...p.berkas, [key]: newVal } } : p
+        );
+        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updated));
+      }
+    } catch {}
+
+    // 4. Update modal detail jika aktif
+    if (selectedKandidat && selectedKandidat.id === item.id) {
+      setSelectedKandidat((prev) =>
+        prev
+          ? {
+              ...prev,
+              berkas: { ...prev.berkas, [key]: newVal },
+            }
+          : null
+      );
+    }
+
+    // 5. Sinkronisasi ke Supabase
+    try {
+      const dbColMap: Record<string, string> = {
+        formVisa: 'form_visa',
+        ktp: 'ktp',
+        ektln: 'ektln',
+        coe: 'coe',
+        foto: 'foto',
+      };
+      const col = dbColMap[key];
+      const numId = Number(item.id);
+      if (col && !isNaN(numId)) {
+        supabase
+          .from('pengajuan_visa')
+          .update({ [col]: newVal, updated_at: new Date().toISOString() })
+          .eq('id', numId)
+          .then();
+      }
+    } catch (err) {
+      console.warn('Sync toggle note:', err);
+    }
+  };
+
+  // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
+  const [localStageOverrides, setLocalStageOverrides] = useState<
+    Record<
+      string,
+      {
+        tglSampai?: string;
+        tglProses?: string;
+        tglSelesai?: string;
+        tglKirim?: string;
+        noResi?: string;
+        status?: StatusPengajuan;
+      }
+    >
+  >(() => {
+    try {
+      const saved = localStorage.getItem('mapahtrip_stage_overrides');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const getTodayFormatted = () => {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}/${m}/${y}`;
+  };
+
+  const getCandidateStages = (item: Pengajuan) => {
+    const ov = localStageOverrides[item.id] || {};
+    const tglSampai = ov.tglSampai !== undefined ? ov.tglSampai : (item.tglBerkasMasuk || '');
+    const tglProses = ov.tglProses !== undefined ? ov.tglProses : (item.tglApply || '');
+    const tglSelesai = ov.tglSelesai !== undefined ? ov.tglSelesai : (item.tglSelesai || '');
+    const tglKirim = ov.tglKirim !== undefined ? ov.tglKirim : (item.tglKirim || '');
+    const noResi = ov.noResi !== undefined ? ov.noResi : (item.noResi || '');
+    const currentStatus = ov.status || item.status;
+
+    return {
+      tglSampai,
+      isSampai: Boolean(tglSampai && tglSampai !== '-'),
+      tglProses,
+      isProses: Boolean(tglProses && tglProses !== '-'),
+      tglSelesai,
+      isSelesai: Boolean(tglSelesai && tglSelesai !== '-'),
+      tglKirim,
+      isKirim: Boolean((tglKirim && tglKirim !== '-') || (noResi && noResi !== '-')),
+      noResi,
+      currentStatus,
+    };
+  };
+
+  const handleToggleStage = async (
+    item: Pengajuan,
+    stage: 'sampai' | 'proses' | 'selesai' | 'kirim'
+  ) => {
+    const stages = getCandidateStages(item);
+    const today = getTodayFormatted();
+    const newStages = { ...(localStageOverrides[item.id] || {}) };
+    let newStatus: StatusPengajuan = stages.currentStatus;
+    let shouldSendWAProses = false;
+    let shouldSendWASelesai = false;
+    let shouldSendWAKirim = false;
+
+    if (stage === 'sampai') {
+      if (stages.isSampai) {
+        newStages.tglSampai = '';
+      } else {
+        newStages.tglSampai = today;
+      }
+    } else if (stage === 'proses') {
+      if (stages.isProses) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Proses?\n\nApakah Anda yakin ingin membatalkan status SEDANG DIPROSES untuk pengajuan atas nama "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
+        newStages.tglProses = '';
+        if (newStatus === 'Sedang Diproses' || newStatus === 'Apply Hari Ini') {
+          newStatus = 'Menunggu Verifikasi';
+        }
+      } else {
+        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
+        const konfirmasi = window.confirm(
+          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
+          `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
+          `• Nama Pemohon : ${item.namaPemohon}\n` +
+          `• No. Paspor   : ${item.noPaspor}\n` +
+          `• No. WhatsApp : ${noWa}\n\n` +
+          `⚠️ PENTING:\n` +
+          `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+          `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
+        );
+        if (!konfirmasi) return;
+
+        newStages.tglProses = today;
+        if (!stages.isSampai) newStages.tglSampai = today;
+        newStatus = 'Sedang Diproses';
+        shouldSendWAProses = true;
+      }
+    } else if (stage === 'selesai') {
+      if (stages.isSelesai) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Selesai?\n\nApakah Anda yakin ingin membatalkan status SELESAI untuk pengajuan atas nama "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
+        newStages.tglSelesai = '';
+        if (newStatus === 'Selesai') {
+          newStatus = stages.isProses ? 'Sedang Diproses' : 'Menunggu Verifikasi';
+        }
+      } else {
+        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
+        const konfirmasi = window.confirm(
+          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI?\n\n` +
+          `Anda akan menandai pengajuan visa ini sebagai SELESAI:\n` +
+          `• Nama Pemohon : ${item.namaPemohon}\n` +
+          `• No. Paspor   : ${item.noPaspor}\n` +
+          `• No. WhatsApp : ${noWa}\n\n` +
+          `⚠️ PENTING:\n` +
+          `Setelah Anda klik OK, status akan diubah menjadi "Selesai" dan notifikasi resmi bahwa visa telah terbit akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+          `Apakah Anda yakin sudah selesai dan ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
+        );
+        if (!konfirmasi) return;
+
+        newStages.tglSelesai = today;
+        if (!stages.isSampai) newStages.tglSampai = today;
+        if (!stages.isProses) newStages.tglProses = today;
+        newStatus = 'Selesai';
+        shouldSendWASelesai = true;
+      }
+    } else if (stage === 'kirim') {
+      if (stages.isKirim) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Kirim?\n\nApakah Anda yakin ingin membatalkan status pengiriman paspor untuk "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
+        newStages.tglKirim = '';
+        newStages.noResi = '';
+      } else {
+        const inputResi = window.prompt(
+          `📦 Ceklis Pengiriman Paspor untuk ${item.namaPemohon}:\n\nMasukkan Nomor Resi Ekspedisi (JNE/J&T/TIKI/dll) atau ketik "Diambil Langsung":`,
+          item.noResi || ''
+        );
+        if (inputResi === null) return;
+
+        const resiFinal = inputResi.trim() ? inputResi.trim() : 'Diambil Langsung';
+        newStages.tglKirim = today;
+        newStages.noResi = resiFinal;
+        if (!stages.isSampai) newStages.tglSampai = today;
+        if (!stages.isProses) newStages.tglProses = today;
+        if (!stages.isSelesai) newStages.tglSelesai = today;
+        newStatus = 'Selesai';
+        shouldSendWAKirim = true;
+      }
+    }
+
+    newStages.status = newStatus;
+
+    // 1. Simpan ke local state override instan
+    setLocalStageOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [item.id]: {
+          ...(prev[item.id] || {}),
+          ...newStages,
+        },
+      };
+      try {
+        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Beritahu App.tsx
+    if (onUpdateStage) {
+      onUpdateStage(item.id, {
+        tglBerkasMasuk: newStages.tglSampai,
+        tglApply: newStages.tglProses,
+        tglSelesai: newStages.tglSelesai,
+        tglKirim: newStages.tglKirim,
+        noResi: newStages.noResi,
+        status: newStatus,
+      });
+    }
+
+    // 3. Simpan ke localStorage registrations
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const list: Pengajuan[] = JSON.parse(raw);
+        const updatedList = list.map((p) =>
+          p.id === item.id
+            ? {
+                ...p,
+                tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
+                tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
+                tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
+                tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : p.tglKirim,
+                noResi: newStages.noResi !== undefined ? newStages.noResi : p.noResi,
+                status: newStatus,
+              }
+            : p
+        );
+        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updatedList));
+      }
+    } catch {}
+
+    // 4. Update modal jika sedang terbuka
+    if (selectedKandidat && selectedKandidat.id === item.id) {
+      setSelectedKandidat((prev) =>
+        prev
+          ? {
+              ...prev,
+              tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : prev.tglBerkasMasuk,
+              tglApply: newStages.tglProses !== undefined ? newStages.tglProses : prev.tglApply,
+              tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : prev.tglSelesai,
+              tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : prev.tglKirim,
+              noResi: newStages.noResi !== undefined ? newStages.noResi : prev.noResi,
+              status: newStatus,
+            }
+          : null
+      );
+    }
+
+    // 5. Sinkronisasi ke Supabase Cloud
+    try {
+      const numId = Number(item.id);
+      if (!isNaN(numId)) {
+        await supabase
+          .from('pengajuan_visa')
+          .update({
+            tgl_sampai: newStages.tglSampai || null,
+            tgl_proses: newStages.tglProses || null,
+            tgl_selesai: newStages.tglSelesai || null,
+            tgl_kirim: newStages.tglKirim || null,
+            resi_pengiriman: newStages.noResi || null,
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', numId);
+      }
+    } catch (e) {
+      console.warn('Sync stage to Supabase failed:', e);
+    }
+
+    // Otomatis Kirim WhatsApp ke Customer jika Proses / Selesai / Kirim
+    if (shouldSendWAProses) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const pesanWAProses =
+          `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
+          `📋 *Rincian Pengajuan:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Program: ${item.program || 'Visa Jepang'}\n` +
+          `• Tanggal Apply: ${today}\n` +
+          `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
+          `Estimasi waktu pemrosesan kedutaan sekitar 3 - 5 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
+          `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*\n` +
+          `Website: https://mapahtrip.com`;
+
+        kirimPesanWA(item.noTelp, pesanWAProses)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi proses ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi proses:', err);
+          });
+
+        alert(
+          `✅ STATUS VISA DIPROSES!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
+          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
+        );
+      } else {
+        alert(
+          `✅ STATUS VISA DIPROSES!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
+          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
+        );
+      }
+    } else if (shouldSendWASelesai) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const pesanWASelesai =
+          `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
+          `📋 *Rincian Pengajuan:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Program: ${item.program || 'Visa Jepang'}\n` +
+          `• Tanggal Selesai: ${today}\n` +
+          `• Status: *SELESAI (Visa Terbit)*\n\n` +
+          `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi penyerahan langsung atau nomor resi pengiriman akan kami informasikan lebih lanjut.\n\n` +
+          `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*\n` +
+          `Website: https://mapahtrip.com`;
+
+        kirimPesanWA(item.noTelp, pesanWASelesai)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi selesai ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi selesai:', err);
+          });
+
+        alert(
+          `✅ STATUS VISA SELESAI!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
+          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
+        );
+      } else {
+        alert(
+          `✅ STATUS VISA SELESAI!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
+          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
+        );
+      }
+    } else if (shouldSendWAKirim) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const pesanWAKirim =
+          `*PEMBERITAHUAN PENGIRIMAN PASPOR - MAPAHTRIP* 📦✈️\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Paspor dan berkas Visa Jepang Anda yang telah selesai kini telah dikirimkan / disiapkan untuk penyerahan.\n\n` +
+          `📋 *Rincian Pengiriman:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Status / Resi: *${newStages.noResi || 'Diambil Langsung'}*\n` +
+          `• Tanggal Kirim: ${today}\n\n` +
+          `Silakan simpan nomor resi ini untuk melacak paket Anda. Semoga perjalanan Anda ke Jepang menyenangkan dan berkesan! 🇯🇵🎌\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*`;
+
+        kirimPesanWA(item.noTelp, pesanWAKirim)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi kirim ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi kirim:', err);
+          });
+
+        alert(
+          `📦 STATUS PENGIRIMAN DISIMPAN!\n\n` +
+          `Resi/Status: "${newStages.noResi}" berhasil disimpan.\n` +
+          `Notifikasi WhatsApp pengiriman telah dikirimkan ke ${item.namaPemohon} (${item.noTelp}).`
+        );
+      }
+    }
+  };
+
+  const handleEditStageDate = (
+    item: Pengajuan,
+    stage: 'sampai' | 'proses' | 'selesai' | 'kirim',
+    currentDate: string
+  ) => {
+    const stageNames = {
+      sampai: 'Sampai (Berkas Diterima)',
+      proses: 'Proses (Diajukan ke Kedutaan/JVAC)',
+      selesai: 'Selesai (Visa Terbit)',
+      kirim: 'Kirim (Paspor Dikirim)',
+    };
+    const input = window.prompt(
+      `Ubah tanggal tahap "${stageNames[stage]}" untuk ${item.namaPemohon} (Format: DD/MM/YYYY):`,
+      currentDate || getTodayFormatted()
+    );
+    if (input === null) return;
+    const cleanDate = input.trim();
+
+    const keyMap = {
+      sampai: 'tglSampai',
+      proses: 'tglProses',
+      selesai: 'tglSelesai',
+      kirim: 'tglKirim',
+    } as const;
+
+    setLocalStageOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [item.id]: {
+          ...(prev[item.id] || {}),
+          [keyMap[stage]]: cleanDate,
+        },
+      };
+      try {
+        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    const dbKeyMap = {
+      sampai: 'tgl_sampai',
+      proses: 'tgl_proses',
+      selesai: 'tgl_selesai',
+      kirim: 'tgl_kirim',
+    };
+    const numId = Number(item.id);
+    if (!isNaN(numId)) {
+      supabase
+        .from('pengajuan_visa')
+        .update({ [dbKeyMap[stage]]: cleanDate || null })
+        .eq('id', numId)
+        .then();
+    }
+  };
+
   // Sync profile form when user changes or logs in
   useEffect(() => {
     if (currentUser) {
@@ -282,6 +956,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       }
     }
   }, [currentUser]);
+
 
 
   // Handle Save Bank / E-Wallet for commission disbursement
@@ -328,11 +1003,25 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
     setCurrentUser(updatedUser);
     setIsEditingBank(false);
-    setBankSavedMsg('✓ Rekening pencairan insentif berhasil disimpan!');
-    setTimeout(() => setBankSavedMsg(''), 4000);
+    setBankSavedMsg('✓ Rekening pencairan insentif berhasil disimpan! Mengalihkan ke Dashboard...');
+    setTimeout(() => {
+      setBankSavedMsg('');
+      setPortalTab('dasbor');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 1800);
+
+    // Sinkronisasi pembaruan rekening langsung ke Supabase Cloud
+    updateMitraBankInDB(currentUser.id, {
+      jenis_pencairan: pencairanKategori === 'bank' ? 'Rekening Bank' : 'E-Wallet',
+      nama_bank: bankNama,
+      nomor_rekening: bankNomor.trim(),
+      atas_nama: bankAtasNama.trim(),
+    }).catch((err) => {
+      console.warn('Catatan sinkronisasi rekening ke Supabase:', err);
+    });
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError('');
 
@@ -456,8 +1145,43 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       // ignore
     }
 
-    setCurrentUser(updatedUser);
-        setShowProfileModal(false);
+    setIsSavingProfile(true);
+
+    try {
+      // Sinkronisasi pembaruan profil & aktivasi kode referral resmi ke Supabase Cloud
+      const dbRes = await updateMitraProfileInDB(currentUser.id, {
+        nama: profileNama.trim(),
+        no_wa: cleanWa,
+        status_mitra: profileStatus,
+        lembaga_lpk: profileLembaga.trim() || '-',
+        no_ktp: cleanKtp,
+        alamat: profileAlamat.trim(),
+        provinsi: profileProvinsi,
+        akun_ig: profileAkunIg.trim() || '-',
+        follower_ig: profileFollowerIg.trim() || '-',
+        kode_referral: activeCode,
+      });
+
+      const finalUser = dbRes.user || updatedUser;
+      setCurrentUser(finalUser);
+      setShowProfileModal(false);
+      setSuccessReferralModal({
+        isOpen: true,
+        code: finalUser.affiliateCode || activeCode,
+        nama: finalUser.nama || profileNama.trim(),
+      });
+    } catch (err: any) {
+      console.warn('Catatan sinkronisasi profil mitra ke Supabase:', err);
+      setCurrentUser(updatedUser);
+      setShowProfileModal(false);
+      setSuccessReferralModal({
+        isOpen: true,
+        code: activeCode,
+        nama: updatedUser.nama || profileNama.trim(),
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
 
@@ -471,7 +1195,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   }, [currentUser]);
 
   // Handle Registration
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
 
@@ -492,48 +1216,47 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       return;
     }
 
-    // 1. Ambil daftar seluruh akun mitra yang tersimpan
-    let allUsers: AffiliateUser[] = [];
-    try {
-      const existingUsersStr = localStorage.getItem('mapahtrip_all_affiliates');
-      allUsers = existingUsersStr ? JSON.parse(existingUsersStr) : [];
-    } catch {
-      allUsers = [];
-    }
-
     const emailClean = regEmail.trim().toLowerCase();
+    setIsRegistering(true);
 
-    // 2. Validasi ketat: email tidak boleh sama / double
-    if (allUsers.some((u) => u.email.toLowerCase() === emailClean)) {
-      setAuthError('Alamat email sudah terdaftar. Silakan gunakan email lain atau langsung masuk.');
-      return;
-    }
-
-    // 3. Buat akun mitra baru (Kode Referral belum diterbitkan, baru diberikan SETELAH isi data formulir)
-    const newUser: AffiliateUser = {
-      id: 'aff_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-      nama: regName.trim(),
-      email: emailClean,
-      affiliateCode: '', // Kode belum ada, harus mengisi formulir data diri terlebih dahulu
-      password: regPassword,
-      createdAt: new Date().toISOString(),
-      isProfileComplete: false,
-    };
-
-    // 4. Simpan akun ke daftar mitra
     try {
-      allUsers.push(newUser);
-      localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(allUsers));
-    } catch {
-      // ignore
-    }
+      // 1. Simpan pendaftaran akun langsung ke Supabase Cloud
+      const res = await registerMitraInDB({
+        nama: regName.trim(),
+        email: emailClean,
+        password: regPassword,
+      });
 
-    setCurrentUser(newUser);
-    setAuthSuccessMsg('Akun pendaftaran berhasil dibuat! Silakan lengkapi formulir identitas di bawah untuk menerbitkan Kode Referral resmi Anda.');
+      if (res.error || !res.user) {
+        setAuthError(res.error || 'Gagal mendaftar akun mitra. Silakan coba lagi.');
+        return;
+      }
+
+      const newUser = res.user;
+
+      // 2. Simpan juga ke cache lokal sebagai fallback
+      try {
+        const existingUsersStr = localStorage.getItem('mapahtrip_all_affiliates');
+        const allUsers: AffiliateUser[] = existingUsersStr ? JSON.parse(existingUsersStr) : [];
+        if (!allUsers.some((u) => u.email.toLowerCase() === emailClean)) {
+          allUsers.push(newUser);
+          localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(allUsers));
+        }
+      } catch {
+        // ignore
+      }
+
+      // 3. Tampilkan popup notifikasi berhasil terlebih dahulu sesuai instruksi
+      setRegisteredSuccessModal(newUser);
+    } catch (err: any) {
+      setAuthError(err?.message || 'Terjadi kesalahan sistem saat mendaftar.');
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   // Handle Login
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
 
@@ -543,21 +1266,31 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       return;
     }
 
-    // Default Demo Account (Memerlukan pengisian formulir pendaftaran terlebih dahulu sebelum kode referral terbit)
+    // Default Demo Account (Aktifkan kode referral demo MPH425MI agar pemohon binaan dan notifikasi langsung tampil)
     if (emailClean === 'demo@mapahtrip.id' && loginPassword === '123456') {
       const demoUser: AffiliateUser = {
         id: 'aff_demo',
         nama: 'Mitra Demo LPK',
         email: 'demo@mapahtrip.id',
-        affiliateCode: '', // Kode belum diterbitkan, wajib mengisi formulir pendaftaran dulu!
+        affiliateCode: 'MPH425MI',
         createdAt: new Date().toISOString(),
-        isProfileComplete: false, // Harus mengisi data identitas mitra
+        isProfileComplete: true,
       };
       setCurrentUser(demoUser);
+      try {
+        localStorage.setItem('mapahtrip_current_affiliate', JSON.stringify(demoUser));
+      } catch {}
       return;
     }
 
-    // Check stored users
+    // 1. Login langsung dari database Supabase Cloud
+    const dbResult = await loginMitraFromDB(emailClean, loginPassword);
+    if (dbResult.user) {
+      setCurrentUser(dbResult.user);
+      return;
+    }
+
+    // 2. Fallback jika ada akun lokal lama yang belum tersinkron
     try {
       const existingUsersStr = localStorage.getItem('mapahtrip_all_affiliates');
       const allUsers: AffiliateUser[] = existingUsersStr ? JSON.parse(existingUsersStr) : [];
@@ -566,7 +1299,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       );
 
       if (!foundUser) {
-        setAuthError('Akun belum terdaftar. Silakan klik "Daftar Akun Baru" di bawah terlebih dahulu.');
+        setAuthError(dbResult.error || 'Akun belum terdaftar. Silakan klik "Daftar Akun Baru" di bawah terlebih dahulu.');
         return;
       }
 
@@ -575,12 +1308,24 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         return;
       }
 
-      // Login berhasil
+      // Login berhasil dari cache lokal
       setCurrentUser(foundUser);
     } catch {
-      setAuthError('Terjadi kesalahan saat masuk. Silakan coba lagi.');
+      setAuthError(dbResult.error || 'Terjadi kesalahan saat masuk. Silakan coba lagi.');
     }
   };
+
+  // Active Affiliate Referral Code (dengan fallback otomatis untuk Demo)
+  const activeAffiliateCode = useMemo(() => {
+    if (!currentUser) return '';
+    if (currentUser.affiliateCode && currentUser.affiliateCode.trim()) {
+      return currentUser.affiliateCode.trim().toUpperCase();
+    }
+    if (currentUser.id === 'aff_demo' || currentUser.email === 'demo@mapahtrip.id') {
+      return 'MPH425MI';
+    }
+    return '';
+  }, [currentUser]);
 
   // Handle Logout
   const handleLogout = () => {
@@ -591,16 +1336,72 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     }
   };
 
-  // Filtered candidate list based on search, status, and affiliate code
+  // 1. Data Pemohon Khusus Milik Mitra Ini Saja (Berdasarkan Kode Referral Pribadi)
+  const affiliateCandidates = useMemo(() => {
+    if (!currentUser) return [];
+    const code = (activeAffiliateCode || '').trim().toUpperCase();
+    if (!code) return [];
+
+    // Baca juga pendaftaran lokal dari localStorage agar data yang baru didaftarkan langsung sinkron
+    let localRegistrations: Pengajuan[] = [];
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        localRegistrations = JSON.parse(raw);
+        // Normalisasi komisi per orang bawa Rp 100.000 flat
+        let modified = false;
+        localRegistrations.forEach((p) => {
+          if (p.referralFee !== 100000 || p.cashback !== 100000) {
+            p.referralFee = 100000;
+            p.cashback = 100000;
+            modified = true;
+          }
+        });
+        if (modified) {
+          localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(localRegistrations));
+        }
+      }
+    } catch {}
+
+    // Gabungkan pendaftaran lokal dengan pengajuanList (tanpa duplikasi ID)
+    const combinedMap = new Map<string, Pengajuan>();
+    localRegistrations.forEach((p) => combinedMap.set(p.id, p));
+    pengajuanList.forEach((p) => {
+      if (!combinedMap.has(p.id)) {
+        combinedMap.set(p.id, p);
+      }
+    });
+
+    const all = Array.from(combinedMap.values());
+
+    // Filter KHUSUS pemohon yang terdaftar dengan kode referral milik mitra ini saja (Komisi Rp 100.000 per orang)
+    return all
+      .filter((p) => {
+        const pCode = (p.affiliateCode || '').trim().toUpperCase();
+        if (!pCode) return false;
+        if (pCode === code) return true;
+        // Demo LPK aliases: MPC & MPH425MI
+        if ((code === 'MPC' || code === 'MPH425MI') && (pCode === 'MPC' || pCode === 'MPH425MI')) {
+          return true;
+        }
+        return false;
+      })
+      .map((p) => ({
+        ...p,
+        referralFee: 100000,
+        cashback: 100000,
+      }));
+  }, [pengajuanList, currentUser, activeAffiliateCode, localVersion]);
+
+  // Filtered candidate list based on search and status (khusus pemohon mitra ini)
   const filteredList = useMemo(() => {
-    return pengajuanList.filter((item) => {
+    return affiliateCandidates.filter((item) => {
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
         item.namaPemohon.toLowerCase().includes(q) ||
         item.noPaspor.toLowerCase().includes(q) ||
-        item.noTelp.toLowerCase().includes(q) ||
-        (item.affiliateCode && item.affiliateCode.toLowerCase().includes(q));
+        item.noTelp.toLowerCase().includes(q);
 
       const matchStatus =
         statusFilter === 'all' ||
@@ -611,31 +1412,545 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
       return matchQuery && matchStatus;
     });
-  }, [pengajuanList, searchQuery, statusFilter]);
+  }, [affiliateCandidates, searchQuery, statusFilter]);
 
-  // Statistics tailored for affiliate / agency partners
+  // Statistics tailored exclusively for this affiliate partner
   const stats = useMemo(() => {
-    const total = pengajuanList.length;
-    const berkasLengkap = pengajuanList.filter(
-      (p) => p.berkas.formVisa && p.berkas.ktp && p.berkas.coe && p.berkas.foto
-    ).length;
-    const sedangProses = pengajuanList.filter(
+    const total = affiliateCandidates.length;
+    const berkasLengkap = affiliateCandidates.filter((p) => {
+      const b = getStageChecklist(p.status, p.berkas);
+      return b.formVisa && b.ktp && b.coe && b.foto;
+    }).length;
+    const sedangProses = affiliateCandidates.filter(
       (p) => p.status === 'Sedang Diproses' || p.status === 'Apply Hari Ini'
     ).length;
-    const siapTerbang = pengajuanList.filter(
+    const siapTerbang = affiliateCandidates.filter(
       (p) => p.status === 'Selesai' || p.status === 'Siap Ambil'
     ).length;
-    const handoverSoetta = pengajuanList.filter(
-      (p) => p.noResi && p.noResi.toLowerCase().includes('soehatta')
+    const handoverSoetta = affiliateCandidates.filter(
+      (p) => (p.noResi && p.noResi.toLowerCase().includes('soetta')) || (p.catatan && p.catatan.toLowerCase().includes('terminal 3'))
     ).length;
 
     return { total, berkasLengkap, sedangProses, siapTerbang, handoverSoetta };
-  }, [pengajuanList]);
+  }, [affiliateCandidates]);
 
-  // Upcoming flight schedules (Send to Soekarno-Hatta)
+  // Upcoming flight schedules for this affiliate's candidates
   const flightSchedules = useMemo(() => {
-    return pengajuanList.filter((p) => p.catatan && p.catatan.toLowerCase().includes('flight'));
-  }, [pengajuanList]);
+    return affiliateCandidates.filter(
+      (p) => (p.catatan && p.catatan.toLowerCase().includes('flight')) || (p.noResi && p.noResi.toLowerCase().includes('soetta'))
+    );
+  }, [affiliateCandidates]);
+
+  // Notifikasi Pelanggan & Aktivitas untuk Portal Mitra
+  interface AffiliateNotifItem {
+    id: string;
+    candidateId: string;
+    tipe: 'new_customer' | 'status_update' | 'visa_ready' | 'fee_ready';
+    judul: string;
+    pesan: string;
+    detail?: string;
+    waktu: string;
+    icon: string;
+    iconBg: string;
+    iconColor: string;
+    badgeText: string;
+    badgeBg: string;
+    badgeColor: string;
+    candidate: Pengajuan;
+  }
+
+  const notifications = useMemo<AffiliateNotifItem[]>(() => {
+    if (!currentUser) return [];
+    const list: AffiliateNotifItem[] = [];
+
+    affiliateCandidates.forEach((cand, idx) => {
+      // 1. Notifikasi Pemohon Baru Mendaftar (Customer Masuk)
+      list.push({
+        id: `notif-cust-${cand.id}`,
+        candidateId: cand.id,
+        tipe: 'new_customer',
+        judul: `Pemohon Baru: ${cand.namaPemohon}`,
+        pesan: `Mendaftar visa ${cand.program} (${cand.konsjen}) menggunakan kode referral Anda.`,
+        detail: `No. Paspor: ${cand.maskedPaspor || cand.noPaspor} • Paket: ${cand.paket} • Status: ${cand.status}`,
+        waktu: cand.tglBerkasMasuk ? cand.tglBerkasMasuk : idx === 0 ? '10 menit lalu' : 'Hari ini',
+        icon: 'person_add',
+        iconBg: '#DCFCE7',
+        iconColor: '#16A34A',
+        badgeText: 'Customer Baru',
+        badgeBg: '#F0FDF4',
+        badgeColor: '#15803D',
+        candidate: cand,
+      });
+
+      // 2. Notifikasi Berkas Lengkap
+      if (cand.berkas.formVisa && cand.berkas.ktp && cand.berkas.coe) {
+        list.push({
+          id: `notif-doc-${cand.id}`,
+          candidateId: cand.id,
+          tipe: 'status_update',
+          judul: `Berkas Lengkap: ${cand.namaPemohon}`,
+          pesan: `Formulir, KTP, dan COE telah diverifikasi lengkap dan siap diajukan ke JVAC / Konsulat.`,
+          detail: `Petugas PIC: ${cand.staffPic || 'Staf Operasional'}`,
+          waktu: cand.tglApply || '1 hari lalu',
+          icon: 'verified',
+          iconBg: '#E0F2FE',
+          iconColor: '#0284C7',
+          badgeText: 'Berkas Siap',
+          badgeBg: '#F0F9FF',
+          badgeColor: '#0369A1',
+          candidate: cand,
+        });
+      }
+
+      // 3. Notifikasi Visa Terbit / Siap Ambil
+      if (cand.status === 'Siap Ambil' || cand.status === 'Selesai') {
+        list.push({
+          id: `notif-visa-${cand.id}`,
+          candidateId: cand.id,
+          tipe: 'visa_ready',
+          judul: `Visa Terbit: ${cand.namaPemohon} 🎉`,
+          pesan: `Visa Jepang telah selesai diterbitkan di Konsulat ${cand.konsjen}!`,
+          detail: cand.noResi ? `No. Resi/Handover: ${cand.noResi}` : 'Paspor siap diambil atau dikirim.',
+          waktu: cand.tglSelesai || 'Kemarin',
+          icon: 'task_alt',
+          iconBg: '#FEF3C7',
+          iconColor: '#D97706',
+          badgeText: 'Visa Siap',
+          badgeBg: '#FFFBEB',
+          badgeColor: '#B45309',
+          candidate: cand,
+        });
+      }
+
+      // 4. Notifikasi Komisi Siap Cair
+      if (cand.status === 'Selesai') {
+        const komisiNominal = cand.referralFee || 100000;
+        list.push({
+          id: `notif-fee-${cand.id}`,
+          candidateId: cand.id,
+          tipe: 'fee_ready',
+          judul: `Komisi Cair: Rp ${komisiNominal.toLocaleString('id-ID')} 💰`,
+          pesan: `Komisi referral dari kandidat ${cand.namaPemohon} telah disetujui & siap ditransfer ke rekening Anda.`,
+          detail: `Metode: Transfer Bank (${currentUser.namaBank || 'BCA'})`,
+          waktu: cand.tglSelesai || 'Baru saja',
+          icon: 'payments',
+          iconBg: '#FEE2E2',
+          iconColor: '#DC2626',
+          badgeText: 'Komisi Masuk',
+          badgeBg: '#FEF2F2',
+          badgeColor: '#B91C1C',
+          candidate: cand,
+        });
+      }
+    });
+
+    return list;
+  }, [affiliateCandidates, currentUser]);
+
+  const unreadNotifications = useMemo(() => {
+    return notifications.filter((n) => !readNotifIds.includes(n.id));
+  }, [notifications, readNotifIds]);
+
+  const filteredNotifications = useMemo(() => {
+    if (notifFilter === 'new') return notifications.filter((n) => n.tipe === 'new_customer');
+    if (notifFilter === 'status') return notifications.filter((n) => n.tipe === 'status_update' || n.tipe === 'visa_ready');
+    if (notifFilter === 'fee') return notifications.filter((n) => n.tipe === 'fee_ready');
+    return notifications;
+  }, [notifications, notifFilter]);
+
+  const handleMarkAllRead = () => {
+    const allIds = notifications.map((n) => n.id);
+    setReadNotifIds(allIds);
+    try {
+      localStorage.setItem('mapahtrip_read_notifs', JSON.stringify(allIds));
+    } catch {}
+  };
+
+  const handleReadNotification = (notif: AffiliateNotifItem) => {
+    if (!readNotifIds.includes(notif.id)) {
+      const updated = [...readNotifIds, notif.id];
+      setReadNotifIds(updated);
+      try {
+        localStorage.setItem('mapahtrip_read_notifs', JSON.stringify(updated));
+      } catch {}
+    }
+    setSelectedKandidat(notif.candidate);
+    setShowNotifPopover(false);
+  };
+
+  const renderNotificationPopover = () => {
+    if (!showNotifPopover) return null;
+
+    const newCustCount = notifications.filter((n) => n.tipe === 'new_customer').length;
+    const visaReadyCount = notifications.filter((n) => n.tipe === 'visa_ready' || n.tipe === 'status_update').length;
+    const feeCount = notifications.filter((n) => n.tipe === 'fee_ready').length;
+
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: '52px',
+          right: 0,
+          width: '390px',
+          maxWidth: 'calc(100vw - 32px)',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '18px',
+          boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.2), 0 10px 20px -8px rgba(0, 0, 0, 0.1)',
+          border: '1px solid #CBD5E1',
+          zIndex: 1000,
+          overflow: 'hidden',
+          animation: 'notifSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid #F1F5F9',
+            backgroundColor: '#F8FAFC',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#10B981' }}>
+              notifications_active
+            </span>
+            <div>
+              <strong style={{ fontSize: '0.9rem', color: '#0F172A', display: 'block' }}>
+                Notifikasi Pemohon &amp; Mitra
+              </strong>
+              <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                {unreadNotifications.length > 0 ? `${unreadNotifications.length} aktivitas belum dibaca` : 'Semua sudah dibaca'}
+              </span>
+            </div>
+          </div>
+          {unreadNotifications.length > 0 && (
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2563EB',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '6px',
+              }}
+              title="Tandai semua sudah dibaca"
+            >
+              Tandai Dibaca
+            </button>
+          )}
+        </div>
+
+        {/* Filter Tabs */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '6px',
+            padding: '8px 12px',
+            backgroundColor: '#FFFFFF',
+            borderBottom: '1px solid #F1F5F9',
+            overflowX: 'auto',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setNotifFilter('all')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '20px',
+              border: 'none',
+              fontSize: '0.74rem',
+              fontWeight: notifFilter === 'all' ? 700 : 600,
+              backgroundColor: notifFilter === 'all' ? '#0F172A' : '#F1F5F9',
+              color: notifFilter === 'all' ? '#FFFFFF' : '#64748B',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Semua ({notifications.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setNotifFilter('new')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '20px',
+              border: 'none',
+              fontSize: '0.74rem',
+              fontWeight: notifFilter === 'new' ? 700 : 600,
+              backgroundColor: notifFilter === 'new' ? '#16A34A' : '#F1F5F9',
+              color: notifFilter === 'new' ? '#FFFFFF' : '#64748B',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Customer Baru ({newCustCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setNotifFilter('status')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '20px',
+              border: 'none',
+              fontSize: '0.74rem',
+              fontWeight: notifFilter === 'status' ? 700 : 600,
+              backgroundColor: notifFilter === 'status' ? '#0284C7' : '#F1F5F9',
+              color: notifFilter === 'status' ? '#FFFFFF' : '#64748B',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Status Visa ({visaReadyCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setNotifFilter('fee')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '20px',
+              border: 'none',
+              fontSize: '0.74rem',
+              fontWeight: notifFilter === 'fee' ? 700 : 600,
+              backgroundColor: notifFilter === 'fee' ? '#D97706' : '#F1F5F9',
+              color: notifFilter === 'fee' ? '#FFFFFF' : '#64748B',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Komisi ({feeCount})
+          </button>
+        </div>
+
+        {/* List Items */}
+        <div style={{ padding: '8px', maxHeight: '360px', overflowY: 'auto' }}>
+          {filteredNotifications.length === 0 ? (
+            <div style={{ padding: '36px 16px', textAlign: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#94A3B8', display: 'block', marginBottom: '8px' }}>
+                notifications_paused
+              </span>
+              <p style={{ margin: '0 0 4px', fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                Belum Ada Notifikasi
+              </p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#94A3B8' }}>
+                Notifikasi akan otomatis masuk saat ada pemohon mendaftar menggunakan referral Anda.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredNotifications.map((notif) => {
+                const isUnread = !readNotifIds.includes(notif.id);
+                return (
+                  <div
+                    key={notif.id}
+                    onClick={() => handleReadNotification(notif)}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: isUnread ? '#F0FDF4' : '#F8FAFC',
+                      border: isUnread ? '1px solid #BBF7D0' : '1px solid #F1F5F9',
+                      display: 'flex',
+                      gap: '12px',
+                      alignItems: 'flex-start',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    {/* Unread indicator dot */}
+                    {isUnread && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: '#16A34A',
+                        }}
+                      />
+                    )}
+
+                    {/* Icon Avatar */}
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        backgroundColor: notif.iconBg,
+                        color: notif.iconColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        {notif.icon}
+                      </span>
+                    </div>
+
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: isUnread ? '12px' : 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '6px',
+                            backgroundColor: notif.badgeBg,
+                            color: notif.badgeColor,
+                          }}
+                        >
+                          {notif.badgeText}
+                        </span>
+                        <strong style={{ fontSize: '0.82rem', color: '#0F172A' }}>
+                          {notif.judul}
+                        </strong>
+                      </div>
+                      <p style={{ margin: '0 0 4px', fontSize: '0.76rem', color: '#475569', lineHeight: 1.4 }}>
+                        {notif.pesan}
+                      </p>
+                      {notif.detail && (
+                        <p style={{ margin: '0 0 6px', fontSize: '0.71rem', color: '#64748B', fontFamily: 'monospace' }}>
+                          {notif.detail}
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.68rem', color: '#94A3B8' }}>
+                          {notif.waktu}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#0284C7', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                          <span>Lihat Berkas</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: '10px 16px',
+            borderTop: '1px solid #F1F5F9',
+            backgroundColor: '#F8FAFC',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+            Kode Referral: <strong style={{ color: '#0284C7' }}>{activeAffiliateCode || 'MPC'}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowNotifPopover(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#475569',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Data Riwayat Transfer Insentif Mitra & Nominal Pencairan
+  const riwayatTransferList = useMemo(() => {
+    const bankTujuan = currentUser?.namaBank || 'Belum Diisi';
+    const rekTujuan = currentUser?.nomorRekening
+      ? currentUser.nomorRekening.length > 6
+        ? `${currentUser.nomorRekening.slice(0, 4)}••••${currentUser.nomorRekening.slice(-4)}`
+        : currentUser.nomorRekening
+      : '-';
+    const anTujuan = currentUser?.atasNamaRekening || currentUser?.nama || '-';
+
+    return affiliateCandidates.map((cand) => {
+      const isSelesai = cand.status === 'Selesai';
+      return {
+        id: `TF-${cand.id}`,
+        noRef: `TRX-MPC-${cand.id.replace(/\D/g, '').slice(-6) || '202601'}`,
+        tanggalTransfer: isSelesai ? (cand.tglSelesai || 'Hari ini') : 'Menunggu Visa Selesai',
+        namaPemohon: cand.namaPemohon,
+        programVisa: cand.program,
+        konsulat: cand.konsjen,
+        nominal: cand.referralFee || 100000,
+        namaBank: bankTujuan,
+        nomorRekening: rekTujuan,
+        atasNama: anTujuan,
+        status: (isSelesai ? 'Berhasil Ditransfer' : 'Menunggu Proses Visa') as 'Berhasil Ditransfer' | 'Menunggu Proses Visa',
+        tglSelesaiVisa: isSelesai ? (cand.tglSelesai || 'Selesai') : (cand.tglEstimasiSelesai || 'Menunggu Verifikasi & Proses JVAC'),
+        metode: isSelesai ? 'Bank Transfer Real-time' : 'Otomatis Ditransfer saat Visa Terbit',
+      };
+    });
+  }, [currentUser, affiliateCandidates]);
+
+  // Nominal Total Insentif yang Sudah Ditransfer (Cair ke Rekening)
+  const totalSudahDitransfer = useMemo(() => {
+    return riwayatTransferList
+      .filter((item) => item.status === 'Berhasil Ditransfer')
+      .reduce((acc, curr) => acc + curr.nominal, 0);
+  }, [riwayatTransferList]);
+
+  // Nominal Insentif Menunggu Transfer (Proses JVAC)
+  const totalMenungguTransfer = useMemo(() => {
+    return riwayatTransferList
+      .filter((item) => item.status === 'Menunggu Proses Visa')
+      .reduce((acc, curr) => acc + curr.nominal, 0);
+  }, [riwayatTransferList]);
+
+  // Total Keseluruhan Akumulasi Komisi
+  const totalAkumulasiKomisi = totalSudahDitransfer + totalMenungguTransfer;
+
+  // Real Counts for Metric Badges
+  const countSudahDitransfer = useMemo(() => {
+    return riwayatTransferList.filter((item) => item.status === 'Berhasil Ditransfer').length;
+  }, [riwayatTransferList]);
+
+  const countMenungguTransfer = useMemo(() => {
+    return riwayatTransferList.filter((item) => item.status === 'Menunggu Proses Visa').length;
+  }, [riwayatTransferList]);
+
+  const countTotalPemohon = riwayatTransferList.length;
+
+  // Filtered Riwayat Transfer
+  const filteredRiwayatTransfer = useMemo(() => {
+    if (filterTransferStatus === 'selesai') {
+      return riwayatTransferList.filter((item) => item.status === 'Berhasil Ditransfer');
+    }
+    if (filterTransferStatus === 'pending') {
+      return riwayatTransferList.filter((item) => item.status === 'Menunggu Proses Visa');
+    }
+    return riwayatTransferList;
+  }, [riwayatTransferList, filterTransferStatus]);
 
   // =========================================================================
   // VIEW 1: AUTHENTICATION SCREEN (REGISTER / LOGIN) - Matches user screenshot
@@ -1032,6 +2347,188 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRegisteredSuccessModal = () => {
+    if (!registeredSuccessModal) return null;
+
+    const handleContinueToDashboard = () => {
+      const user = registeredSuccessModal;
+      setRegisteredSuccessModal(null);
+      setCurrentUser(user);
+      setOnboardingView('dashboard');
+      setPortalTab('mpc');
+      setPartnerSubTab('informasi');
+    };
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '36px 28px',
+            textAlign: 'center',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.3)',
+            border: '1px solid #E2E8F0',
+          }}
+        >
+          <div
+            style={{
+              width: '76px',
+              height: '76px',
+              borderRadius: '50%',
+              backgroundColor: '#ECFDF5',
+              border: '2px solid #10B981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#059669',
+              boxShadow: '0 12px 28px -6px rgba(16, 185, 129, 0.4)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '42px' }}>
+              task_alt
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#ECFDF5',
+              color: '#059669',
+              padding: '4px 14px',
+              borderRadius: '9999px',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              marginBottom: '12px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+              check_circle
+            </span>
+            Pendaftaran Berhasil
+          </div>
+
+          <h3
+            style={{
+              fontSize: '1.4rem',
+              fontWeight: 800,
+              color: '#0F172A',
+              marginBottom: '8px',
+              lineHeight: 1.3,
+            }}
+          >
+            Akun Berhasil Dibuat!
+          </h3>
+
+          <p
+            style={{
+              fontSize: '0.86rem',
+              color: '#64748B',
+              lineHeight: 1.55,
+              marginBottom: '20px',
+            }}
+          >
+            Selamat datang Kak <strong>{registeredSuccessModal.nama}</strong>! Akun kemitraan Anda telah berhasil didaftarkan.
+          </p>
+
+          <div
+            style={{
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: '14px',
+              padding: '14px 16px',
+              textAlign: 'left',
+              marginBottom: '18px',
+              fontSize: '0.84rem',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '8px',
+              }}
+            >
+              <span style={{ color: '#64748B' }}>Nama Pendaftar:</span>
+              <strong style={{ color: '#0F172A' }}>{registeredSuccessModal.nama}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#64748B' }}>Email Akun:</span>
+              <strong style={{ color: '#005BB5' }}>{registeredSuccessModal.email}</strong>
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              marginBottom: '22px',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+            }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: '20px', color: '#2563EB', flexShrink: 0, marginTop: '1px' }}
+            >
+              info
+            </span>
+            <div style={{ fontSize: '0.80rem', color: '#1E40AF', lineHeight: 1.45 }}>
+              <strong>Langkah Selanjutnya:</strong> Anda akan masuk ke halaman <strong>Informasi Program Partner Club</strong> untuk membaca syarat &amp; ketentuan. Setelah siap, silakan klik tombol <strong>&quot;Daftar Sekarang&quot;</strong> untuk mengisi formulir kemitraan.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleContinueToDashboard}
+            style={{
+              width: '100%',
+              backgroundColor: '#10B981',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '14px',
+              borderRadius: '14px',
+              fontSize: '0.95rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span>Masuk ke Dashboard Informasi Kemitraan ➔</span>
+          </button>
         </div>
       </div>
     );
@@ -1454,21 +2951,36 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 {/* Submit Button */}
                 <button
                   type="submit"
+                  disabled={isRegistering}
                   style={{
                     marginTop: '8px',
-                    backgroundColor: '#10B981',
+                    backgroundColor: isRegistering ? '#059669' : '#10B981',
                     color: '#FFFFFF',
                     border: 'none',
                     padding: '13px',
                     borderRadius: '12px',
                     fontSize: '0.92rem',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: isRegistering ? 'not-allowed' : 'pointer',
+                    opacity: isRegistering ? 0.8 : 1,
                     boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
                     transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
                   }}
                 >
-                  Daftar Akun &amp; Dapatkan Kode ➔
+                  {isRegistering ? (
+                    <>
+                      <span>Mendaftarkan Akun...</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                        sync
+                      </span>
+                    </>
+                  ) : (
+                    <span>Daftar Akun &amp; Dapatkan Kode ➔</span>
+                  )}
                 </button>
               </form>
 
@@ -1660,42 +3172,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </button>
               </form>
 
-              {/* Demo Account Quick Fill */}
-              <div
-                style={{
-                  marginTop: '16px',
-                  backgroundColor: '#F1F5F9',
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  fontSize: '0.78rem',
-                  color: '#475569',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <span>💡 Akun Uji Coba: demo@mapahtrip.id</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('demo@mapahtrip.id');
-                    setLoginPassword('123456');
-                  }}
-                  style={{
-                    backgroundColor: '#E2E8F0',
-                    border: 'none',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    color: '#0F172A',
-                  }}
-                >
-                  Isi Cepat
-                </button>
-              </div>
-
               {/* Switch to Register */}
               <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.85rem', color: '#64748B' }}>
                 Belum punya akun mitra?{' '}
@@ -1722,6 +3198,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         </div>
         {/* Modal Syarat & Kebijakan Kemitraan MapahTrip */}
         {renderTermsModal()}
+        {/* Modal Notifikasi Berhasil Daftar Akun Mitra */}
+        {renderRegisteredSuccessModal()}
       </div>
     );
   }
@@ -1733,11 +3211,231 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   // lalu klik "Daftar Sekarang" untuk membuka formulir pendaftaran.
   // =========================================================================
   
+  const renderSuccessReferralModal = () => {
+    if (!successReferralModal || !successReferralModal.isOpen) return null;
+
+    const copyCode = () => {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(successReferralModal.code);
+        setCopiedSuccessCode(true);
+        setTimeout(() => setCopiedSuccessCode(false), 2500);
+      }
+    };
+
+    const handleCloseModal = () => {
+      setSuccessReferralModal(null);
+      setOnboardingView('dashboard');
+      setPortalTab('mpc');
+      setPartnerSubTab('insentif');
+      setIsEditingBank(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '36px 28px',
+            textAlign: 'center',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.3)',
+            border: '1px solid #E2E8F0',
+          }}
+        >
+          {/* Animated Green Badge */}
+          <div
+            style={{
+              width: '76px',
+              height: '76px',
+              borderRadius: '50%',
+              backgroundColor: '#ECFDF5',
+              border: '2px solid #10B981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#059669',
+              boxShadow: '0 12px 28px -6px rgba(16, 185, 129, 0.4)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '42px' }}>
+              task_alt
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#ECFDF5',
+              color: '#059669',
+              padding: '4px 14px',
+              borderRadius: '9999px',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              marginBottom: '12px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+              check_circle
+            </span>
+            Data Berhasil Disimpan
+          </div>
+
+          <h3
+            style={{
+              fontSize: '1.4rem',
+              fontWeight: 800,
+              color: '#0F172A',
+              marginBottom: '8px',
+              lineHeight: 1.3,
+            }}
+          >
+            Pendaftaran Berhasil!
+          </h3>
+
+          <p style={{ fontSize: '0.86rem', color: '#64748B', lineHeight: 1.55, marginBottom: '20px' }}>
+            Halo <strong>{successReferralModal.nama}</strong>, profil Anda telah terverifikasi dan aktif. Berikut Kode Referral resmi Anda:
+          </p>
+
+          {/* Box Kode Referral */}
+          <div
+            style={{
+              backgroundColor: '#F8FAFC',
+              border: '2px dashed #005BB5',
+              borderRadius: '16px',
+              padding: '16px',
+              marginBottom: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+            }}
+          >
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '0.70rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Kode Referral Resmi Anda
+              </div>
+              <div
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: '1.5rem',
+                  fontWeight: 800,
+                  color: '#005BB5',
+                  letterSpacing: '0.05em',
+                  marginTop: '2px',
+                }}
+              >
+                {successReferralModal.code}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={copyCode}
+              style={{
+                backgroundColor: copiedSuccessCode ? '#10B981' : '#005BB5',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '10px 16px',
+                borderRadius: '10px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                {copiedSuccessCode ? 'done' : 'content_copy'}
+              </span>
+              <span>{copiedSuccessCode ? 'Tersalin!' : 'Salin Kode'}</span>
+            </button>
+          </div>
+
+          {/* Step Reminder Info Box */}
+          <div
+            style={{
+              backgroundColor: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              marginBottom: '22px',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#D97706', flexShrink: 0, marginTop: '1px' }}>
+              account_balance
+            </span>
+            <div style={{ fontSize: '0.80rem', color: '#92400E', lineHeight: 1.45 }}>
+              <strong>Langkah Terakhir:</strong> Silakan lengkapi nomor rekening Bank atau E-Wallet untuk pencairan insentif komisi resmi Anda sebelum menuju Dasbor Utama.
+            </div>
+          </div>
+
+          {/* Action button */}
+          <button
+            type="button"
+            onClick={handleCloseModal}
+            style={{
+              width: '100%',
+              backgroundColor: '#10B981',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '14px',
+              borderRadius: '14px',
+              fontSize: '0.95rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#059669';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#10B981';
+            }}
+          >
+            <span>Lanjut Pengisian Rekening / E-Wallet &rarr;</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // =========================================================================
   // UNIFIED AFFILIATE PORTAL (OPSI 1: DASBOR MONITORING VISA & PARTNER CLUB MPC)
   // =========================================================================
   if (currentUser) {
-    if (onboardingView === 'form') {
+    if (onboardingView === 'form' && !currentUser.isProfileComplete) {
       
     return (
       <div
@@ -1767,7 +3465,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           <div style={{ marginBottom: '20px' }}>
             <button
               type="button"
-              onClick={() => setOnboardingView('menu')}
+              onClick={() => {
+                setOnboardingView('dashboard');
+                setPortalTab('mpc');
+                setPartnerSubTab('informasi');
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -1827,19 +3529,20 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: '12px',
               marginBottom: '24px',
               fontSize: '0.84rem',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1E40AF' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB', flexShrink: 0 }}>
                 lock_clock
               </span>
               <span>
                 <strong>Kode Referral Resmi</strong> akan otomatis diterbitkan dan diberikan setelah Anda melengkapi seluruh formulir data diri di bawah ini.
               </span>
             </div>
-            <span style={{ fontSize: '0.74rem', color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '3px 10px', borderRadius: '6px', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.74rem', color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '4px 12px', borderRadius: '6px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
               Menunggu Data
             </span>
           </div>
@@ -2155,16 +3858,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             <div style={{ marginTop: '16px' }}>
               <button
                 type="submit"
+                disabled={isSavingProfile}
                 style={{
                   width: '100%',
-                  backgroundColor: '#10B981',
+                  backgroundColor: isSavingProfile ? '#059669' : '#10B981',
                   color: '#FFFFFF',
                   border: 'none',
                   padding: '14px',
                   borderRadius: '14px',
                   fontSize: '0.95rem',
                   fontWeight: 800,
-                  cursor: 'pointer',
+                  cursor: isSavingProfile ? 'not-allowed' : 'pointer',
+                  opacity: isSavingProfile ? 0.8 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2173,16 +3878,27 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   transition: 'all 0.2s ease',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#059669';
+                  if (!isSavingProfile) e.currentTarget.style.backgroundColor = '#059669';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#10B981';
+                  if (!isSavingProfile) e.currentTarget.style.backgroundColor = '#10B981';
                 }}
               >
-                <span>Simpan Data &amp; Terbitkan Kode Referral &rarr;</span>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  key
-                </span>
+                {isSavingProfile ? (
+                  <>
+                    <span>Menyimpan Data...</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      sync
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>Simpan Data &amp; Terbitkan Kode Referral &rarr;</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      key
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -2205,6 +3921,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             </button>
           </div>
         </div>
+        {renderSuccessReferralModal()}
       </div>
     );
   }
@@ -2446,29 +4163,98 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             border: '1px solid #E2E8F0',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
             marginBottom: '24px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '20px',
+            position: 'relative',
           }}
         >
-          <div>
+          {/* Notification Bell di Pojok Kanan Atas */}
+          <div style={{ position: 'absolute', top: '22px', right: '24px', zIndex: 30 }}>
+            <button
+              type="button"
+              onClick={() => setShowNotifPopover(!showNotifPopover)}
+              title="Notifikasi Aktivitas Pemohon"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                backgroundColor: showNotifPopover ? '#F1F5F9' : '#FFFFFF',
+                color: '#475569',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F8FAFC';
+                e.currentTarget.style.borderColor = '#CBD5E1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = showNotifPopover ? '#F1F5F9' : '#FFFFFF';
+                e.currentTarget.style.borderColor = '#E2E8F0';
+              }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: '22px',
+                  color: unreadNotifications.length > 0 ? '#10B981' : '#334155',
+                  animation: unreadNotifications.length > 0 ? 'bellRing 3s infinite ease-in-out' : 'none',
+                }}
+              >
+                {unreadNotifications.length > 0 ? 'notifications_active' : 'notifications'}
+              </span>
+              {unreadNotifications.length > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    minWidth: '20px',
+                    height: '20px',
+                    borderRadius: '10px',
+                    backgroundColor: '#EF4444',
+                    color: '#FFFFFF',
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 4px',
+                    border: '2px solid #FFFFFF',
+                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                    animation: 'pulseBadge 2s infinite ease-in-out',
+                  }}
+                >
+                  {unreadNotifications.length > 9 ? '9+' : unreadNotifications.length}
+                </span>
+              )}
+            </button>
+
+            {/* Popover Dropdown Notifikasi di Pojok Kanan */}
+            {renderNotificationPopover()}
+          </div>
+
+          {/* Konten Kiri Banner (Judul, Subtitle, Tombol & Search) */}
+          <div style={{ paddingRight: '56px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#0284C7', fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
               <span>⛩️ MITRA RESMI MAPAHTRIP</span>
             </div>
             <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
               Selamat Datang, {currentUser.nama}!
             </h1>
-            <p style={{ color: '#64748B', fontSize: '0.88rem', margin: '4px 0 0' }}>
-              Gunakan kode referral <strong style={{ color: '#0284C7' }}>{currentUser.affiliateCode || 'MPC'}</strong> pada setiap pendaftaran pemohon visa untuk pelacakan komisi dan status berkas.
+            <p style={{ color: '#64748B', fontSize: '0.88rem', margin: '4px 0 0', maxWidth: '780px' }}>
+              Gunakan kode referral <strong style={{ color: '#0284C7' }}>{activeAffiliateCode || 'MPC'}</strong> pada setiap pendaftaran pemohon visa untuk pelacakan komisi dan status berkas.
             </p>
-            {currentUser.affiliateCode && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+
+            {activeAffiliateCode && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(currentUser.affiliateCode);
+                    navigator.clipboard.writeText(activeAffiliateCode);
                     setCopiedCode(true);
                     setTimeout(() => setCopiedCode(false), 2000);
                   }}
@@ -2476,56 +4262,27 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     backgroundColor: copiedCode ? '#059669' : '#0F172A',
                     color: '#FFFFFF',
                     border: 'none',
-                    padding: '6px 12px',
+                    padding: '7px 14px',
                     borderRadius: '8px',
                     fontSize: '0.78rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '5px',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
                     {copiedCode ? 'done' : 'content_copy'}
                   </span>
-                  <span>{copiedCode ? 'Kode Tersalin!' : `KODE: ${currentUser.affiliateCode}`}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const link = `https://mapahtrip.id/?ref=${currentUser.affiliateCode}`;
-                    navigator.clipboard.writeText(link);
-                    setCopiedLink(true);
-                    setTimeout(() => setCopiedLink(false), 2000);
-                  }}
-                  style={{
-                    backgroundColor: copiedLink ? '#059669' : '#10B981',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                    {copiedLink ? 'done' : 'share'}
-                  </span>
-                  <span>{copiedLink ? 'Link Tersalin!' : 'Salin Link'}</span>
+                  <span>{copiedCode ? 'Kode Tersalin!' : `KODE: ${activeAffiliateCode}`}</span>
                 </button>
               </div>
             )}
-          </div>
 
-          {/* Search Box */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ minWidth: '280px', flex: '0 1 340px' }}>
+            {/* Search Box Pemohon */}
+            <div style={{ marginTop: '16px', maxWidth: '360px', width: '100%' }}>
               <div style={{ position: 'relative' }}>
                 <span
                   className="material-symbols-outlined"
@@ -2555,118 +4312,138 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     backgroundColor: '#F8FAFC',
                     color: '#0F172A',
                     boxSizing: 'border-box',
+                    transition: 'border-color 0.15s ease',
                   }}
+                  onFocus={(e) => (e.target.style.borderColor = '#0284C7')}
+                  onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
                 />
               </div>
-            </div>
-
-            {/* Notification Bell in Dasbor */}
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => setShowNotifPopover(!showNotifPopover)}
-                title="Notifikasi"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '12px',
-                  border: '1px solid #E2E8F0',
-                  backgroundColor: '#FFFFFF',
-                  color: '#475569',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#F8FAFC';
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#FFFFFF';
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
-                  notifications
-                </span>
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '9px',
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: '#EF4444',
-                    border: '1.5px solid #FFFFFF',
-                  }}
-                />
-              </button>
             </div>
           </div>
         </div>
 
-        {/* 3. Partner Key Metric Cards */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-            gap: '16px',
-            marginBottom: '24px',
-          }}
-        >
-          {/* Card 1: Total Kandidat */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '18px 20px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Pemohon / Data Visa</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>groups</span>
+        {/* Dynamic Highlight Banner saat ada Notifikasi Pemohon Masuk */}
+        {unreadNotifications.length > 0 && (
+          <div
+            style={{
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              borderRadius: '16px',
+              padding: '12px 18px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.05)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: '#DCFCE7',
+                  color: '#16A34A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  campaign
+                </span>
+              </div>
+              <div>
+                <strong style={{ fontSize: '0.85rem', color: '#166534', display: 'block' }}>
+                  🔔 Notifikasi Pemohon Baru Terdeteksi! ({unreadNotifications.length} Aktivitas Belum Dibaca)
+                </strong>
+                <span style={{ fontSize: '0.78rem', color: '#15803D' }}>
+                  Terdapat {affiliateCandidates.length} pemohon visa yang mendaftar melalui kode referral Anda ({activeAffiliateCode}). Pantau status berkas dan pencairan insentif di bawah.
+                </span>
+              </div>
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F172A', marginTop: '6px' }}>{stats.total}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>Terdaftar di sistem MapahTrip</div>
+            <button
+              type="button"
+              onClick={() => setShowNotifPopover(true)}
+              style={{
+                backgroundColor: '#16A34A',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#15803D')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#16A34A')}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                notifications
+              </span>
+              <span>Buka Notifikasi ({unreadNotifications.length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* 3. Partner Key Metric Cards (1 Baris Rapi) */}
+        <div className="partner-metrics-grid">
+          {/* Card 1: Total Kandidat */}
+          <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Pemohon</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563EB', flexShrink: 0 }}>groups</span>
+            </div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1.2 }}>{stats.total}</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kandidat Binaan Anda</div>
           </div>
 
           {/* Card 2: Berkas Lengkap */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '18px 20px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Berkas Lengkap</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#16A34A' }}>verified</span>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Berkas Lengkap</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A', flexShrink: 0 }}>verified</span>
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#15803D', marginTop: '6px' }}>{stats.berkasLengkap}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>Form, KTP, E-KTLN, COE &amp; Foto siap</div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#15803D', marginTop: '4px', lineHeight: 1.2 }}>{stats.berkasLengkap}</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Form, KTP, COE siap</div>
           </div>
 
           {/* Card 3: Proses Konsulat */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '18px 20px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#9A3412', textTransform: 'uppercase' }}>Sedang Proses JVAC</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#EA580C' }}>pending</span>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#9A3412', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Proses JVAC</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EA580C', flexShrink: 0 }}>pending</span>
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#C2410C', marginTop: '6px' }}>{stats.sedangProses}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>Dalam verifikasi konsulat Jepang</div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#C2410C', marginTop: '4px', lineHeight: 1.2 }}>{stats.sedangProses}</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Verifikasi konsulat</div>
           </div>
 
           {/* Card 4: Selesai / Siap Kirim */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '18px 20px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase' }}>Visa Siap / Terbit</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#0284C7' }}>task_alt</span>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Visa Terbit</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0 }}>task_alt</span>
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>{stats.siapTerbang}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>Stiker terpasang &amp; siap ambil</div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0284C7', marginTop: '4px', lineHeight: 1.2 }}>{stats.siapTerbang}</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Stiker terpasang &amp; siap</div>
           </div>
 
           {/* Card 5: Handover Soekarno-Hatta */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '18px 20px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase' }}>Handover Bandara</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#7C3AED' }}>flight_takeoff</span>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Handover Bandara</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#7C3AED', flexShrink: 0 }}>flight_takeoff</span>
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#7C3AED', marginTop: '6px' }}>{stats.handoverSoetta}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>Serah terima di Terminal 3 Soetta</div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#7C3AED', marginTop: '4px', lineHeight: 1.2 }}>{stats.handoverSoetta}</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Terminal 3 Soetta</div>
           </div>
         </div>
 
@@ -2689,7 +4466,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              📋 Seluruh Data Visa ({filteredList.length})
+              📋 Pemohon Binaan Saya ({filteredList.length})
             </button>
             <button
               type="button"
@@ -2759,12 +4536,21 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.80rem' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
-                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '80px' }}>No. &amp; ID</th>
-                    <th style={{ padding: '10px 8px', minWidth: '140px' }}>Nama Pemohon / Kandidat</th>
+                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '75px' }}>No. &amp; ID</th>
+                    <th style={{ padding: '10px 8px', minWidth: '130px' }}>Nama Pemohon / Kandidat</th>
                     <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '95px' }}>No. Paspor</th>
                     <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '105px' }}>Program Visa</th>
-                    <th style={{ padding: '10px 6px', textAlign: 'center', whiteSpace: 'nowrap', width: '145px' }}>Kelengkapan Berkas (5 Poin)</th>
-                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '115px' }}>Status Pengajuan</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '380px' }}>
+                      <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.82rem' }}>
+                        Status Pengajuan (Klik Ceklis Tahapan)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
+                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Sampai</span>
+                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Proses</span>
+                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Selesai</span>
+                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Kirim</span>
+                      </div>
+                    </th>
                     <th style={{ padding: '10px 8px', minWidth: '130px' }}>Resi / Pengiriman</th>
                     <th style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap', width: '80px' }}>Aksi</th>
                   </tr>
@@ -2772,8 +4558,48 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 <tbody>
                   {filteredList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
-                        Tidak ditemukan kandidat dengan kriteria pencarian tersebut.
+                      <td colSpan={7} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                        <div style={{ maxWidth: '460px', margin: '0 auto' }}>
+                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>group_add</span>
+                          </div>
+                          <h4 style={{ margin: '0 0 6px', fontSize: '0.96rem', fontWeight: 800, color: '#0F172A' }}>
+                            {searchQuery ? 'Tidak Ada Pemohon Sesuai Pencarian' : 'Belum Ada Pemohon Binaan'}
+                          </h4>
+                          <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5 }}>
+                            {searchQuery
+                              ? `Tidak ditemukan kandidat binaan Anda dengan kata kunci "${searchQuery}". Coba kata kunci lain.`
+                              : `Belum ada calon pemohon visa yang mendaftar menggunakan kode referral Anda (${activeAffiliateCode || 'MPC'}). Bagikan kode referral Anda kepada calon pemohon untuk mulai mengumpulkan komisi Rp 100.000 / visa.`}
+                          </p>
+                          {!searchQuery && activeAffiliateCode && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(activeAffiliateCode);
+                                setCopiedCode(true);
+                                setTimeout(() => setCopiedCode(false), 2000);
+                              }}
+                              style={{
+                                backgroundColor: copiedCode ? '#059669' : '#0F172A',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                padding: '9px 18px',
+                                borderRadius: '9px',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                                {copiedCode ? 'done' : 'content_copy'}
+                              </span>
+                              <span>{copiedCode ? 'Kode Tersalin!' : 'Salin Kode Referral'}</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -2811,69 +4637,118 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', whiteSpace: 'nowrap' }}>{item.program}</span>
                         </td>
 
-                        {/* Checklist Berkas */}
-                        <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center', justifyContent: 'center' }}>
-                            <span title="Formulir Visa" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.formVisa ? '#DCFCE7' : '#FEE2E2', color: item.berkas.formVisa ? '#15803D' : '#B91C1C', fontWeight: 800 }}>FORM</span>
-                            <span title="KTP" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.ktp ? '#DCFCE7' : '#FEE2E2', color: item.berkas.ktp ? '#15803D' : '#B91C1C', fontWeight: 800 }}>KTP</span>
-                            <span title="E-KTLN" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.ektln ? '#DCFCE7' : '#FEE2E2', color: item.berkas.ektln ? '#15803D' : '#B91C1C', fontWeight: 800 }}>KTLN</span>
-                            <span title="COE Imigrasi Jepang" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.coe ? '#DCFCE7' : '#FEE2E2', color: item.berkas.coe ? '#15803D' : '#B91C1C', fontWeight: 800 }}>COE</span>
-                            <span title="Pasfoto 4.5 x 3.5 cm" style={{ fontSize: '0.62rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: item.berkas.foto ? '#DCFCE7' : '#FEE2E2', color: item.berkas.foto ? '#15803D' : '#B91C1C', fontWeight: 800 }}>FOTO</span>
-                          </div>
-                        </td>
-
-                        {/* Status */}
-                        <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              padding: '4px 10px',
-                              borderRadius: '9999px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              backgroundColor:
-                                item.status === 'Selesai'
-                                  ? '#DCFCE7'
-                                  : item.status === 'Siap Ambil'
-                                  ? '#E0F2FE'
-                                  : item.status === 'Sedang Diproses' || item.status === 'Apply Hari Ini'
-                                  ? '#FEF3C7'
-                                  : '#F1F5F9',
-                              color:
-                                item.status === 'Selesai'
-                                  ? '#15803D'
-                                  : item.status === 'Siap Ambil'
-                                  ? '#0369A1'
-                                  : item.status === 'Sedang Diproses' || item.status === 'Apply Hari Ini'
-                                  ? '#B45309'
-                                  : '#475569',
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: '6px',
-                                height: '6px',
-                                borderRadius: '50%',
-                                backgroundColor: 'currentColor',
-                              }}
-                            />
-                            {item.status}
-                          </span>
+                        {/* Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
+                        <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+                          {(() => {
+                            const st = getCandidateStages(item);
+                            const stageItems = [
+                              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
+                              { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
+                              { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
+                              { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
+                            ];
+                            return (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', minWidth: '360px' }}>
+                                {stageItems.map((s) => (
+                                  <div
+                                    key={s.key}
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      backgroundColor: s.ok ? s.bg : '#F8FAFC',
+                                      border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
+                                      borderRadius: '6px',
+                                      padding: '4px 3px',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleStage(item, s.key);
+                                      }}
+                                      title={`Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} tahap ${s.label}`}
+                                      style={{
+                                        width: '100%',
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '2px',
+                                        fontSize: '0.73rem',
+                                        fontWeight: 800,
+                                        color: s.ok ? s.color : '#94A3B8',
+                                        padding: '2px 0',
+                                      }}
+                                    >
+                                      <span>{s.ok ? '✓' : '○'}</span>
+                                      <span>{s.label}</span>
+                                    </button>
+                                    <span
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (s.ok) handleEditStageDate(item, s.key, s.date || '');
+                                      }}
+                                      title={s.ok ? 'Klik untuk ubah tanggal' : ''}
+                                      style={{
+                                        fontSize: '0.67rem',
+                                        fontFamily: 'monospace',
+                                        color: s.ok ? s.color : '#CBD5E1',
+                                        fontWeight: s.ok ? 700 : 500,
+                                        cursor: s.ok ? 'pointer' : 'default',
+                                        textDecoration: s.ok ? 'underline dotted' : 'none',
+                                        lineHeight: 1.2,
+                                        marginTop: '1px',
+                                      }}
+                                    >
+                                      {s.ok ? (s.date || getTodayFormatted()) : '-'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Resi / Pengiriman */}
                         <td style={{ padding: '10px 8px' }}>
-                          {item.noResi ? (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: item.noResi.toLowerCase().includes('soehatta') ? '#7C3AED' : '#0369A1', fontWeight: 700, fontSize: '0.78rem' }}>
-                              <span>{item.noResi}</span>
-                            </div>
-                          ) : (
-                            <span style={{ color: '#94A3B8', fontSize: '0.75rem' }}>-</span>
-                          )}
+                          {(() => {
+                            const st = getCandidateStages(item);
+                            if (st.isKirim && st.noResi) {
+                              return (
+                                <div>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: '#F3E8FF', color: '#6B21A8', border: '1px solid #E9D5FF' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_shipping</span>
+                                    <span>{st.noResi}</span>
+                                  </span>
+                                  <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '2px' }}>
+                                    Tgl: {st.tglKirim || '-'}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            if (item.noResi) {
+                              return (
+                                <div>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', border: '1px solid #DBEAFE' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_shipping</span>
+                                    <span>{item.noResi}</span>
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div style={{ color: '#94A3B8', fontSize: '0.74rem' }}>
+                                <span>-</span>
+                              </div>
+                            );
+                          })()}
                           {item.catatan && (
-                            <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                            <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '2px' }}>
                               {item.catatan}
                             </div>
                           )}
@@ -2986,7 +4861,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowNotifPopover(!showNotifPopover)}
-                  title="Notifikasi"
+                  title="Notifikasi Aktivitas Pemohon"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2995,7 +4870,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     height: '40px',
                     borderRadius: '12px',
                     border: '1px solid #E2E8F0',
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: showNotifPopover ? '#F1F5F9' : '#FFFFFF',
                     color: '#475569',
                     cursor: 'pointer',
                     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
@@ -3007,139 +4882,49 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     e.currentTarget.style.borderColor = '#CBD5E1';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#FFFFFF';
+                    e.currentTarget.style.backgroundColor = showNotifPopover ? '#F1F5F9' : '#FFFFFF';
                     e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
-                    notifications
-                  </span>
                   <span
+                    className="material-symbols-outlined"
                     style={{
-                      position: 'absolute',
-                      top: '8px',
-                      right: '9px',
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: '#EF4444',
-                      border: '1.5px solid #FFFFFF',
+                      fontSize: '22px',
+                      color: unreadNotifications.length > 0 ? '#10B981' : '#475569',
+                      animation: unreadNotifications.length > 0 ? 'bellRing 3s infinite ease-in-out' : 'none',
                     }}
-                  />
+                  >
+                    {unreadNotifications.length > 0 ? 'notifications_active' : 'notifications'}
+                  </span>
+                  {unreadNotifications.length > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-4px',
+                        right: '-4px',
+                        minWidth: '18px',
+                        height: '18px',
+                        borderRadius: '9px',
+                        backgroundColor: '#EF4444',
+                        color: '#FFFFFF',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0 3px',
+                        border: '2px solid #FFFFFF',
+                        boxShadow: '0 2px 5px rgba(239, 68, 68, 0.4)',
+                        animation: 'pulseBadge 2s infinite ease-in-out',
+                      }}
+                    >
+                      {unreadNotifications.length > 9 ? '9+' : unreadNotifications.length}
+                    </span>
+                  )}
                 </button>
 
                 {/* Popover Dropdown Notifikasi */}
-                {showNotifPopover && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '48px',
-                      right: 0,
-                      width: '320px',
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: '16px',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                      border: '1px solid #E2E8F0',
-                      zIndex: 100,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: '12px 16px',
-                        borderBottom: '1px solid #F1F5F9',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>
-                          notifications_active
-                        </span>
-                        <strong style={{ fontSize: '0.88rem', color: '#0F172A' }}>Notifikasi</strong>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          backgroundColor: '#FEF2F2',
-                          color: '#EF4444',
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontWeight: 700,
-                        }}
-                      >
-                        1 Baru
-                      </span>
-                    </div>
-
-                    <div style={{ padding: '8px', maxHeight: '280px', overflowY: 'auto' }}>
-                      <div
-                        style={{
-                          padding: '12px',
-                          borderRadius: '10px',
-                          backgroundColor: '#F8FAFC',
-                          display: 'flex',
-                          gap: '12px',
-                          alignItems: 'flex-start',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            backgroundColor: '#E0F2FE',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#0284C7',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                            campaign
-                          </span>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ margin: '0 0 3px', fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                            Selamat Datang di MPC!
-                          </p>
-                          <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748B', lineHeight: 1.4 }}>
-                            Silakan klik "Daftar Sekarang" untuk mendapatkan kode referral resmi dan aktivasi pencairan insentif.
-                          </p>
-                          <span style={{ fontSize: '0.7rem', color: '#94A3B8', marginTop: '6px', display: 'block' }}>
-                            Baru saja
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        padding: '10px 16px',
-                        borderTop: '1px solid #F1F5F9',
-                        backgroundColor: '#FAFAFA',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setShowNotifPopover(false)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#64748B',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Tutup
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {renderNotificationPopover()}
               </div>
             </div>
 
@@ -3216,6 +5001,37 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 />
                 <span>Insentif</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setPartnerSubTab('peringkat')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: partnerSubTab === 'peringkat' ? '3px solid #10B981' : '3px solid transparent',
+                  padding: '10px 4px 14px',
+                  color: partnerSubTab === 'peringkat' ? '#0F172A' : '#64748B',
+                  fontWeight: partnerSubTab === 'peringkat' ? 800 : 600,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    border: partnerSubTab === 'peringkat' ? '5px solid #10B981' : '2px solid #CBD5E1',
+                    display: 'inline-block',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <span>🏆 Peringkat Mitra (Real)</span>
+              </button>
             </div>
 
             {/* TAB 1: INFORMASI */}
@@ -3272,6 +5088,63 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   </button>
                 </div>
 
+                {/* Banner Motivasi Leaderboard Penghasilan Nyata Mitra */}
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    color: '#FFFFFF',
+                    marginBottom: '28px',
+                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
+                    border: '1px solid #334155',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '16px',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#F59E0B', color: '#78350F', fontSize: '0.72rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', marginBottom: '8px' }}>
+                      <span>👑 JUARA 1 REAL: RIZKY MUHAMMAD E (Rp 1.300.000)</span>
+                    </div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 800, color: '#F8FAFC' }}>
+                      Lihat Peringkat &amp; Penghasilan Nyata 61 Mitra MapahTrip
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#94A3B8', maxWidth: '520px', lineHeight: 1.5 }}>
+                      Data transparan dari rekapan resmi. Mitra aktif telah berhasil mengantongi jutaan rupiah dari komisi visa Jepang. Mulai sekarang dan jadilah juara berikutnya!
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPartnerSubTab('peringkat')}
+                    style={{
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '10px 18px',
+                      borderRadius: '10px',
+                      fontSize: '0.84rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+                  >
+                    <span>Buka Peringkat Mitra</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      trending_up
+                    </span>
+                  </button>
+                </div>
+
                 {/* Tombol Hijau: Daftar Sekarang (Membuka Formulir Pendaftaran) */}
                 <div>
                   <button
@@ -3310,87 +5183,433 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               </div>
             )}
 
-            {/* TAB 2: INSENTIF (DISESUAIKAN DENGAN GOOGLE SPREADSHEET MAPAHTRIP) */}
+            {/* TAB 2: INSENTIF (DESAIN RAMPING, ELEGAN & PROPORSIONAL) */}
             {partnerSubTab === 'insentif' && (
-              <div style={{ maxWidth: '820px' }}>
-                <div style={{ marginBottom: '22px' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#ECFDF5', color: '#047857', fontSize: '0.75rem', fontWeight: 800, padding: '4px 10px', borderRadius: '20px', marginBottom: '8px' }}>
-                    <span>✨</span> SKEMA KOMISI RESMI MAPAHTRIP
-                  </div>
-                  <h2 style={{ margin: '0 0 6px', fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
-                    Skema Insentif &amp; Komisi Mitra
-                  </h2>
-                  <p style={{ margin: 0, fontSize: '0.88rem', color: '#475569', lineHeight: 1.5 }}>
-                    <em>&ldquo;Ajak teman buat visa di MapahTrip bisa Cuan Ratusan Ribu! Makin banyak yang diajak buat visa di MapahTrip, makin tinggi Cuannya!&rdquo;</em>
-                  </p>
-                </div>
-
-                {/* Banner Utama: Rp 100.000 / Visa */}
-                <div style={{
-                  backgroundColor: '#FFFFFF',
-                  border: '2px solid #10B981',
-                  borderRadius: '18px',
-                  padding: '24px',
-                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)',
-                  marginBottom: '24px',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '16px'
-                }}>
+              <div style={{ maxWidth: '980px' }}>
+                {/* Header Kompak */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
                   <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                      Komisi Referral Resmi
-                    </div>
-                    <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#10B981', lineHeight: 1.1 }}>
-                      Rp 100.000 <span style={{ fontSize: '0.95rem', color: '#475569', fontWeight: 600 }}>/ Visa terbit</span>
-                    </div>
-                    <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: '#334155' }}>
-                      Berlaku untuk seluruh kategori pengajuan visa Jepang (Magang/SSW Tokutei Ginou, Bisnis, Pelajar, Turis Single &amp; Multiple Entry).
+                    <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>Skema Insentif &amp; Riwayat Pencairan</span>
+                      <span style={{ fontSize: '0.72rem', backgroundColor: '#ECFDF5', color: '#047857', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, border: '1px solid #A7F3D0' }}>
+                        Resmi MapahTrip
+                      </span>
+                    </h2>
+                    <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                      Komisi flat resmi <strong>Rp 100.000 / visa terbit</strong> &bull; Bebas biaya admin transfer
                     </p>
                   </div>
-                  <div style={{
-                    backgroundColor: '#F0FDF4',
-                    border: '1px dashed #10B981',
-                    borderRadius: '12px',
-                    padding: '12px 18px',
-                    fontSize: '0.82rem',
-                    color: '#065F46',
-                    maxWidth: '280px'
-                  }}>
-                    <strong>📌 Ketentuan Pembayaran:</strong>
-                    <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#047857' }}>
-                      Pembayaran bonus Affiliate dilakukan setelah proses pengajuan Visa selesai &amp; disetujui.
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPartnerSubTab('peringkat')}
+                      style={{
+                        backgroundColor: '#FFFBEB',
+                        color: '#B45309',
+                        border: '1px solid #FCD34D',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FEF3C7')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFBEB')}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#D97706' }}>
+                        leaderboard
+                      </span>
+                      <span>🏆 Lihat Peringkat Mitra Real</span>
+                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', color: '#64748B' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#10B981' }}>sync</span>
+                      <span>Pencairan otomatis setelah visa disetujui</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Simulasi Pendapatan Card */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h3 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 800, color: '#0F172A' }}>
-                    📊 Simulasi Pendapatan Komisi Anda
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
-                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Ajak 1 Pemohon</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', margin: '6px 0 2px' }}>Rp 100.000</div>
-                      <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700 }}>Bonus Pertama</div>
+                {/* 3 Compact Metric Tiles: Ramping & Elegan */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '12px' }}>
+                  {/* Tile 1: Sudah Ditransfer */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #86EFAC',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Sudah Ditransfer
+                      </span>
+                      <span style={{ fontSize: '0.7rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        {countSudahDitransfer} Selesai
+                      </span>
                     </div>
-                    <div style={{ border: '1px solid #10B981', borderRadius: '14px', padding: '16px', textAlign: 'center', backgroundColor: '#F0FDF4' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46' }}>Ajak 5 Pemohon</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#047857', margin: '6px 0 2px' }}>Rp 500.000</div>
-                      <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700 }}>Contoh di Spreadsheet</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#0F172A', margin: '3px 0 2px' }}>
+                      {formatRupiah(totalSudahDitransfer)}
                     </div>
-                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Ajak 10 Pemohon</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', margin: '6px 0 2px' }}>Rp 1.000.000</div>
-                      <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700 }}>Cuan 1 Juta Rupiah</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16A34A', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>check_circle</span>
+                      <span>Berhasil masuk ke rekening</span>
                     </div>
-                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Ajak 25 Pemohon</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', margin: '6px 0 2px' }}>Rp 2.500.000</div>
-                      <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700 }}>Skala LPK / Komunitas</div>
+                  </div>
+
+                  {/* Tile 2: Menunggu Selesai */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #FDE68A',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Menunggu Visa Selesai
+                      </span>
+                      <span style={{ fontSize: '0.7rem', backgroundColor: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        {countMenungguTransfer} Proses
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#B45309', margin: '3px 0 2px' }}>
+                      {formatRupiah(totalMenungguTransfer)}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#D97706', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>hourglass_top</span>
+                      <span>Sedang proses di JVAC/Konsulat</span>
+                    </div>
+                  </div>
+
+                  {/* Tile 3: Total Akumulasi */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #BAE6FD',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0284C7', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Total Akumulasi Komisi
+                      </span>
+                      <span style={{ fontSize: '0.7rem', backgroundColor: '#E0F2FE', color: '#0369A1', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        {countTotalPemohon} Pemohon
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#0F172A', margin: '3px 0 2px' }}>
+                      {formatRupiah(totalAkumulasiKomisi)}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>group</span>
+                      <span>Total pemohon terafiliasi</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Rekening Ramping (1 Baris) */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    marginBottom: '18px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: (currentUser?.namaBank && currentUser?.nomorRekening) ? '#0284C7' : '#D97706' }}>
+                      {(currentUser?.namaBank && currentUser?.nomorRekening) ? 'account_balance' : 'account_balance_wallet'}
+                    </span>
+                    {(currentUser?.namaBank && currentUser?.nomorRekening) ? (
+                      <span>
+                        Rekening Pencairan: <strong>{currentUser.namaBank}</strong> ({currentUser.nomorRekening.length > 4 ? `${currentUser.nomorRekening.slice(0, 4)}••••` : currentUser.nomorRekening}) a.n <strong>{currentUser.atasNamaRekening || currentUser.nama}</strong>
+                      </span>
+                    ) : (
+                      <span>
+                        Rekening Pencairan: <strong style={{ color: '#D97706' }}>Belum Diisi</strong> (Silakan lengkapi formulir rekening di bawah)
+                      </span>
+                    )}
+                  </div>
+                  {(currentUser?.namaBank && currentUser?.nomorRekening) ? (
+                    <span style={{ color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>verified</span>
+                      Terverifikasi
+                    </span>
+                  ) : (
+                    <span style={{ color: '#B45309', backgroundColor: '#FEF3C7', border: '1px solid #FCD34D', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>pending</span>
+                      Belum Diisi
+                    </span>
+                  )}
+                </div>
+
+                {/* TABEL RINCIAN RIWAYAT TRANSFER: RAMPING & BERSIH */}
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                    marginBottom: '20px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#10B981' }}>receipt_long</span>
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>
+                        Riwayat Transfer Insentif
+                      </h4>
+                    </div>
+
+                    {/* Filter Status Transfer Mini */}
+                    <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '2px', borderRadius: '8px', gap: '2px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setFilterTransferStatus('all')}
+                        style={{
+                          backgroundColor: filterTransferStatus === 'all' ? '#FFFFFF' : 'transparent',
+                          color: filterTransferStatus === 'all' ? '#0F172A' : '#64748B',
+                          border: 'none',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: filterTransferStatus === 'all' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        Semua ({riwayatTransferList.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterTransferStatus('selesai')}
+                        style={{
+                          backgroundColor: filterTransferStatus === 'selesai' ? '#FFFFFF' : 'transparent',
+                          color: filterTransferStatus === 'selesai' ? '#15803D' : '#64748B',
+                          border: 'none',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: filterTransferStatus === 'selesai' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        Sudah Ditransfer ({countSudahDitransfer})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterTransferStatus('pending')}
+                        style={{
+                          backgroundColor: filterTransferStatus === 'pending' ? '#FFFFFF' : 'transparent',
+                          color: filterTransferStatus === 'pending' ? '#B45309' : '#64748B',
+                          border: 'none',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: filterTransferStatus === 'pending' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        Menunggu ({countMenungguTransfer})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Table View Ramping */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.78rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <th style={{ padding: '8px 10px' }}>No. Ref &amp; Waktu</th>
+                          <th style={{ padding: '8px 10px' }}>Nama Pemohon / Visa</th>
+                          <th style={{ padding: '8px 10px' }}>Nominal</th>
+                          <th style={{ padding: '8px 10px' }}>Status</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center' }}>Bukti</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRiwayatTransfer.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} style={{ padding: '36px 16px', textAlign: 'center', color: '#64748B' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#CBD5E1', display: 'block', marginBottom: '6px' }}>
+                                receipt_long
+                              </span>
+                              <strong style={{ display: 'block', fontSize: '0.84rem', color: '#0F172A', marginBottom: '2px' }}>
+                                Belum Ada Riwayat Transfer
+                              </strong>
+                              <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                                Riwayat transfer insentif akan otomatis tercatat setiap kali visa pemohon rujukan Anda selesai diproses.
+                              </span>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredRiwayatTransfer.map((item, idx) => (
+                          <tr
+                            key={item.id}
+                            style={{
+                              borderBottom: idx !== filteredRiwayatTransfer.length - 1 ? '1px solid #F1F5F9' : 'none',
+                              backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
+                            }}
+                          >
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                {item.noRef}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                                {item.tanggalTransfer}
+                              </div>
+                            </td>
+
+                            <td style={{ padding: '8px 10px' }}>
+                              <div style={{ fontWeight: 700, color: '#0F172A' }}>
+                                {item.namaPemohon}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#0284C7' }}>
+                                {item.programVisa} &bull; {item.konsulat}
+                              </div>
+                            </td>
+
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontWeight: 800, color: '#10B981', fontSize: '0.84rem' }}>
+                                {formatRupiah(item.nominal)}
+                              </span>
+                            </td>
+
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                              {item.status === 'Berhasil Ditransfer' ? (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    backgroundColor: '#DCFCE7',
+                                    color: '#15803D',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>check_circle</span>
+                                  Ditransfer
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    backgroundColor: '#FEF3C7',
+                                    color: '#B45309',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>hourglass_empty</span>
+                                  Menunggu
+                                </span>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {item.status === 'Berhasil Ditransfer' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedBuktiTransfer(item)}
+                                  style={{
+                                    backgroundColor: '#F0FDF4',
+                                    color: '#047857',
+                                    border: '1px solid #86EFAC',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#DCFCE7';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#F0FDF4';
+                                  }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>receipt</span>
+                                  <span>Struk</span>
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>
+                                  -
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Simulasi Pendapatan Card: Ramping & Proporsional */}
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0F172A' }}>
+                      📊 Simulasi Komisi Mitra
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                      (Akumulasi tanpa batas)
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748B' }}>1 Pemohon</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: '2px 0 1px' }}>Rp 100.000</div>
+                      <div style={{ fontSize: '0.68rem', color: '#10B981', fontWeight: 600 }}>Bonus Pertama</div>
+                    </div>
+                    <div style={{ border: countTotalPemohon >= 5 ? '1px solid #86EFAC' : '1px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', textAlign: 'center', backgroundColor: countTotalPemohon >= 5 ? '#F0FDF4' : '#FFFFFF' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: countTotalPemohon >= 5 ? '#065F46' : '#64748B' }}>5 Pemohon</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: countTotalPemohon >= 5 ? '#047857' : '#0F172A', margin: '2px 0 1px' }}>Rp 500.000</div>
+                      <div style={{ fontSize: '0.68rem', color: countTotalPemohon >= 5 ? '#059669' : '#0284C7', fontWeight: 600 }}>
+                        {countTotalPemohon >= 5 ? 'Sudah Tercapai ✨' : 'Target Populer 🎯'}
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748B' }}>10 Pemohon</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: '2px 0 1px' }}>Rp 1.000.000</div>
+                      <div style={{ fontSize: '0.68rem', color: '#0284C7', fontWeight: 600 }}>Level Menengah</div>
+                    </div>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748B' }}>25 Pemohon</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: '2px 0 1px' }}>Rp 2.500.000</div>
+                      <div style={{ fontSize: '0.68rem', color: '#7C3AED', fontWeight: 600 }}>Mitra LPK / Biro</div>
                     </div>
                   </div>
                 </div>
@@ -3399,24 +5618,22 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 <div
                   style={{
                     backgroundColor: '#FFFFFF',
-                    border: currentUser?.isProfileComplete ? '2px solid #10B981' : '1.5px dashed #CBD5E1',
-                    borderRadius: '18px',
-                    padding: '24px',
-                    marginBottom: '26px',
-                    boxShadow: currentUser?.isProfileComplete
-                      ? '0 6px 20px rgba(16, 185, 129, 0.08)'
-                      : '0 2px 8px rgba(0,0,0,0.02)',
+                    border: currentUser?.isProfileComplete ? '1px solid #86EFAC' : '1px dashed #CBD5E1',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    marginBottom: '20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                     position: 'relative',
                     overflow: 'hidden',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div
                         style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '12px',
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
                           backgroundColor: currentUser?.isProfileComplete ? '#DCFCE7' : '#F1F5F9',
                           color: currentUser?.isProfileComplete ? '#16A34A' : '#64748B',
                           display: 'flex',
@@ -3424,12 +5641,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           justifyContent: 'center',
                         }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                           account_balance_wallet
                         </span>
                       </div>
                       <div>
-                        <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
+                        <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
                           Rekening Bank &amp; E-Wallet Pencairan Insentif
                         </h3>
                         <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
@@ -3460,8 +5677,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     ) : currentUser?.isProfileComplete ? (
                       <span
                         style={{
-                          backgroundColor: '#DCFCE7',
-                          color: '#15803D',
+                          backgroundColor: '#FEF3C7',
+                          color: '#92400E',
                           fontSize: '0.72rem',
                           fontWeight: 800,
                           padding: '4px 12px',
@@ -3469,11 +5686,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
-                          border: '1px solid #86EFAC',
+                          border: '1px solid #FCD34D',
                         }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                        Formulir Terverifikasi &bull; Siap Diisi
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit_note</span>
+                        Belum Diisi &bull; Silakan Lengkapi Rekening
                       </span>
                     ) : (
                       <span
@@ -4092,7 +6309,564 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </div>
               </div>
             )}
-          
+
+            {/* TAB 3: PERINGKAT MITRA (LEADERBOARD REAL SPREADSHEET MAPAHTRIP) */}
+            {partnerSubTab === 'peringkat' && (
+              <div style={{ maxWidth: '980px' }}>
+                {/* Header & Motivasi */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontSize: '0.74rem', fontWeight: 800, padding: '4px 12px', borderRadius: '14px', marginBottom: '8px', border: '1px solid #DBEAFE' }}>
+                      <span style={{ fontSize: '13px' }}>🏆</span> LEADERBOARD RESMI MAPAHTRIP PARTNER CLUB
+                    </div>
+                    <h2 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>
+                      Papan Peringkat Penghasilan Mitra
+                    </h2>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748B', maxWidth: '640px', lineHeight: 1.5 }}>
+                      Data real penerimaan komisi dari Google Spreadsheet resmi MapahTrip. Diurutkan dari yang tertinggi untuk menyemangati seluruh mitra. Raih komisi resmi Rp 100.000 / visa terbit tanpa batas!
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', backgroundColor: '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', color: '#334155' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0284C7' }}>verified</span>
+                    <span>Tersinkron: <strong>60 Mitra Terdaftar</strong> &bull; <strong>Top 10 Ditampilkan</strong></span>
+                  </div>
+                </div>
+
+                {/* PODIUM TOP 3 JUARA (1, 2, 3) */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '14px',
+                    marginBottom: '20px',
+                  }}
+                >
+                  {/* Juara 2: Derryl (Perak) */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '16px',
+                      padding: '18px 16px',
+                      textAlign: 'center',
+                      position: 'relative',
+                      boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
+                    }}
+                  >
+                    <div style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#475569', color: '#FFFFFF', fontSize: '0.68rem', fontWeight: 800, padding: '2px 10px', borderRadius: '10px', letterSpacing: '0.3px' }}>
+                      🥈 JUARA 2
+                    </div>
+                    <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#F8FAFC', color: '#475569', margin: '6px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.15rem', border: '2px solid #CBD5E1' }}>
+                      D
+                    </div>
+                    <h3 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: '#0F172A' }}>
+                      Derryl
+                    </h3>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace', marginBottom: '8px' }}>
+                      KODE: <strong>{currentUser?.affiliateCode === 'MPH555DE' ? 'MPH555DE' : 'MPH555***'}</strong>
+                    </div>
+                    <div style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
+                      Rp 600.000
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, backgroundColor: '#F8FAFC', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                      ✓ 6 Visa Berhasil Terbit
+                    </div>
+                  </div>
+
+                  {/* Juara 1: Rizky Muhammad E (Emas / Top Earner) */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '2px solid #005BB5',
+                      borderRadius: '16px',
+                      padding: '20px 16px',
+                      textAlign: 'center',
+                      position: 'relative',
+                      boxShadow: '0 10px 25px -4px rgba(0, 91, 181, 0.15)',
+                    }}
+                  >
+                    <div style={{ position: 'absolute', top: '-13px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #005BB5 0%, #2563EB 100%)', color: '#FFFFFF', fontSize: '0.74rem', fontWeight: 900, padding: '3px 14px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 8px rgba(0, 91, 181, 0.35)', whiteSpace: 'nowrap' }}>
+                      <span>👑</span>
+                      <span>JUARA 1 &bull; TOP EARNER</span>
+                    </div>
+                    <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#EFF6FF', color: '#005BB5', margin: '6px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.3rem', border: '2.5px solid #005BB5' }}>
+                      R
+                    </div>
+                    <h3 style={{ margin: '0 0 2px', fontSize: '1.08rem', fontWeight: 900, color: '#0F172A' }}>
+                      Rizky Muhammad E
+                    </h3>
+                    <div style={{ fontSize: '0.74rem', color: '#005BB5', fontFamily: 'monospace', fontWeight: 700, marginBottom: '8px' }}>
+                      KODE: <strong>{currentUser?.affiliateCode === 'MPH458RI' ? 'MPH458RI' : 'MPH458***'}</strong>
+                    </div>
+                    <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#005BB5', margin: '4px 0' }}>
+                      Rp 1.300.000
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#005BB5', fontWeight: 800, backgroundColor: '#EFF6FF', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
+                      ✨ 13 Visa Berhasil Terbit
+                    </div>
+                  </div>
+
+                  {/* Juara 3: Albert Lazuardy (Perunggu) */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '16px',
+                      padding: '18px 16px',
+                      textAlign: 'center',
+                      position: 'relative',
+                      boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
+                    }}
+                  >
+                    <div style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#64748B', color: '#FFFFFF', fontSize: '0.68rem', fontWeight: 800, padding: '2px 10px', borderRadius: '10px', letterSpacing: '0.3px' }}>
+                      🥉 JUARA 3
+                    </div>
+                    <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#F8FAFC', color: '#64748B', margin: '6px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.15rem', border: '2px solid #CBD5E1' }}>
+                      A
+                    </div>
+                    <h3 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: '#0F172A' }}>
+                      Albert Lazuardy
+                    </h3>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace', marginBottom: '8px' }}>
+                      KODE: <strong>{currentUser?.affiliateCode === 'MPH630AL' ? 'MPH630AL' : 'MPH630***'}</strong>
+                    </div>
+                    <div style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
+                      Rp 600.000
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, backgroundColor: '#F8FAFC', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                      ✓ 6 Visa Berhasil Terbit
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner Tips untuk Affiliate Baru */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '14px 18px',
+                    marginBottom: '18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '14px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#EFF6FF', color: '#005BB5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #DBEAFE' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>rocket_launch</span>
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: '0.86rem', color: '#0F172A', display: 'block', marginBottom: '2px' }}>
+                        Affiliate Baru Bisa Langsung Dapatkan Komisi Hari Ini!
+                      </strong>
+                      <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                        Setiap 1 orang yang Anda ajak buat visa Jepang menghasilkan <strong style={{ color: '#005BB5' }}>Rp 100.000</strong> langsung cair ke rekening Anda.
+                      </span>
+                    </div>
+                  </div>
+
+                  {currentUser?.affiliateCode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentUser.affiliateCode || '');
+                        setCopiedLeaderboardCode('KODE_USER');
+                        setTimeout(() => setCopiedLeaderboardCode(null), 2000);
+                      }}
+                      style={{
+                        backgroundColor: copiedLeaderboardCode === 'KODE_USER' ? '#16A34A' : '#005BB5',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(0, 91, 181, 0.25)',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                        {copiedLeaderboardCode === 'KODE_USER' ? 'done' : 'content_copy'}
+                      </span>
+                      <span>{copiedLeaderboardCode === 'KODE_USER' ? 'Kode Tersalin!' : `Salin Kode Anda (${currentUser.affiliateCode})`}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative', minWidth: '260px', flex: '1 1 300px' }}>
+                      <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', color: '#94A3B8' }}>
+                        search
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Cari nama mitra / kode referral..."
+                        value={leaderboardSearch}
+                        onChange={(e) => setLeaderboardSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px 8px 34px',
+                          borderRadius: '8px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {/* Filter Pills */}
+                    <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '3px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setLeaderboardFilter('all')}
+                        style={{
+                          backgroundColor: leaderboardFilter === 'all' ? '#FFFFFF' : 'transparent',
+                          color: leaderboardFilter === 'all' ? '#005BB5' : '#64748B',
+                          border: 'none',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: leaderboardFilter === 'all' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        Top 10 Eksklusif
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeaderboardFilter('lpk')}
+                        style={{
+                          backgroundColor: leaderboardFilter === 'lpk' ? '#FFFFFF' : 'transparent',
+                          color: leaderboardFilter === 'lpk' ? '#005BB5' : '#64748B',
+                          border: 'none',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: leaderboardFilter === 'lpk' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        Mitra LPK
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeaderboardFilter('individu')}
+                        style={{
+                          backgroundColor: leaderboardFilter === 'individu' ? '#FFFFFF' : 'transparent',
+                          color: leaderboardFilter === 'individu' ? '#005BB5' : '#64748B',
+                          border: 'none',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: leaderboardFilter === 'individu' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        Mitra Individu
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* TABEL PERINGKAT LENGKAP - TOP 10 */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.78rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <th style={{ padding: '8px 10px', width: '70px', textAlign: 'center' }}>Peringkat</th>
+                          <th style={{ padding: '8px 10px' }}>Mitra Afiliasi</th>
+                          <th style={{ padding: '8px 10px' }}>Kode Referral</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center' }}>Visa Selesai</th>
+                          <th style={{ padding: '8px 10px' }}>Total Insentif Didapat</th>
+                          <th style={{ padding: '8px 10px' }}>Status / Keterangan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLeaderboard.slice(0, 10).map((item) => {
+                          const isCurrentUser = currentUser?.affiliateCode && item.code === currentUser.affiliateCode;
+                          const isTop3 = item.rank <= 3;
+
+                          return (
+                            <tr
+                              key={item.code}
+                              style={{
+                                borderBottom: '1px solid #F1F5F9',
+                                backgroundColor: isCurrentUser ? '#EFF6FF' : isTop3 ? (item.rank === 1 ? '#F8FAFC' : '#FFFFFF') : '#FFFFFF',
+                                fontWeight: isTop3 || isCurrentUser ? 700 : 500,
+                              }}
+                            >
+                              {/* Kolom Peringkat */}
+                              <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                {item.rank === 1 ? (
+                                  <span style={{ fontSize: '1.1rem' }} title="Juara 1 Emas">🥇</span>
+                                ) : item.rank === 2 ? (
+                                  <span style={{ fontSize: '1.1rem' }} title="Juara 2 Perak">🥈</span>
+                                ) : item.rank === 3 ? (
+                                  <span style={{ fontSize: '1.1rem' }} title="Juara 3 Perunggu">🥉</span>
+                                ) : (
+                                  <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 700 }}>#{item.rank}</span>
+                                )}
+                              </td>
+
+                              {/* Kolom Nama Mitra */}
+                              <td style={{ padding: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    backgroundColor: item.rank === 1 ? '#EFF6FF' : item.kategori === 'LPK' ? '#E0F2FE' : '#F1F5F9',
+                                    color: item.rank === 1 ? '#005BB5' : item.kategori === 'LPK' ? '#0369A1' : '#475569',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    flexShrink: 0
+                                  }}>
+                                    {item.nama.slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div style={{ color: '#0F172A', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span>{item.nama}</span>
+                                      {isCurrentUser && (
+                                        <span style={{ fontSize: '0.65rem', backgroundColor: '#005BB5', color: '#FFFFFF', padding: '1px 6px', borderRadius: '4px' }}>
+                                          Anda
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                                      {item.kategori}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Kolom Kode Referral (Privasi Terjaga: Hanya akun sendiri yang bisa disalin) */}
+                              <td style={{ padding: '10px' }}>
+                                {isCurrentUser ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item.code);
+                                      setCopiedLeaderboardCode(item.code);
+                                      setTimeout(() => setCopiedLeaderboardCode(null), 1800);
+                                    }}
+                                    title="Klik untuk salin kode Anda"
+                                    style={{
+                                      backgroundColor: copiedLeaderboardCode === item.code ? '#DCFCE7' : '#EFF6FF',
+                                      color: copiedLeaderboardCode === item.code ? '#15803D' : '#005BB5',
+                                      border: '1px solid #BFDBFE',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      fontFamily: 'monospace',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <span>{item.code} (Anda)</span>
+                                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                                      {copiedLeaderboardCode === item.code ? 'done' : 'content_copy'}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <span
+                                    style={{
+                                      backgroundColor: '#F8FAFC',
+                                      color: '#64748B',
+                                      border: '1px solid #E2E8F0',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      fontFamily: 'monospace',
+                                      fontWeight: 600,
+                                      display: 'inline-block',
+                                    }}
+                                    title="Kode referral disamarkan demi privasi mitra"
+                                  >
+                                    {item.code.length > 5 ? `${item.code.slice(0, 5)}***` : `${item.code.slice(0, 3)}***`}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Kolom Visa Selesai */}
+                              <td style={{ padding: '10px', textAlign: 'center' }}>
+                                <span style={{ fontWeight: 800, color: '#0F172A' }}>
+                                  {item.totalVisaApproved}
+                                </span>
+                              </td>
+
+                              {/* Kolom Total Insentif */}
+                              <td style={{ padding: '10px' }}>
+                                <span style={{
+                                  fontSize: '0.88rem',
+                                  fontWeight: 900,
+                                  color: '#0F172A',
+                                }}>
+                                  {formatRupiah(item.nominal)}
+                                </span>
+                              </td>
+
+                              {/* Kolom Status Badge */}
+                              <td style={{ padding: '10px' }}>
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  backgroundColor: item.rank === 1
+                                    ? '#EFF6FF'
+                                    : '#F8FAFC',
+                                  color: item.rank === 1
+                                    ? '#005BB5'
+                                    : '#334155',
+                                  border: item.rank === 1 ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
+                                }}>
+                                  {item.statusBadge}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {/* Baris Teaser #11 & #12 yang Diburamkan (Memberi kesan ramai dan bergengsi) */}
+                        <tr style={{ borderBottom: '1px solid #F1F5F9', filter: 'blur(3.5px)', opacity: 0.45, userSelect: 'none', pointerEvents: 'none' }}>
+                          <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 700, color: '#64748B' }}>#11</td>
+                          <td style={{ padding: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#F1F5F9', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>M•</div>
+                              <div>
+                                <div style={{ color: '#0F172A', fontWeight: 800 }}>Mitra Terverifikasi</div>
+                                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>Individu</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px' }}><span style={{ backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontFamily: 'monospace' }}>MPH••***</span></td>
+                          <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#0F172A' }}>1</td>
+                          <td style={{ padding: '10px', fontWeight: 900, color: '#0F172A' }}>Rp 100.000</td>
+                          <td style={{ padding: '10px' }}><span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F8FAFC', color: '#475569', border: '1px solid #E2E8F0' }}>Mitra Aktif</span></td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #F1F5F9', filter: 'blur(5px)', opacity: 0.25, userSelect: 'none', pointerEvents: 'none' }}>
+                          <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 700, color: '#64748B' }}>#12</td>
+                          <td style={{ padding: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#F1F5F9', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>L•</div>
+                              <div>
+                                <div style={{ color: '#0F172A', fontWeight: 800 }}>Mitra Terverifikasi</div>
+                                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>LPK</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px' }}><span style={{ backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontFamily: 'monospace' }}>MPH••***</span></td>
+                          <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#0F172A' }}>1</td>
+                          <td style={{ padding: '10px', fontWeight: 900, color: '#0F172A' }}>Rp 100.000</td>
+                          <td style={{ padding: '10px' }}><span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F8FAFC', color: '#475569', border: '1px solid #E2E8F0' }}>Mitra LPK</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Locked Social Proof Banner: Memperlihatkan ada 50+ Mitra Lainnya yang Terdaftar */}
+                  <div
+                    style={{
+                      marginTop: '14px',
+                      padding: '16px 20px',
+                      borderRadius: '12px',
+                      backgroundColor: '#F8FAFC',
+                      border: '1.5px dashed #CBD5E1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '14px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      {/* Avatar Tumpuk (Stacked Avatars) */}
+                      <div style={{ display: 'flex', alignItems: 'center', marginLeft: '6px' }}>
+                        {['M', 'A', 'P', 'T', 'R'].map((char, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              backgroundColor: ['#EFF6FF', '#F1F5F9', '#FEF3C7', '#E0F2FE', '#F8FAFC'][idx],
+                              color: ['#005BB5', '#475569', '#B45309', '#0369A1', '#334155'][idx],
+                              border: '2px solid #FFFFFF',
+                              marginLeft: '-8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.74rem',
+                              fontWeight: 800,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                            }}
+                          >
+                            {char}
+                          </div>
+                        ))}
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            backgroundColor: '#005BB5',
+                            color: '#FFFFFF',
+                            border: '2px solid #FFFFFF',
+                            marginLeft: '-8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                            boxShadow: '0 2px 6px rgba(0,91,181,0.25)',
+                          }}
+                        >
+                          +50
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                          <span style={{ fontSize: '13px' }}>🔒</span>
+                          <strong style={{ fontSize: '0.86rem', color: '#0F172A' }}>
+                            +50 Mitra Lainnya Terdaftar di MapahTrip Partner Club
+                          </strong>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748B', lineHeight: 1.4 }}>
+                          Papan peringkat eksklusif hanya menampilkan <strong>10 Mitra Terbaik</strong>. Ajak pemohon visa Jepang dengan kode Anda untuk menembus Top 10!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#EFF6FF', color: '#005BB5', fontSize: '0.72rem', fontWeight: 700, padding: '6px 14px', borderRadius: '20px', border: '1px solid #DBEAFE' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>military_tech</span>
+                      <span>Slot Top 10 Masih Terbuka</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             </div>
           )}
         </main>
@@ -4119,19 +6893,23 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '20px',
-              maxWidth: '520px',
+              maxWidth: '560px',
               width: '100%',
-              padding: '28px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            {/* Header (Sticky Top) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderBottom: '1px solid #F1F5F9', backgroundColor: '#FFFFFF' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 800, textTransform: 'uppercase' }}>
                   {selectedKandidat.noPengajuan}
                 </span>
-                <h3 style={{ margin: '2px 0 0', fontSize: '1.3rem', fontWeight: 800, color: '#0F172A' }}>
+                <h3 style={{ margin: '2px 0 0', fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>
                   {selectedKandidat.namaPemohon}
                 </h3>
               </div>
@@ -4141,44 +6919,159 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 style={{
                   background: 'none',
                   border: 'none',
-                  fontSize: '20px',
+                  fontSize: '22px',
                   cursor: 'pointer',
                   color: '#94A3B8',
+                  padding: '4px',
+                  lineHeight: 1,
                 }}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.88rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
-                <span style={{ color: '#64748B' }}>Nomor Paspor:</span>
-                <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{selectedKandidat.noPaspor}</strong>
+            {/* Scrollable Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.85rem' }}>
+              {/* Ringkasan Data Pemohon */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', padding: '12px 14px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '0.80rem' }}>
+                <div>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>No. Paspor:</span>
+                  <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{selectedKandidat.noPaspor}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>WhatsApp:</span>
+                  <strong style={{ color: '#0F172A' }}>{selectedKandidat.noTelp || '-'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>Program:</span>
+                  <strong style={{ color: '#0F172A' }}>{selectedKandidat.program}</strong>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
-                <span style={{ color: '#64748B' }}>Nomor WhatsApp:</span>
-                <strong style={{ color: '#0F172A' }}>{selectedKandidat.noTelp || '-'}</strong>
+
+              {/* 4 Tahapan Status Pengerjaan (Sampai, Proses, Selesai, Kirim) */}
+              <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>🚀 Tahapan Pengerjaan (Klik untuk Ceklis)</span>
+                  <span style={{ fontSize: '0.72rem', color: '#0284C7', fontWeight: 700 }}>
+                    Status: {selectedKandidat.status}
+                  </span>
+                </div>
+                {(() => {
+                  const st = getCandidateStages(selectedKandidat);
+                  const stageItems = [
+                    { key: 'sampai' as const, label: '1. Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD', desc: 'Berkas fisik sampai di kantor' },
+                    { key: 'proses' as const, label: '2. Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A', desc: 'Diajukan ke Kedutaan/JVAC' },
+                    { key: 'selesai' as const, label: '3. Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0', desc: 'Visa Terbit / Selesai' },
+                    { key: 'kirim' as const, label: '4. Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE', desc: st.noResi ? `Resi: ${st.noResi}` : 'Paspor dikirim ke pemohon' },
+                  ];
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                      {stageItems.map((s) => (
+                        <button
+                          key={s.key}
+                          type="button"
+                          onClick={() => handleToggleStage(selectedKandidat, s.key)}
+                          title={`Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} ${s.label}`}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '3px',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: s.ok ? s.bg : '#FFFFFF',
+                            color: s.ok ? s.color : '#64748B',
+                            border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <strong style={{ fontSize: '0.78rem' }}>{s.label}</strong>
+                            <span style={{ fontSize: '0.70rem', fontWeight: 800 }}>{s.ok ? '✓ Selesai' : '○ Belum'}</span>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', opacity: 0.9, fontFamily: 'monospace', fontWeight: 700 }}>
+                            Tgl: {s.ok ? (s.date || getTodayFormatted()) : '-'}
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#64748B', lineHeight: 1.2 }}>
+                            {s.desc}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <div style={{ marginTop: '8px', fontSize: '0.68rem', color: '#64748B', textAlign: 'right' }}>
+                  * Klik kotak tahapan di atas untuk mengubah status pengerjaan secara langsung.
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
-                <span style={{ color: '#64748B' }}>Program:</span>
-                <strong style={{ color: '#0F172A' }}>{selectedKandidat.program}</strong>
+
+              {/* Rincian Kelengkapan Berkas (Arsip Dokumen) */}
+              <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>📋 Arsip Kelengkapan Berkas (Verifikasi Internal)</span>
+                </div>
+                {(() => {
+                  const bStatus = getCandidateBerkas(selectedKandidat);
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                      {[
+                        { key: 'formVisa' as const, label: 'Formulir Visa', ok: bStatus.formVisa },
+                        { key: 'ktp' as const, label: 'Fotokopi KTP', ok: bStatus.ktp },
+                        { key: 'ektln' as const, label: 'E-KTLN BP2MI', ok: bStatus.ektln },
+                        { key: 'coe' as const, label: 'COE Imigrasi Jepang', ok: bStatus.coe },
+                        { key: 'foto' as const, label: 'Pasfoto 4.5 x 3.5 cm', ok: bStatus.foto },
+                      ].map((doc, dIdx) => (
+                        <button
+                          key={dIdx}
+                          type="button"
+                          onClick={() => handleToggleBerkas(selectedKandidat, doc.key)}
+                          title={`Klik untuk ${doc.ok ? 'batalkan ceklis' : 'menceklis'} ${doc.label}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '6px',
+                            fontSize: '0.74rem',
+                            padding: '6px 10px',
+                            borderRadius: '7px',
+                            backgroundColor: doc.ok ? '#DCFCE7' : '#FEE2E2',
+                            color: doc.ok ? '#15803D' : '#B91C1C',
+                            fontWeight: 700,
+                            border: doc.ok ? '1px solid #86EFAC' : '1px solid #FECACA',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                              {doc.ok ? 'check_circle' : 'cancel'}
+                            </span>
+                            <span>{doc.label}</span>
+                          </span>
+                          <span style={{ fontSize: '0.66rem', fontWeight: 800 }}>
+                            {doc.ok ? '✓' : '✕'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <div style={{ marginTop: '6px', fontSize: '0.68rem', color: '#64748B', textAlign: 'right' }}>
+                  * Klik berkas di atas untuk mencentang (✓) atau membatalkan (✕) kapan saja.
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
-                <span style={{ color: '#64748B' }}>Status Pengajuan:</span>
-                <strong style={{ color: '#15803D' }}>{selectedKandidat.status}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
-                <span style={{ color: '#64748B' }}>Resi / Penyerahan:</span>
-                <strong style={{ color: '#0284C7' }}>{selectedKandidat.noResi || 'Menunggu proses'}</strong>
-              </div>
+
               {selectedKandidat.catatan && (
-                <div style={{ backgroundColor: '#F0F9FF', padding: '10px 14px', borderRadius: '8px', color: '#0369A1', fontSize: '0.82rem' }}>
+                <div style={{ backgroundColor: '#F0F9FF', padding: '10px 14px', borderRadius: '10px', color: '#0369A1', fontSize: '0.80rem', border: '1px solid #E0F2FE' }}>
                   <strong>Catatan:</strong> {selectedKandidat.catatan}
                 </div>
               )}
             </div>
 
-            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+            {/* Footer (Sticky Bottom) */}
+            <div style={{ padding: '12px 24px', borderTop: '1px solid #F1F5F9', backgroundColor: '#F8FAFC', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={() => setSelectedKandidat(null)}
@@ -4186,8 +7079,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   backgroundColor: '#0F172A',
                   color: '#FFFFFF',
                   border: 'none',
-                  padding: '9px 20px',
-                  borderRadius: '10px',
+                  padding: '8px 22px',
+                  borderRadius: '8px',
                   fontWeight: 700,
                   fontSize: '0.85rem',
                   cursor: 'pointer',
@@ -4674,7 +7567,326 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         </div>
       )}
 
+      {/* MODAL STRUK BUKTI TRANSFER RESMI MAPAHTRIP */}
+      {selectedBuktiTransfer && (
+        <div
+          onClick={() => setSelectedBuktiTransfer(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+            overflowY: 'auto',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '420px',
+              width: '100%',
+              maxHeight: 'calc(100vh - 32px)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #E2E8F0',
+              animation: 'modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              position: 'relative',
+              margin: 'auto',
+            }}
+          >
+            {/* Header Struk Hijau Ringkas */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                color: '#FFFFFF',
+                padding: '16px 20px 14px',
+                textAlign: 'center',
+                position: 'relative',
+                flexShrink: 0,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedBuktiTransfer(null)}
+                title="Tutup"
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)')}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+              </button>
+
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FFFFFF',
+                  color: '#10B981',
+                  margin: '0 auto 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 3px 10px rgba(0,0,0,0.15)',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '24px', fontWeight: 'bold' }}>
+                  check_circle
+                </span>
+              </div>
+
+              <div style={{ fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.9, fontWeight: 700 }}>
+                BUKTI TRANSFER INSENTIF RESMI
+              </div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, margin: '4px 0 2px', letterSpacing: '-0.02em' }}>
+                {formatRupiah(selectedBuktiTransfer.nominal)}
+              </div>
+              <div style={{ fontSize: '0.74rem', opacity: 0.95, display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px' }}>
+                <span>✓ Berhasil Ditransfer ke Rekening</span>
+              </div>
+            </div>
+
+            {/* Rincian Transaksi Scrollable */}
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Nomor Referensi:</span>
+                  <span style={{ fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>{selectedBuktiTransfer.noRef}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Waktu Transaksi:</span>
+                  <span style={{ fontWeight: 700, color: '#0F172A' }}>{selectedBuktiTransfer.tanggalTransfer}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Pengirim:</span>
+                  <span style={{ fontWeight: 700, color: '#0F172A' }}>PT Mapah Trip Indonesia</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Penerima:</span>
+                  <span style={{ fontWeight: 800, color: '#0F172A' }}>{selectedBuktiTransfer.atasNama}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Bank &amp; Rekening Tujuan:</span>
+                  <span style={{ fontWeight: 800, color: '#0284C7' }}>{selectedBuktiTransfer.namaBank} &bull; {selectedBuktiTransfer.nomorRekening}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Pemohon Visa Terkait:</span>
+                  <span style={{ fontWeight: 700, color: '#0F172A' }}>{selectedBuktiTransfer.namaPemohon} ({selectedBuktiTransfer.programVisa})</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: '6px' }}>
+                  <span style={{ color: '#64748B' }}>Biaya Admin Transfer:</span>
+                  <span style={{ fontWeight: 700, color: '#10B981' }}>Rp 0 (Gratis Ditanggung MapahTrip)</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '2px', fontSize: '0.86rem' }}>
+                  <span style={{ fontWeight: 800, color: '#0F172A' }}>Total Diterima Mitra:</span>
+                  <span style={{ fontWeight: 900, color: '#10B981' }}>{formatRupiah(selectedBuktiTransfer.nominal)}</span>
+                </div>
+              </div>
+
+              {/* Watermark / Footer Struk */}
+              <div
+                style={{
+                  marginTop: '14px',
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  border: '1px dashed #CBD5E1',
+                  textAlign: 'center',
+                  fontSize: '0.7rem',
+                  color: '#64748B',
+                }}
+              >
+                <div style={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#10B981' }}>verified</span>
+                  <span>Transaksi Sah &bull; MapahTrip Partner Club</span>
+                </div>
+                <div style={{ marginTop: '2px' }}>
+                  Struk elektronik resmi yang diterbitkan otomatis oleh sistem keuangan MapahTrip.
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBuktiTransfer(null)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#F1F5F9',
+                    color: '#475569',
+                    border: '1px solid #CBD5E1',
+                    padding: '9px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tutup Struk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#0F172A',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '9px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>print</span>
+                  <span>Cetak / Unduh</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Alert saat ada Notifikasi Pemohon Masuk */}
+      {showLiveCustomerToast && unreadNotifications.some((n) => n.tipe === 'new_customer') && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 9999,
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #BBF7D0',
+            borderRadius: '16px',
+            boxShadow: '0 12px 30px rgba(16, 185, 129, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)',
+            padding: '14px 16px',
+            maxWidth: '380px',
+            width: 'calc(100vw - 48px)',
+            animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-start',
+          }}
+        >
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              backgroundColor: '#DCFCE7',
+              color: '#16A34A',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+              person_add
+            </span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
+                🎉 Ada Pemohon Baru Masuk!
+              </strong>
+              <button
+                type="button"
+                onClick={() => setShowLiveCustomerToast(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '0 0 0 6px',
+                  fontSize: '16px',
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ margin: '4px 0 8px', fontSize: '0.76rem', color: '#475569', lineHeight: 1.4 }}>
+              Kandidat visa baru telah terdaftar menggunakan kode referral Anda (<strong>{activeAffiliateCode}</strong>).
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotifPopover(true);
+                  setShowLiveCustomerToast(false);
+                }}
+                style={{
+                  backgroundColor: '#16A34A',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Buka Notifikasi ({unreadNotifications.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLiveCustomerToast(false)}
+                style={{
+                  backgroundColor: '#F1F5F9',
+                  color: '#64748B',
+                  border: 'none',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     
+        {renderSuccessReferralModal()}
       </div>
     );
   }

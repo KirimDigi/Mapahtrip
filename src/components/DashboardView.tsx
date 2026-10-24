@@ -1,378 +1,718 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { Pengajuan } from '../types';
 
 interface DashboardViewProps {
   pengajuanList: Pengajuan[];
   onSelectPengajuan: (id: string) => void;
   onNavigateToPengajuan: () => void;
+  isOwner?: boolean;
+  staffName?: string;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   pengajuanList,
   onSelectPengajuan,
   onNavigateToPengajuan,
+  isOwner = false,
+  staffName,
 }) => {
-  const [selectedPeriod] = useState('Okt 2026');
+  // Hitung angka riil akurat 100% dari data yang ada
+  const totalPengajuan = pengajuanList.length;
+  const listMenungguVerifikasi = pengajuanList.filter((p) => p.status === 'Menunggu Verifikasi');
+  const listApplyHariIni = pengajuanList.filter((p) => p.status === 'Apply Hari Ini');
+  const listSedangDiproses = pengajuanList.filter((p) => p.status === 'Sedang Diproses');
+  const listSiapAmbil = pengajuanList.filter((p) => p.status === 'Siap Ambil');
+  const listSelesai = pengajuanList.filter((p) => p.status === 'Selesai');
 
-  const applyToday = pengajuanList.filter((p) => p.status === 'Apply Hari Ini');
-  const readyToPick = pengajuanList.filter((p) => p.status === 'Siap Ambil');
-  const inProgress = pengajuanList.filter(
-    (p) => p.status === 'Sedang Diproses' || p.status === 'Apply Hari Ini'
+  // Pengajuan yang butuh tindakan staf segera
+  const tugasPerluTindakan = pengajuanList.filter(
+    (p) => p.status === 'Menunggu Verifikasi' || p.status === 'Apply Hari Ini' || p.status === 'Siap Ambil'
   );
-  const totalFeeThisMonth = pengajuanList
-    .filter((p) => p.status === 'Selesai')
-    .reduce((sum, p) => sum + p.feeBersih, 0);
+
+  const completedList = pengajuanList.filter((p) => p.status === 'Selesai');
+  const totalFeeThisMonth = completedList.reduce((sum, p) => sum + (p.feeBersih || 0), 0);
 
   const formatRupiah = (val: number) => {
     return 'Rp ' + val.toLocaleString('id-ID');
   };
 
+  const getStatusBadge = (status: Pengajuan['status']) => {
+    switch (status) {
+      case 'Menunggu Verifikasi':
+        return { bg: '#FEF3C7', color: '#B45309', border: '#FDE68A', label: 'Menunggu Verifikasi' };
+      case 'Sedang Diproses':
+        return { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', label: 'Sedang Diproses' };
+      case 'Apply Hari Ini':
+        return { bg: '#FFF7ED', color: '#C2410C', border: '#FFEDD5', label: 'Apply Hari Ini' };
+      case 'Siap Ambil':
+        return { bg: '#ECFDF5', color: '#047857', border: '#A7F3D0', label: 'Siap Ambil' };
+      case 'Selesai':
+        return { bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0', label: 'Selesai' };
+      case 'Ditolak':
+        return { bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA', label: 'Ditolak' };
+      default:
+        return { bg: '#F1F5F9', color: '#475569', border: '#E2E8F0', label: status };
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      {/* 1. Header Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* 1. Header Salam & Informasi Ringkas */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+          paddingBottom: '8px',
+        }}
+      >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--secondary)' }} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--secondary)' }}>
-              Operasional Konsuler Terpadu
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: isOwner ? '#F59E0B' : '#005BB5',
+              }}
+            />
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: isOwner ? '#D97706' : '#005BB5',
+              }}
+            >
+              {isOwner ? '👑 Dashboard Pemilik Bisnis (Owner)' : 'Ringkasan Kerja Staf Operasional'}
             </span>
           </div>
-          <h1 className="font-serif" style={{ fontSize: '2.1rem', fontWeight: 700, color: 'var(--on-surface)', letterSpacing: '-0.02em' }}>
-            Halo, Rizky
+
+          <h1
+            style={{
+              fontSize: '1.9rem',
+              fontWeight: 800,
+              color: '#0F172A',
+              margin: '0 0 4px',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {isOwner ? 'Halo, Owner MapahTrip 👋' : `Halo, ${staffName ? staffName.split(' ')[0] : 'Rizky'} 👋`}
           </h1>
-          <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.95rem' }}>
-            Berikut agenda pengajuan dan ringkasan operasional visa hari ini.
+          <p style={{ color: '#64748B', fontSize: '0.9rem', margin: 0 }}>
+            {isOwner
+              ? 'Pantau pergerakan berkas visa, rekap omset, dan pembagian tugas staf secara real-time.'
+              : 'Berikut ringkasan tugas pengajuan visa dan agenda kerja Anda hari ini.'}
           </p>
         </div>
 
+        {/* Tombol Navigasi Cepat */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Period selector */}
-          <div
+          <button
+            type="button"
+            onClick={onNavigateToPengajuan}
             style={{
-              padding: '8px 16px',
-              borderRadius: '9999px',
-              background: '#fff',
-              border: '1px solid rgba(195, 198, 214, 0.4)',
-              boxShadow: 'var(--shadow-sm)',
+              backgroundColor: '#005BB5',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.875rem',
-              fontWeight: 600,
+              gap: '6px',
+              boxShadow: '0 2px 6px rgba(0, 91, 181, 0.25)',
+              transition: 'all 0.15s ease',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--secondary)' }}>
-              calendar_today
-            </span>
-            <span>{selectedPeriod}</span>
-          </div>
-
-          <button
-            className="btn btn-secondary"
-            title="Segarkan Data"
-            onClick={() => alert('Data operasional diperbarui.')}
-            style={{ padding: '8px 12px' }}
-          >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-              refresh
+              folder_open
             </span>
-          </button>
-
-          <button
-            className="btn btn-secondary"
-            onClick={() => alert('Mengunduh laporan rekap konsuler bulanan...')}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--secondary)' }}>
-              file_download
-            </span>
-            <span>Unduh Laporan</span>
+            <span>Buka Semua Pengajuan ({totalPengajuan})</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Key Metrics Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--on-surface-variant)' }}>
-              Pengajuan Aktif
+      {/* 2. Kartu Status Riil (Angka 100% Sesuai Data Nyata) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px',
+        }}
+      >
+        {/* Card 1: Total Pengajuan */}
+        <div
+          className="card"
+          style={{
+            padding: '20px',
+            borderRadius: '16px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
+              Total Semua Pengajuan
             </span>
-            <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>
-              sync
-            </span>
-          </div>
-          <div className="font-serif" style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--on-surface)' }}>
-            {inProgress.length + applyToday.length + 32}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
-            Di 5 Konsulat Jepang se-Indonesia
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--on-surface-variant)' }}>
-              Apply Hari Ini
-            </span>
-            <span className="material-symbols-outlined" style={{ color: 'var(--warning)', fontSize: '20px' }}>
-              send_time_extension
-            </span>
-          </div>
-          <div className="font-serif" style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--warning)' }}>
-            {applyToday.length + 4}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
-            Jakarta: 3 • Surabaya: 2
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--on-surface-variant)' }}>
-              Ambil Visa Besok
-            </span>
-            <span className="material-symbols-outlined" style={{ color: 'var(--success)', fontSize: '20px' }}>
-              assignment_turned_in
-            </span>
-          </div>
-          <div className="font-serif" style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--success)' }}>
-            {readyToPick.length + 3}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
-            Siap diambil staff di JVAC &amp; Konsjen
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--on-surface-variant)' }}>
-              Fee Bersih Periode Ini
-            </span>
-            <span className="material-symbols-outlined" style={{ color: 'var(--secondary)', fontSize: '20px' }}>
-              payments
-            </span>
-          </div>
-          <div className="font-serif font-mono-tabular" style={{ fontSize: '1.65rem', fontWeight: 700, color: 'var(--primary)' }}>
-            {formatRupiah(totalFeeThisMonth > 0 ? totalFeeThisMonth : 24850000)}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '4px', fontWeight: 600 }}>
-            ↑ Margin rata-rata 39.2%
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Dual Agenda Cards (Apply Visa vs Ambil Visa) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
-        {/* Left: Apply Visa */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', borderBottom: '1px solid rgba(195, 198, 214, 0.25)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--surface-container-low)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                  <span className="material-symbols-outlined">send_time_extension</span>
-                </div>
-                <div>
-                  <h2 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--on-surface)' }}>
-                    Agenda Apply Visa
-                  </h2>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>
-                    Jadwal pengajuan berkas ke Konsjen
-                  </p>
-                </div>
-              </div>
-              <span className="badge badge-info">5 Pengajuan</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
-              {pengajuanList
-                .filter((p) => p.status === 'Apply Hari Ini' || p.status === 'Menunggu Verifikasi')
-                .slice(0, 3)
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => onSelectPengajuan(item.id)}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      background: 'var(--surface-container-low)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-container)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-container-low)')}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          background: 'var(--surface-container-high)',
-                          color: 'var(--on-surface)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        {item.namaPemohon
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{item.namaPemohon}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-                          {item.konsjen} • {item.program}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="badge badge-warning">{item.status}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          <div style={{ paddingTop: '16px', borderTop: '1px solid rgba(195, 198, 214, 0.25)', marginTop: '16px' }}>
-            <button
-              onClick={onNavigateToPengajuan}
-              className="btn btn-secondary"
-              style={{ width: '100%', fontSize: '0.8rem' }}
-            >
-              Lihat Seluruh Antrean Apply →
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Ambil Visa */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', borderBottom: '1px solid rgba(195, 198, 214, 0.25)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)' }}>
-                  <span className="material-symbols-outlined">assignment_turned_in</span>
-                </div>
-                <div>
-                  <h2 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--on-surface)' }}>
-                    Agenda Ambil Visa
-                  </h2>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>
-                    Paspor siap diambil &amp; dikirimkan ke pemohon
-                  </p>
-                </div>
-              </div>
-              <span className="badge badge-success">3 Siap Ambil</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
-              {pengajuanList
-                .filter((p) => p.status === 'Siap Ambil' || p.status === 'Selesai')
-                .slice(0, 3)
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => onSelectPengajuan(item.id)}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      background: 'var(--surface-container-low)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-container)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-container-low)')}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          background: 'var(--success-bg)',
-                          color: 'var(--success)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        {item.namaPemohon
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{item.namaPemohon}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-                          Konsjen {item.konsjen} • Estimasi: {item.tglEstimasiSelesai}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="badge badge-success">{item.status}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          <div style={{ paddingTop: '16px', borderTop: '1px solid rgba(195, 198, 214, 0.25)', marginTop: '16px' }}>
-            <button
-              onClick={onNavigateToPengajuan}
-              className="btn btn-secondary"
-              style={{ width: '100%', fontSize: '0.8rem' }}
-            >
-              Lihat Seluruh Paspor Selesai →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Konsjen Operational Overview */}
-      <div className="card">
-        <h3 className="font-serif" style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px' }}>
-          Status Kuota &amp; Antrean per Konsulat
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-          {[
-            { kota: 'Jakarta', total: 112, pic: 'Rizky Muhammad', sla: '5 Hari Kerja', status: 'Lancar' },
-            { kota: 'Surabaya', total: 54, pic: 'Nanami Kay', sla: '5 Hari Kerja', status: 'Lancar' },
-            { kota: 'Denpasar', total: 28, pic: 'Yulia', sla: '4 Hari Kerja', status: 'Cepat' },
-            { kota: 'Medan', total: 18, pic: 'Rizky Muhammad', sla: '6 Hari Kerja', status: 'Normal' },
-            { kota: 'Makassar', total: 11, pic: 'Ulla', sla: '6 Hari Kerja', status: 'Normal' },
-          ].map((k) => (
             <div
-              key={k.kota}
               style={{
-                padding: '16px',
-                borderRadius: '14px',
-                background: 'var(--surface-container-low)',
-                border: '1px solid rgba(195, 198, 214, 0.25)',
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
+                backgroundColor: '#EFF6FF',
+                color: '#005BB5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{k.kota}</span>
-                <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
-                  {k.status}
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                description
+              </span>
+            </div>
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', lineHeight: 1 }}>
+            {totalPengajuan}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
+            Berkas terdaftar di sistem
+          </div>
+        </div>
+
+        {/* Card 2: Menunggu Verifikasi */}
+        <div
+          className="card"
+          style={{
+            padding: '20px',
+            borderRadius: '16px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
+              Perlu Verifikasi
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
+                backgroundColor: '#FEF3C7',
+                color: '#D97706',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                pending_actions
+              </span>
+            </div>
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#D97706', lineHeight: 1 }}>
+            {listMenungguVerifikasi.length}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
+            Berkas pemohon yang perlu dicek
+          </div>
+        </div>
+
+        {/* Card 3: Sedang Diproses & Apply */}
+        <div
+          className="card"
+          style={{
+            padding: '20px',
+            borderRadius: '16px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
+              Proses di Konsulat
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
+                backgroundColor: '#EFF6FF',
+                color: '#2563EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                sync
+              </span>
+            </div>
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#2563EB', lineHeight: 1 }}>
+            {listApplyHariIni.length + listSedangDiproses.length}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
+            {listApplyHariIni.length} apply hari ini &bull; {listSedangDiproses.length} diproses
+          </div>
+        </div>
+
+        {/* Card 4: Selesai / Terbit / Siap Ambil (atau Keuangan jika Owner) */}
+        {isOwner ? (
+          <div
+            className="card"
+            style={{
+              padding: '20px',
+              borderRadius: '16px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #FDE68A',
+              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+              background: 'linear-gradient(135deg, #FFFDF5 0%, #FEF9C3 100%)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#92400E' }}>
+                Total Fee Bersih (Bulan Ini)
+              </span>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(217, 119, 6, 0.2)',
+                  color: '#B45309',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  account_balance_wallet
                 </span>
               </div>
-              <div className="font-serif" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)', margin: '8px 0 4px' }}>
-                {k.total} <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--on-surface-variant)' }}>pengajuan</span>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-                PIC: <strong>{k.pic}</strong>
+            </div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#B45309', lineHeight: 1 }}>
+              {formatRupiah(totalFeeThisMonth)}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#92400E', marginTop: '6px' }}>
+              Dari {completedList.length} transaksi visa selesai
+            </div>
+          </div>
+        ) : (
+          <div
+            className="card"
+            style={{
+              padding: '20px',
+              borderRadius: '16px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
+                Visa Selesai / Terbit
+              </span>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  verified
+                </span>
               </div>
             </div>
-          ))}
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#059669', lineHeight: 1 }}>
+              {listSelesai.length + listSiapAmbil.length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
+              {listSiapAmbil.length} siap ambil &bull; {listSelesai.length} selesai
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Dua Bagian Utama yang Sangat Jelas & Mudah Dipahami */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+        {/* Kolom Kiri: Agenda / Tugas yang Butuh Tindakan Hari Ini */}
+        <div
+          className="card"
+          style={{
+            padding: '22px',
+            borderRadius: '18px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    backgroundColor: '#FEF3C7',
+                    color: '#B45309',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                    assignment_late
+                  </span>
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                    Tugas Perlu Tindakan
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                    Pemohon yang butuh verifikasi, apply, atau ambil paspor
+                  </p>
+                </div>
+              </div>
+              <span
+                style={{
+                  backgroundColor: tugasPerluTindakan.length > 0 ? '#EFF6FF' : '#F1F5F9',
+                  color: tugasPerluTindakan.length > 0 ? '#1D4ED8' : '#64748B',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                }}
+              >
+                {tugasPerluTindakan.length} Tugas
+              </span>
+            </div>
+
+            {tugasPerluTindakan.length === 0 ? (
+              <div
+                style={{
+                  padding: '28px 16px',
+                  textAlign: 'center',
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: '12px',
+                  border: '1px dashed #CBD5E1',
+                  marginTop: '12px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#10B981', marginBottom: '6px' }}>
+                  check_circle
+                </span>
+                <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>Semua Berkas Beres!</div>
+                <p style={{ margin: 0, color: '#64748B', fontSize: '0.78rem' }}>
+                  Tidak ada berkas yang menunggu tindakan saat ini.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
+                {tugasPerluTindakan.map((item) => {
+                  const badge = getStatusBadge(item.status);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => onSelectPengajuan(item.id)}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        backgroundColor: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#EFF6FF';
+                        e.currentTarget.style.borderColor = '#BFDBFE';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#F8FAFC';
+                        e.currentTarget.style.borderColor = '#E2E8F0';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            backgroundColor: '#E2E8F0',
+                            color: '#1E293B',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {item.namaPemohon
+                            .split(' ')
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join('')}
+                        </div>
+                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              color: '#0F172A',
+                              whiteSpace: 'nowrap',
+                              textOverflow: 'ellipsis',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {item.namaPemohon}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                            Konsjen {item.konsjen} &bull; PIC: {item.staffPic ? item.staffPic.split(' ')[0] : '-'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <span
+                          style={{
+                            backgroundColor: badge.bg,
+                            color: badge.color,
+                            border: `1px solid ${badge.border}`,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {badge.label}
+                        </span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#94A3B8' }}>
+                          chevron_right
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+            <button
+              type="button"
+              onClick={onNavigateToPengajuan}
+              style={{
+                width: '100%',
+                backgroundColor: '#F8FAFC',
+                border: '1px solid #CBD5E1',
+                padding: '9px',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                color: '#334155',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>Buka Halaman Pengajuan Lengkap</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                arrow_forward
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Kolom Kanan: Daftar 5 Pengajuan Terkini */}
+        <div
+          className="card"
+          style={{
+            padding: '22px',
+            borderRadius: '18px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    backgroundColor: '#F0FDF4',
+                    color: '#15803D',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                    history
+                  </span>
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                    Pengajuan Terkini
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                    Daftar pemohon yang sedang aktif di sistem
+                  </p>
+                </div>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>
+                {Math.min(5, pengajuanList.length)} dari {totalPengajuan}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
+              {pengajuanList.slice(0, 5).map((item) => {
+                const badge = getStatusBadge(item.status);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => onSelectPengajuan(item.id)}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#F8FAFC';
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '50%',
+                          backgroundColor: '#F1F5F9',
+                          color: '#0F172A',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {item.namaPemohon
+                          .split(' ')
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join('')}
+                      </div>
+                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: '0.86rem',
+                            color: '#0F172A',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {item.namaPemohon}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                          {item.program} &bull; {item.konsjen}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <span
+                        style={{
+                          backgroundColor: badge.bg,
+                          color: badge.color,
+                          border: `1px solid ${badge.border}`,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {badge.label}
+                      </span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#94A3B8' }}>
+                        chevron_right
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+            <button
+              type="button"
+              onClick={onNavigateToPengajuan}
+              style={{
+                width: '100%',
+                backgroundColor: '#F8FAFC',
+                border: '1px solid #CBD5E1',
+                padding: '9px',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                color: '#334155',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>Kelola Seluruh Pengajuan ({totalPengajuan})</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                arrow_forward
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

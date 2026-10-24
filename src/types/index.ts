@@ -16,7 +16,7 @@ export type StaffName =
   | 'Latifah'
   | 'Ulla';
 
-export type PaketVisa = 'Reguler' | 'Premium' | 'TAC' | 'Express' | 'VIP';
+export type PaketVisa = 'Reguler' | 'Premium' | 'TAC';
 
 export interface BerkasChecklist {
   formVisa: boolean;
@@ -42,6 +42,7 @@ export interface Pengajuan {
   tglApply: string;
   tglEstimasiSelesai: string;
   tglSelesai?: string;
+  tglKirim?: string;
   status: StatusPengajuan;
   noResi?: string;
   affiliateCode?: string;
@@ -52,6 +53,8 @@ export interface Pengajuan {
   referralFee: number;
   berkas: BerkasChecklist;
   catatan?: string;
+  fotoBase64?: string;
+  fotoSizeKB?: number;
 }
 
 export interface KonsjenMaster {
@@ -66,8 +69,11 @@ export interface KonsjenMaster {
 
 export interface StaffMaster {
   id: string;
-  nama: StaffName;
+  nama: string;
   inisial: string;
+  username?: string;
+  email?: string;
+  pin?: string;
   konsjenTugas: KonsjenKota[];
   role: string;
   avatarUrl?: string;

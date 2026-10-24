@@ -67,7 +67,7 @@ export const AffiliateView: React.FC = () => {
           <div className="font-serif font-mono-tabular" style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--secondary)', margin: '6px 0 2px' }}>
             {formatRupiah(totalKomisiAll)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Rata-rata Rp 200.000 - 500.000 / visa</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>Rp 100.000 / visa flat</div>
         </div>
       </div>
 

@@ -1,11 +1,25 @@
 import React, { useState } from 'react';
 import type { Pengajuan, StatusPengajuan } from '../types';
+import { supabase } from '../lib/supabase';
+import { kirimPesanWA } from '../whatsapp';
 
 interface PengajuanViewProps {
   pengajuanList: Pengajuan[];
   onSelectPengajuan: (id: string) => void;
   onOpenNewPengajuan: () => void;
   searchFilter: string;
+  isOwner?: boolean;
+  onUpdateStage?: (
+    id: string,
+    stageData: {
+      tglBerkasMasuk?: string;
+      tglApply?: string;
+      tglSelesai?: string;
+      tglKirim?: string;
+      status?: StatusPengajuan;
+      noResi?: string;
+    }
+  ) => void;
 }
 
 export const PengajuanView: React.FC<PengajuanViewProps> = ({
@@ -13,11 +27,408 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   onSelectPengajuan,
   onOpenNewPengajuan,
   searchFilter,
+  isOwner = false,
+  onUpdateStage,
 }) => {
   const [activeStatusTab, setActiveStatusTab] = useState<string>('Semua');
   const [selectedKonsjen, setSelectedKonsjen] = useState<string>('Semua');
   const [selectedPaket, setSelectedPaket] = useState<string>('Semua');
   const [showMaskedPaspor, setShowMaskedPaspor] = useState<boolean>(true);
+
+  // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
+  const [localStageOverrides, setLocalStageOverrides] = useState<
+    Record<
+      string,
+      {
+        tglSampai?: string;
+        tglProses?: string;
+        tglSelesai?: string;
+        tglKirim?: string;
+        noResi?: string;
+        status?: StatusPengajuan;
+      }
+    >
+  >(() => {
+    try {
+      const saved = localStorage.getItem('mapahtrip_stage_overrides');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const getTodayFormatted = () => {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}/${m}/${y}`;
+  };
+
+  const getCandidateStages = (item: Pengajuan) => {
+    const ov = localStageOverrides[item.id] || {};
+    const tglSampai = ov.tglSampai !== undefined ? ov.tglSampai : (item.tglBerkasMasuk || '');
+    const tglProses = ov.tglProses !== undefined ? ov.tglProses : (item.tglApply || '');
+    const tglSelesai = ov.tglSelesai !== undefined ? ov.tglSelesai : (item.tglSelesai || '');
+    const tglKirim = ov.tglKirim !== undefined ? ov.tglKirim : (item.tglKirim || '');
+    const noResi = ov.noResi !== undefined ? ov.noResi : (item.noResi || '');
+    const currentStatus = ov.status || item.status;
+
+    return {
+      tglSampai,
+      isSampai: Boolean(tglSampai && tglSampai !== '-'),
+      tglProses,
+      isProses: Boolean(tglProses && tglProses !== '-'),
+      tglSelesai,
+      isSelesai: Boolean(tglSelesai && tglSelesai !== '-'),
+      tglKirim,
+      isKirim: Boolean((tglKirim && tglKirim !== '-') || (noResi && noResi !== '-')),
+      noResi,
+      currentStatus,
+    };
+  };
+
+  const handleToggleStage = async (
+    item: Pengajuan,
+    stage: 'sampai' | 'proses' | 'selesai' | 'kirim'
+  ) => {
+    const stages = getCandidateStages(item);
+    const today = getTodayFormatted();
+    const newStages = { ...(localStageOverrides[item.id] || {}) };
+    let newStatus: StatusPengajuan = stages.currentStatus;
+    let shouldSendWAProses = false;
+    let shouldSendWASelesai = false;
+    let shouldSendWAKirim = false;
+
+    if (stage === 'sampai') {
+      if (stages.isSampai) {
+        newStages.tglSampai = '';
+      } else {
+        newStages.tglSampai = today;
+      }
+    } else if (stage === 'proses') {
+      if (stages.isProses) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Proses?\n\nApakah Anda yakin ingin membatalkan status SEDANG DIPROSES untuk pengajuan atas nama "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
+        newStages.tglProses = '';
+        if (newStatus === 'Sedang Diproses' || newStatus === 'Apply Hari Ini') {
+          newStatus = 'Menunggu Verifikasi';
+        }
+      } else {
+        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
+        const konfirmasi = window.confirm(
+          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
+          `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
+          `• Nama Pemohon : ${item.namaPemohon}\n` +
+          `• No. Paspor   : ${item.noPaspor}\n` +
+          `• No. WhatsApp : ${noWa}\n\n` +
+          `⚠️ PENTING:\n` +
+          `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+          `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
+        );
+        if (!konfirmasi) return;
+
+        newStages.tglProses = today;
+        if (!stages.isSampai) newStages.tglSampai = today;
+        newStatus = 'Sedang Diproses';
+        shouldSendWAProses = true;
+      }
+    } else if (stage === 'selesai') {
+      if (stages.isSelesai) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Selesai?\n\nApakah Anda yakin ingin membatalkan status SELESAI untuk pengajuan atas nama "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
+        newStages.tglSelesai = '';
+        if (newStatus === 'Selesai') {
+          newStatus = stages.isProses ? 'Sedang Diproses' : 'Menunggu Verifikasi';
+        }
+      } else {
+        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
+        const konfirmasi = window.confirm(
+          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI?\n\n` +
+          `Anda akan menandai pengajuan visa ini sebagai SELESAI:\n` +
+          `• Nama Pemohon : ${item.namaPemohon}\n` +
+          `• No. Paspor   : ${item.noPaspor}\n` +
+          `• No. WhatsApp : ${noWa}\n\n` +
+          `⚠️ PENTING:\n` +
+          `Setelah Anda klik OK, status akan diubah menjadi "Selesai" dan notifikasi resmi bahwa visa telah terbit akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+          `Apakah Anda yakin sudah selesai dan ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
+        );
+        if (!konfirmasi) return;
+
+        newStages.tglSelesai = today;
+        if (!stages.isSampai) newStages.tglSampai = today;
+        if (!stages.isProses) newStages.tglProses = today;
+        newStatus = 'Selesai';
+        shouldSendWASelesai = true;
+      }
+    } else if (stage === 'kirim') {
+      if (stages.isKirim) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Kirim?\n\nApakah Anda yakin ingin membatalkan status pengiriman paspor untuk "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
+        newStages.tglKirim = '';
+        newStages.noResi = '';
+      } else {
+        const inputResi = window.prompt(
+          `📦 Ceklis Pengiriman Paspor untuk ${item.namaPemohon}:\n\nMasukkan Nomor Resi Ekspedisi (JNE/J&T/TIKI/dll) atau ketik "Diambil Langsung":`,
+          item.noResi || ''
+        );
+        if (inputResi === null) return;
+
+        const resiFinal = inputResi.trim() ? inputResi.trim() : 'Diambil Langsung';
+        newStages.tglKirim = today;
+        newStages.noResi = resiFinal;
+        if (!stages.isSampai) newStages.tglSampai = today;
+        if (!stages.isProses) newStages.tglProses = today;
+        if (!stages.isSelesai) newStages.tglSelesai = today;
+        newStatus = 'Selesai';
+        shouldSendWAKirim = true;
+      }
+    }
+
+    newStages.status = newStatus;
+
+    // 1. Simpan ke local state override instan
+    setLocalStageOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [item.id]: {
+          ...(prev[item.id] || {}),
+          ...newStages,
+        },
+      };
+      try {
+        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Beritahu App.tsx
+    if (onUpdateStage) {
+      onUpdateStage(item.id, {
+        tglBerkasMasuk: newStages.tglSampai,
+        tglApply: newStages.tglProses,
+        tglSelesai: newStages.tglSelesai,
+        tglKirim: newStages.tglKirim,
+        noResi: newStages.noResi,
+        status: newStatus,
+      });
+    }
+
+    // 3. Simpan ke localStorage registrations
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const list: Pengajuan[] = JSON.parse(raw);
+        const updatedList = list.map((p) =>
+          p.id === item.id
+            ? {
+                ...p,
+                tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
+                tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
+                tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
+                tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : p.tglKirim,
+                noResi: newStages.noResi !== undefined ? newStages.noResi : p.noResi,
+                status: newStatus,
+              }
+            : p
+        );
+        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updatedList));
+      }
+    } catch {}
+
+    // 4. Sinkronisasi ke Supabase Cloud
+    try {
+      const numId = Number(item.id);
+      if (!isNaN(numId)) {
+        await supabase
+          .from('pengajuan_visa')
+          .update({
+            tgl_sampai: newStages.tglSampai || null,
+            tgl_proses: newStages.tglProses || null,
+            tgl_selesai: newStages.tglSelesai || null,
+            tgl_kirim: newStages.tglKirim || null,
+            resi_pengiriman: newStages.noResi || null,
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', numId);
+      }
+    } catch (e) {
+      console.warn('Sync stage to Supabase failed:', e);
+    }
+
+    // Otomatis Kirim WhatsApp ke Customer jika Proses / Selesai / Kirim
+    if (shouldSendWAProses) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const pesanWAProses =
+          `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
+          `📋 *Rincian Pengajuan:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Program: ${item.program || 'Visa Jepang'}\n` +
+          `• Tanggal Apply: ${today}\n` +
+          `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
+          `Estimasi waktu pemrosesan kedutaan sekitar 3 - 5 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
+          `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*\n` +
+          `Website: https://mapahtrip.com`;
+
+        kirimPesanWA(item.noTelp, pesanWAProses)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi proses ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi proses:', err);
+          });
+
+        alert(
+          `✅ STATUS VISA DIPROSES!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
+          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
+        );
+      } else {
+        alert(
+          `✅ STATUS VISA DIPROSES!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
+          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
+        );
+      }
+    } else if (shouldSendWASelesai) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const pesanWASelesai =
+          `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
+          `📋 *Rincian Pengajuan:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Program: ${item.program || 'Visa Jepang'}\n` +
+          `• Tanggal Selesai: ${today}\n` +
+          `• Status: *SELESAI (Visa Terbit)*\n\n` +
+          `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi penyerahan langsung atau nomor resi pengiriman akan kami informasikan lebih lanjut.\n\n` +
+          `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*\n` +
+          `Website: https://mapahtrip.com`;
+
+        kirimPesanWA(item.noTelp, pesanWASelesai)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi selesai ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi selesai:', err);
+          });
+
+        alert(
+          `✅ STATUS VISA SELESAI!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
+          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
+        );
+      } else {
+        alert(
+          `✅ STATUS VISA SELESAI!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
+          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
+        );
+      }
+    } else if (shouldSendWAKirim) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const pesanWAKirim =
+          `*PEMBERITAHUAN PENGIRIMAN PASPOR - MAPAHTRIP* 📦✈️\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Paspor dan berkas Visa Jepang Anda yang telah selesai kini telah dikirimkan / disiapkan untuk penyerahan.\n\n` +
+          `📋 *Rincian Pengiriman:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Status / Resi: *${newStages.noResi || 'Diambil Langsung'}*\n` +
+          `• Tanggal Kirim: ${today}\n\n` +
+          `Silakan simpan nomor resi ini untuk melacak paket Anda. Semoga perjalanan Anda ke Jepang menyenangkan dan berkesan! 🇯🇵🎌\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*`;
+
+        kirimPesanWA(item.noTelp, pesanWAKirim)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi kirim ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi kirim:', err);
+          });
+
+        alert(
+          `📦 STATUS PENGIRIMAN DISIMPAN!\n\n` +
+          `Resi/Status: "${newStages.noResi}" berhasil disimpan.\n` +
+          `Notifikasi WhatsApp pengiriman telah dikirimkan ke ${item.namaPemohon} (${item.noTelp}).`
+        );
+      }
+    }
+  };
+
+  const handleEditStageDate = (
+    item: Pengajuan,
+    stage: 'sampai' | 'proses' | 'selesai' | 'kirim',
+    currentDate: string
+  ) => {
+    const stageNames = {
+      sampai: 'Sampai (Berkas Diterima)',
+      proses: 'Proses (Diajukan ke Kedutaan/JVAC)',
+      selesai: 'Selesai (Visa Terbit)',
+      kirim: 'Kirim (Paspor Dikirim)',
+    };
+    const input = window.prompt(
+      `Ubah tanggal tahap "${stageNames[stage]}" untuk ${item.namaPemohon} (Format: DD/MM/YYYY):`,
+      currentDate || getTodayFormatted()
+    );
+    if (input === null) return;
+    const cleanDate = input.trim();
+
+    const keyMap = {
+      sampai: 'tglSampai',
+      proses: 'tglProses',
+      selesai: 'tglSelesai',
+      kirim: 'tglKirim',
+    } as const;
+
+    setLocalStageOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [item.id]: {
+          ...(prev[item.id] || {}),
+          [keyMap[stage]]: cleanDate,
+        },
+      };
+      try {
+        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    const dbKeyMap = {
+      sampai: 'tgl_sampai',
+      proses: 'tgl_proses',
+      selesai: 'tgl_selesai',
+      kirim: 'tgl_kirim',
+    };
+    const numId = Number(item.id);
+    if (!isNaN(numId)) {
+      supabase
+        .from('pengajuan_visa')
+        .update({ [dbKeyMap[stage]]: cleanDate || null })
+        .eq('id', numId)
+        .then();
+    }
+  };
 
   const statusTabs = [
     'Semua',
@@ -30,8 +441,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   ];
 
   const filteredData = pengajuanList.filter((item) => {
+    const currentStatus = getCandidateStages(item).currentStatus;
     // Status filter
-    if (activeStatusTab !== 'Semua' && item.status !== activeStatusTab) {
+    if (activeStatusTab !== 'Semua' && currentStatus !== activeStatusTab) {
       return false;
     }
     // Konsjen filter
@@ -55,25 +467,6 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     }
     return true;
   });
-
-  const getStatusBadge = (status: StatusPengajuan) => {
-    switch (status) {
-      case 'Selesai':
-        return <span className="badge badge-success">✓ Selesai</span>;
-      case 'Siap Ambil':
-        return <span className="badge badge-info">Siap Ambil</span>;
-      case 'Sedang Diproses':
-        return <span className="badge badge-info">Sedang Diproses</span>;
-      case 'Apply Hari Ini':
-        return <span className="badge badge-warning">Apply Hari Ini</span>;
-      case 'Menunggu Verifikasi':
-        return <span className="badge badge-warning">Verifikasi Berkas</span>;
-      case 'Ditolak':
-        return <span className="badge badge-error">✕ Ditolak</span>;
-      default:
-        return <span className="badge badge-neutral">{status}</span>;
-    }
-  };
 
   const getPaketBadge = (paket: string) => {
     switch (paket) {
@@ -152,7 +545,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             Daftar Pengajuan Visa
           </h1>
           <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>
-            Total 223 pemohon terdata dalam sistem MapahTrip.
+            Total <strong>{pengajuanList.length}</strong> pemohon terdata dalam sistem MapahTrip.
           </p>
         </div>
 
@@ -177,9 +570,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
           <button className="btn btn-primary" onClick={onOpenNewPengajuan}>
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-              add
+              person_add
             </span>
-            <span>Pengajuan Baru</span>
+            <span>Tambah Pemohon</span>
           </button>
         </div>
       </div>
@@ -193,7 +586,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             const count =
               tab === 'Semua'
                 ? pengajuanList.length
-                : pengajuanList.filter((p) => p.status === tab).length;
+                : pengajuanList.filter((p) => getCandidateStages(p).currentStatus === tab).length;
 
             return (
               <button
@@ -203,13 +596,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '7px 16px',
+                  padding: '8px 16px',
                   borderRadius: '9999px',
                   border: 'none',
-                  background: isActive ? 'var(--primary-container)' : 'var(--surface-container-low)',
+                  background: isActive ? 'var(--primary)' : 'var(--surface-container-low)',
                   color: isActive ? '#fff' : 'var(--on-surface-variant)',
-                  fontSize: '0.825rem',
                   fontWeight: isActive ? 600 : 500,
+                  fontSize: '0.825rem',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease',
@@ -221,7 +614,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     padding: '1px 6px',
                     borderRadius: '9999px',
                     fontSize: '0.7rem',
-                    background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'rgba(195, 198, 214, 0.4)',
+                    background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--surface-container-high)',
                     color: isActive ? '#fff' : 'var(--on-surface)',
                   }}
                 >
@@ -305,142 +698,266 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       </div>
 
       {/* Main Data Table */}
-      <div className="data-table-container">
-        <table className="data-table">
+      <div className="data-table-container" style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.80rem' }}>
           <thead>
-            <tr>
-              <th>Pemohon &amp; Identitas</th>
-              <th>Program &amp; Paket</th>
-              <th>Konsjen &amp; PIC</th>
-              <th>Berkas Fisik</th>
-              <th>Tgl Apply / Jadwal</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'right' }}>Fee Bersih</th>
-              <th style={{ textAlign: 'center' }}>Aksi</th>
+            <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
+              <th style={{ padding: '12px 10px', minWidth: '170px' }}>Pemohon &amp; Identitas</th>
+              <th style={{ padding: '12px 10px', minWidth: '130px' }}>Program &amp; Paket</th>
+              <th style={{ padding: '12px 10px', minWidth: '110px' }}>Konsjen &amp; PIC</th>
+              <th style={{ padding: '12px 10px', minWidth: '100px', textAlign: 'center' }}>Berkas Fisik</th>
+              <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '380px' }}>
+                <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.82rem' }}>
+                  Status Pengajuan (Klik Ceklis Tahapan)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Sampai</span>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Proses</span>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Selesai</span>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Kirim</span>
+                </div>
+              </th>
+              {isOwner ? (
+                <th style={{ padding: '12px 10px', textAlign: 'right', minWidth: '100px' }}>Fee Bersih</th>
+              ) : (
+                <th style={{ padding: '12px 10px', minWidth: '120px' }}>Resi / Pengiriman</th>
+              )}
+              <th style={{ padding: '12px 10px', textAlign: 'center', width: '80px' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {filteredData.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--on-surface-variant)' }}>
+                <td colSpan={isOwner ? 7 : 7} style={{ textAlign: 'center', padding: '36px', color: 'var(--on-surface-variant)' }}>
                   Tidak ada pengajuan yang sesuai dengan kriteria filter saat ini.
                 </td>
               </tr>
             ) : (
-              filteredData.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
-                          color: '#fff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {row.namaPemohon
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')}
-                      </div>
-                      <div>
+              filteredData.map((row) => {
+                const st = getCandidateStages(row);
+                const stageItems = [
+                  { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
+                  { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
+                  { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
+                  { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
+                ];
+
+                return (
+                  <tr
+                    key={row.id}
+                    style={{
+                      borderBottom: '1px solid #F1F5F9',
+                      transition: 'background-color 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+                  >
+                    {/* 1. Pemohon & Identitas */}
+                    <td style={{ padding: '10px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div
-                          style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
-                          onClick={() => onSelectPengajuan(row.id)}
-                        >
-                          {row.namaPemohon}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', display: 'flex', gap: '8px' }}>
-                          <span style={{ fontFamily: 'monospace' }}>
-                            {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
-                          </span>
-                          <span>•</span>
-                          <span>{row.noPengajuan}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td>
-                    <div style={{ fontWeight: 500, fontSize: '0.85rem' }}>{row.program}</div>
-                    {getPaketBadge(row.paket)}
-                  </td>
-
-                  <td>
-                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{row.konsjen}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-                      PIC: {row.staffPic.split(' ')[0]}
-                    </div>
-                  </td>
-
-                  <td>
-                    {/* Checklist summary */}
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      {[
-                        { label: 'Form', ok: row.berkas.formVisa },
-                        { label: 'KTP', ok: row.berkas.ktp },
-                        { label: 'E-KTLN', ok: row.berkas.ektln },
-                        { label: 'COE', ok: row.berkas.coe },
-                        { label: 'Paspor', ok: row.berkas.pasporFisik },
-                      ].map((b, idx) => (
-                        <span
-                          key={idx}
-                          title={`${b.label}: ${b.ok ? 'Lengkap' : 'Kurang'}`}
                           style={{
-                            width: '20px',
-                            height: '20px',
+                            width: '36px',
+                            height: '36px',
                             borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
+                            color: '#fff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '10px',
                             fontWeight: 700,
-                            background: b.ok ? 'var(--success-bg)' : 'var(--error-bg)',
-                            color: b.ok ? 'var(--success)' : 'var(--error)',
-                            border: `1px solid ${b.ok ? 'var(--success-border)' : 'var(--error-border)'}`,
+                            fontSize: '0.8rem',
+                            flexShrink: 0,
                           }}
                         >
-                          {b.ok ? '✓' : '!'}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
+                          {row.namaPemohon
+                            .split(' ')
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join('')}
+                        </div>
+                        <div>
+                          <div
+                            style={{ fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem' }}
+                            onClick={() => onSelectPengajuan(row.id)}
+                            title="Klik untuk lihat detail"
+                          >
+                            {row.namaPemohon}
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: '#64748B', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                              {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
+                            </span>
+                            <span>•</span>
+                            <span>{row.noPengajuan}</span>
+                          </div>
+                          {row.noTelp && (
+                            <div style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: 600 }}>
+                              WA: {row.noTelp}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
 
-                  <td>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>
-                      Apply: {row.tglApply}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-                      Est: {row.tglEstimasiSelesai}
-                    </div>
-                  </td>
+                    {/* 2. Program & Paket */}
+                    <td style={{ padding: '10px 10px' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.82rem', color: '#0F172A' }}>{row.program}</div>
+                      <div style={{ marginTop: '2px' }}>{getPaketBadge(row.paket)}</div>
+                    </td>
 
-                  <td>{getStatusBadge(row.status)}</td>
+                    {/* 3. Konsjen & PIC */}
+                    <td style={{ padding: '10px 10px' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0F172A' }}>{row.konsjen}</div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                        PIC: {row.staffPic.split(' ')[0]}
+                      </div>
+                    </td>
 
-                  <td style={{ textAlign: 'right', fontWeight: 600, fontFamily: 'monospace' }}>
-                    {formatRupiah(row.feeBersih)}
-                  </td>
+                    {/* 4. Berkas Fisik (Checklist Dots) */}
+                    <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                        {[
+                          { label: 'Form', ok: row.berkas.formVisa },
+                          { label: 'KTP', ok: row.berkas.ktp },
+                          { label: 'E-KTLN', ok: row.berkas.ektln },
+                          { label: 'COE', ok: row.berkas.coe },
+                          { label: 'Paspor', ok: row.berkas.pasporFisik },
+                        ].map((b, bIdx) => (
+                          <span
+                            key={bIdx}
+                            title={`${b.label}: ${b.ok ? 'Lengkap' : 'Kurang'}`}
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '9px',
+                              fontWeight: 700,
+                              background: b.ok ? '#DCFCE7' : '#FEE2E2',
+                              color: b.ok ? '#16A34A' : '#EF4444',
+                              border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                            }}
+                          >
+                            {b.ok ? '✓' : '!'}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
 
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => onSelectPengajuan(row.id)}
-                      style={{ padding: '6px 14px', fontSize: '0.78rem' }}
-                    >
-                      Detail
-                    </button>
-                  </td>
-                </tr>
-              ))
+                    {/* 5. Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
+                    <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', minWidth: '360px' }}>
+                        {stageItems.map((s) => (
+                          <div
+                            key={s.key}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              backgroundColor: s.ok ? s.bg : '#F8FAFC',
+                              border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
+                              borderRadius: '6px',
+                              padding: '4px 3px',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleStage(row, s.key);
+                              }}
+                              title={`Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} tahap ${s.label}`}
+                              style={{
+                                width: '100%',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '2px',
+                                fontSize: '0.73rem',
+                                fontWeight: 800,
+                                color: s.ok ? s.color : '#94A3B8',
+                                padding: '2px 0',
+                              }}
+                            >
+                              <span>{s.ok ? '✓' : '○'}</span>
+                              <span>{s.label}</span>
+                            </button>
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (s.ok) handleEditStageDate(row, s.key, s.date || '');
+                              }}
+                              title={s.ok ? 'Klik untuk ubah tanggal' : ''}
+                              style={{
+                                fontSize: '0.67rem',
+                                fontFamily: 'monospace',
+                                color: s.ok ? s.color : '#CBD5E1',
+                                fontWeight: s.ok ? 700 : 500,
+                                cursor: s.ok ? 'pointer' : 'default',
+                                textDecoration: s.ok ? 'underline dotted' : 'none',
+                                lineHeight: 1.2,
+                                marginTop: '1px',
+                              }}
+                            >
+                              {s.ok ? (s.date || getTodayFormatted()) : '-'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+
+                    {/* 6. Resi / Pengiriman (or Fee Bersih if isOwner) */}
+                    {isOwner ? (
+                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#B45309', fontSize: '0.85rem' }}>
+                        {formatRupiah(row.feeBersih)}
+                      </td>
+                    ) : (
+                      <td style={{ padding: '10px 10px' }}>
+                        {st.noResi ? (
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              color: '#1E40AF',
+                              background: '#EFF6FF',
+                              border: '1px solid #DBEAFE',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              display: 'inline-block',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {st.noResi}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.74rem', color: '#94A3B8' }}>
+                            {st.currentStatus === 'Selesai' ? 'Diserahkan' : 'Dalam Proses'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* 7. Aksi */}
+                    <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => onSelectPengajuan(row.id)}
+                        style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: 700 }}
+                      >
+                        Detail
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

@@ -1,0 +1,490 @@
+[
+  {
+    "rank": 1,
+    "code": "MPH458RI",
+    "nama": "Rizky Muhammad E",
+    "nominal": 1300000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 2,
+    "code": "MPH555DE",
+    "nama": "Derryl",
+    "nominal": 600000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 3,
+    "code": "MPH630AL",
+    "nama": "Albert Lazuardy",
+    "nominal": 600000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 4,
+    "code": "MPH343HI",
+    "nama": "LPK Hibiki",
+    "nominal": 400000,
+    "kategori": "LPK",
+    "isStaff": false
+  },
+  {
+    "rank": 5,
+    "code": "MPH965RE",
+    "nama": "Rizki Reihan Febriansyah",
+    "nominal": 300000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 6,
+    "code": "MPH678RI",
+    "nama": "Rifki",
+    "nominal": 200000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 7,
+    "code": "MPH314NA",
+    "nama": "LPK Navi Japan",
+    "nominal": 200000,
+    "kategori": "LPK",
+    "isStaff": false
+  },
+  {
+    "rank": 8,
+    "code": "MPH199GI",
+    "nama": "Gilang",
+    "nominal": 100000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 9,
+    "code": "MPH223KE",
+    "nama": "Kesi Aulia Fitri",
+    "nominal": 100000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 10,
+    "code": "MPH623ER",
+    "nama": "Erik",
+    "nominal": 100000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 11,
+    "code": "MPH804RE",
+    "nama": "Refzi Pangestu",
+    "nominal": 100000,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 12,
+    "code": "MPH883MA",
+    "nama": "LPK Mayagi",
+    "nominal": 100000,
+    "kategori": "LPK",
+    "isStaff": false
+  },
+  {
+    "rank": 13,
+    "code": "MPH144NA",
+    "nama": "Nanami Kay",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 14,
+    "code": "MPH805HE",
+    "nama": "Heru Ferdita Kifli",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 15,
+    "code": "MPH885SI",
+    "nama": "Silvieyana Rahman",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 16,
+    "code": "MPH240AK",
+    "nama": "Ami Kamila",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 17,
+    "code": "MPH550CA",
+    "nama": "Cahyadi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 18,
+    "code": "MPH537VE",
+    "nama": "Verry Wulandari",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 19,
+    "code": "MPH123AL",
+    "nama": "Alan Fauzy",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 20,
+    "code": "MPH486AD",
+    "nama": "Ade Hidayanti A",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 21,
+    "code": "MPH196YO",
+    "nama": "Yova Mustafa G",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 22,
+    "code": "MPH212YO",
+    "nama": "Yolanda Putri Nuraina",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 23,
+    "code": "MPH362NU",
+    "nama": "Nurul Fardilah",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 24,
+    "code": "MPH182RI",
+    "nama": "Rizkita Amanda",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 25,
+    "code": "MPH985PP",
+    "nama": "Pput Yulianti",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 26,
+    "code": "MPH673YA",
+    "nama": "Yayan Sopian",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 27,
+    "code": "MPH123FA",
+    "nama": "Fachri Ardiansyah",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 28,
+    "code": "MPH516HA",
+    "nama": "Haris Budi Bachtiar",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 29,
+    "code": "MPH913DE",
+    "nama": "Dede Rizki Salsa",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 30,
+    "code": "MPH028MS",
+    "nama": "M Saeful Anam",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 31,
+    "code": "MPH695MO",
+    "nama": "Mochammad Habib P",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 32,
+    "code": "MPH798AG",
+    "nama": "Agus",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 33,
+    "code": "MPH732HI",
+    "nama": "Hildayati",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 34,
+    "code": "MPH550MI",
+    "nama": "Mia",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 35,
+    "code": "MPH020VI",
+    "nama": "Virgiawan Yos Luhur",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 36,
+    "code": "MPH982AR",
+    "nama": "Aryo Julian",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 37,
+    "code": "MPH419DE",
+    "nama": "Desri Mawarni",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 38,
+    "code": "MPH030DE",
+    "nama": "Delfina Kayla Rahma",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 39,
+    "code": "MPH409TO",
+    "nama": "Tovandi Fadillah",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 40,
+    "code": "MPH555MA",
+    "nama": "Maftukhanul Karim",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 41,
+    "code": "MPH995AY",
+    "nama": "Ayi Arifin",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 42,
+    "code": "MPH327AY",
+    "nama": "Ayu Lestari",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 43,
+    "code": "MPH181LU",
+    "nama": "Lukman Hanafi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 44,
+    "code": "MPH218AN",
+    "nama": "Antini",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 45,
+    "code": "MPH628RA",
+    "nama": "Rapika",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 46,
+    "code": "MPH886NU",
+    "nama": "Nurul Annisa Rizalmi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 47,
+    "code": "MPH412AL",
+    "nama": "Alfi Sidqi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 48,
+    "code": "MPH551AN",
+    "nama": "Andiky Irdana Putri",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 49,
+    "code": "MPH885DE",
+    "nama": "Deni Permana Putra",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 50,
+    "code": "MPH102HE",
+    "nama": "Heru Yaldi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 51,
+    "code": "MPH073HI",
+    "nama": "Hisyam Achmad Fadhi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 52,
+    "code": "MPH086IN",
+    "nama": "Indra Saputra",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 53,
+    "code": "MPH247MI",
+    "nama": "Mitra Susmita",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 54,
+    "code": "MPH646WI",
+    "nama": "Wiwid S Noviyani",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 55,
+    "code": "MPH760LI",
+    "nama": "Lilis Puspitasari",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 56,
+    "code": "MPH726DE",
+    "nama": "Dedy Prastio Hartanto",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 57,
+    "code": "MPH001AN",
+    "nama": "Anisa Apriliani",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 58,
+    "code": "MPH996DI",
+    "nama": "Dian",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 59,
+    "code": "MPH540RA",
+    "nama": "Rahmadian Shodiqi",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 60,
+    "code": "MPH389KA",
+    "nama": "Khairul Julianto",
+    "nominal": 0,
+    "kategori": "Individu",
+    "isStaff": false
+  },
+  {
+    "rank": 61,
+    "code": "MAPAHTRIP",
+    "nama": "Staff Mapahtrip",
+    "nominal": 11600000,
+    "kategori": "Staff",
+    "isStaff": true
+  }
+]

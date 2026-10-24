@@ -6,12 +6,14 @@ interface DetailPengajuanViewProps {
   pengajuan: Pengajuan;
   onBack: () => void;
   onUpdateStatus: (newStatus: Pengajuan['status']) => void;
+  isOwner?: boolean;
 }
 
 export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
   pengajuan,
   onBack,
   onUpdateStatus,
+  isOwner = false,
 }) => {
   const [showRealPassport, setShowRealPassport] = useState(false);
   const [isSendingWA, setIsSendingWA] = useState(false);
@@ -158,42 +160,38 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                     alignItems: 'center',
                     gap: '6px',
                     padding: '4px 10px',
+                    background: 'var(--surface-container)',
                     borderRadius: '9999px',
-                    background: 'var(--surface-container-low)',
-                    border: '1px solid rgba(195, 198, 214, 0.4)',
                     fontSize: '0.8rem',
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--outline)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
                     badge
                   </span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                    {showRealPassport ? pengajuan.noPaspor : pengajuan.maskedPaspor}
-                  </span>
+                  <span>{showRealPassport ? pengajuan.noPaspor : pengajuan.maskedPaspor}</span>
                   <button
                     onClick={() => setShowRealPassport(!showRealPassport)}
-                    title={showRealPassport ? 'Sembunyikan' : 'Buka sensor'}
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: 'var(--primary)',
                       cursor: 'pointer',
-                      display: 'flex',
                       padding: 0,
+                      display: 'flex',
+                      color: 'var(--primary)',
                     }}
+                    title={showRealPassport ? 'Sembunyikan Paspor' : 'Lihat Paspor Lengkap'}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
                       {showRealPassport ? 'visibility_off' : 'visibility'}
                     </span>
                   </button>
                 </div>
 
-                <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
-                  {pengajuan.status}
-                </span>
+                <span className="badge badge-info">{pengajuan.status}</span>
               </div>
 
-              {/* Quick meta */}
               <div
                 style={{
                   display: 'flex',
@@ -327,6 +325,45 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
             ))}
           </div>
 
+          {pengajuan.fotoBase64 && (
+            <div
+              style={{
+                marginTop: '14px',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                background: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <img
+                src={pengajuan.fotoBase64}
+                alt="Pasfoto Pemohon"
+                style={{
+                  width: '46px',
+                  height: '58px',
+                  objectFit: 'cover',
+                  borderRadius: '6px',
+                  border: '1.5px solid #16A34A',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Pas Foto Pemohon</span>
+                  <span style={{ fontSize: '0.68rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px' }}>
+                    ✓ Supabase Cloud
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: '2px' }}>
+                  Ukuran terkompresi: <strong>{pengajuan.fotoSizeKB || '< 100'} KB</strong> (Sesuai Standar Konsulat &lt; 100KB)
+                </div>
+              </div>
+            </div>
+          )}
+
           {pengajuan.noResi && (
             <div
               style={{
@@ -345,83 +382,134 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
           )}
         </div>
 
-        {/* Column 2: Rincian Keuangan & Konsulat */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700 }}>
-              Rincian Keuangan Pengajuan
-            </h3>
-            <span className="badge badge-success">Lunas</span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--on-surface-variant)' }}>Dibayar Pemohon:</span>
-              <strong style={{ fontFamily: 'monospace' }}>{formatRupiah(pengajuan.dibayarPemohon)}</strong>
+        {/* Column 2: OWNER ONLY (Keuangan Pengajuan) vs STAFF (Penugasan & Jadwal Konsuler) */}
+        {isOwner ? (
+          <div className="card" style={{ background: 'linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 100%)', border: '1px solid #FDE68A' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700, color: '#78350F' }}>
+                👑 Rincian Keuangan Pengajuan
+              </h3>
+              <span className="badge badge-success">Lunas</span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--on-surface-variant)' }}>Biaya Konsulat &amp; Nominal Keluar:</span>
-              <span style={{ fontFamily: 'monospace', color: 'var(--error)' }}>
-                - {formatRupiah(pengajuan.nominalKeluar)}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--on-surface-variant)' }}>Cashback Mitra:</span>
-              <span style={{ fontFamily: 'monospace', color: 'var(--success)' }}>
-                + {formatRupiah(pengajuan.cashback)}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--on-surface-variant)' }}>Referral / Affiliate Fee:</span>
-              <span style={{ fontFamily: 'monospace', color: 'var(--warning)' }}>
-                - {formatRupiah(pengajuan.referralFee)}
-              </span>
-            </div>
-
-            <div
-              style={{
-                borderTop: '2px dashed rgba(195, 198, 214, 0.4)',
-                paddingTop: '12px',
-                marginTop: '6px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Fee Bersih MapahTrip
-                </div>
-                <div style={{ fontSize: '0.725rem', color: 'var(--success)', fontWeight: 600 }}>
-                  Margin Laba: 38.8%
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Dibayar Pemohon:</span>
+                <strong style={{ fontFamily: 'monospace' }}>{formatRupiah(pengajuan.dibayarPemohon)}</strong>
               </div>
-              <span
-                className="font-serif"
-                style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace' }}
-              >
-                {formatRupiah(pengajuan.feeBersih)}
-              </span>
-            </div>
 
-            {pengajuan.affiliateCode && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Biaya Konsulat &amp; Nominal Keluar:</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--error)' }}>
+                  - {formatRupiah(pengajuan.nominalKeluar)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Cashback Mitra:</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--success)' }}>
+                  + {formatRupiah(pengajuan.cashback)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Referral / Affiliate Fee:</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--warning)' }}>
+                  - {formatRupiah(pengajuan.referralFee)}
+                </span>
+              </div>
+
               <div
                 style={{
-                  marginTop: '10px',
-                  padding: '10px',
-                  borderRadius: '10px',
-                  background: 'var(--surface-container-low)',
-                  fontSize: '0.8rem',
+                  borderTop: '2px dashed rgba(245, 158, 11, 0.4)',
+                  paddingTop: '12px',
+                  marginTop: '6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                Kode Affiliate Terdaftar: <strong>{pengajuan.affiliateCode}</strong>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#92400E', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Fee Bersih MapahTrip
+                  </div>
+                  <div style={{ fontSize: '0.725rem', color: '#15803D', fontWeight: 600 }}>
+                    Margin Laba: 38.8%
+                  </div>
+                </div>
+                <span
+                  className="font-serif"
+                  style={{ fontSize: '1.45rem', fontWeight: 700, color: '#B45309', fontFamily: 'monospace' }}
+                >
+                  {formatRupiah(pengajuan.feeBersih)}
+                </span>
               </div>
-            )}
+
+              {pengajuan.affiliateCode && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '10px',
+                    borderRadius: '10px',
+                    background: '#FEF3C7',
+                    fontSize: '0.8rem',
+                    color: '#78350F',
+                  }}
+                >
+                  Kode Mitra Terdaftar: <strong>{pengajuan.affiliateCode}</strong>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700 }}>
+                Penugasan &amp; Jadwal Konsuler
+              </h3>
+              <span className="badge badge-success">✓ Terverifikasi</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Konsulat Yurisdiksi:</span>
+                <strong>Konsjen {pengajuan.konsjen}</strong>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Staff PIC Bertugas:</span>
+                <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{pengajuan.staffPic}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Paket Layanan:</span>
+                <span>{pengajuan.paket || 'Reguler'}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Tgl Apply ke Konsulat:</span>
+                <span style={{ fontWeight: 600 }}>{pengajuan.tglApply}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Estimasi Pengambilan:</span>
+                <span style={{ fontWeight: 600, color: 'var(--success)' }}>{pengajuan.tglEstimasiSelesai}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--on-surface-variant)' }}>Status Administrasi:</span>
+                <span style={{ color: 'var(--success)', fontWeight: 600 }}>Lunas di Sistem</span>
+              </div>
+
+              {pengajuan.affiliateCode && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                  <span style={{ color: 'var(--on-surface-variant)' }}>Mitra Pengirim:</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{pengajuan.affiliateCode}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Column 3: Log Tahapan Operasional & Ubah Status */}
         <div className="card">
@@ -440,7 +528,97 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
             </label>
             <select
               value={pengajuan.status}
-              onChange={(e) => onUpdateStatus(e.target.value as Pengajuan['status'])}
+              onChange={(e) => {
+                const nextStatus = e.target.value as Pengajuan['status'];
+                if (nextStatus === 'Sedang Diproses' && pengajuan.status !== 'Sedang Diproses') {
+                  const noWa = pengajuan.noTelp && pengajuan.noTelp.trim() ? pengajuan.noTelp.trim() : 'Nomor belum tersedia';
+                  const konfirmasi = window.confirm(
+                    `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
+                    `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
+                    `• Nama Pemohon : ${pengajuan.namaPemohon}\n` +
+                    `• No. Paspor   : ${pengajuan.noPaspor}\n` +
+                    `• No. WhatsApp : ${noWa}\n\n` +
+                    `⚠️ PENTING:\n` +
+                    `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+                    `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
+                  );
+                  if (!konfirmasi) return;
+
+                  if (pengajuan.noTelp && pengajuan.noTelp.trim()) {
+                    const today = new Date().toLocaleDateString('id-ID');
+                    const pesanWAProses =
+                      `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
+                      `Halo Sdr/i *${pengajuan.namaPemohon}*,\n\n` +
+                      `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
+                      `📋 *Rincian Pengajuan:*\n` +
+                      `• No. Pengajuan: ${pengajuan.noPengajuan || '-'}\n` +
+                      `• Nama Pemohon: ${pengajuan.namaPemohon}\n` +
+                      `• No. Paspor: ${pengajuan.noPaspor}\n` +
+                      `• Program: ${pengajuan.program || 'Visa Jepang'}\n` +
+                      `• Tanggal Apply: ${today}\n` +
+                      `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
+                      `Estimasi waktu pemrosesan kedutaan sekitar 3 - 5 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
+                      `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
+                      `Salam hangat,\n` +
+                      `*Tim Operasional MapahTrip*\n` +
+                      `Website: https://mapahtrip.com`;
+
+                    kirimPesanWA(pengajuan.noTelp, pesanWAProses)
+                      .then(() => {
+                        alert(
+                          `✅ STATUS VISA DIPROSES!\n\nStatus pengajuan "${pengajuan.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\nNotifikasi WhatsApp resmi telah dikirimkan ke ${pengajuan.noTelp}.`
+                        );
+                      })
+                      .catch((err) => {
+                        console.warn('[WA Gateway] Gagal kirim notif proses:', err);
+                      });
+                  }
+                } else if (nextStatus === 'Selesai' && pengajuan.status !== 'Selesai') {
+                  const noWa = pengajuan.noTelp && pengajuan.noTelp.trim() ? pengajuan.noTelp.trim() : 'Nomor belum tersedia';
+                  const konfirmasi = window.confirm(
+                    `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI?\n\n` +
+                    `Anda akan menandai pengajuan visa ini sebagai SELESAI:\n` +
+                    `• Nama Pemohon : ${pengajuan.namaPemohon}\n` +
+                    `• No. Paspor   : ${pengajuan.noPaspor}\n` +
+                    `• No. WhatsApp : ${noWa}\n\n` +
+                    `⚠️ PENTING:\n` +
+                    `Setelah dikonfirmasi, informasi update bahwa visa telah selesai dan terbit akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+                    `Apakah Anda yakin sudah selesai dan ingin melanjutkan?`
+                  );
+                  if (!konfirmasi) return;
+
+                  if (pengajuan.noTelp && pengajuan.noTelp.trim()) {
+                    const today = new Date().toLocaleDateString('id-ID');
+                    const pesanWASelesai =
+                      `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
+                      `Halo Sdr/i *${pengajuan.namaPemohon}*,\n\n` +
+                      `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
+                      `📋 *Rincian Pengajuan:*\n` +
+                      `• No. Pengajuan: ${pengajuan.noPengajuan || '-'}\n` +
+                      `• Nama Pemohon: ${pengajuan.namaPemohon}\n` +
+                      `• No. Paspor: ${pengajuan.noPaspor}\n` +
+                      `• Program: ${pengajuan.program || 'Visa Jepang'}\n` +
+                      `• Tanggal Selesai: ${today}\n` +
+                      `• Status: *SELESAI (Visa Terbit)*\n\n` +
+                      `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi pengambilan atau nomor resi pengiriman akan kami perbarui segera.\n\n` +
+                      `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
+                      `Salam hangat,\n` +
+                      `*Tim Operasional MapahTrip*\n` +
+                      `Website: https://mapahtrip.com`;
+
+                    kirimPesanWA(pengajuan.noTelp, pesanWASelesai)
+                      .then(() => {
+                        alert(
+                          `✅ STATUS VISA SELESAI!\n\nStatus pengajuan "${pengajuan.namaPemohon}" telah diubah menjadi SELESAI.\nNotifikasi WhatsApp resmi telah dikirimkan ke ${pengajuan.noTelp}.`
+                        );
+                      })
+                      .catch((err) => {
+                        console.warn('[WA Gateway] Gagal kirim notif selesai:', err);
+                      });
+                  }
+                }
+                onUpdateStatus(nextStatus);
+              }}
               style={{
                 width: '100%',
                 marginTop: '6px',

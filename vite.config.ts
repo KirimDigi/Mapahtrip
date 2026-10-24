@@ -5,4 +5,14 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  server: {
+    proxy: {
+      '/api-wa': {
+        target: 'https://hypnotic-curtly-dealt.ngrok-free.dev',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api-wa/, ''),
+      },
+    },
+  },
 })

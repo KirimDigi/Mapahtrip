@@ -1,14 +1,88 @@
 import logoHitam from '../assets/mapahtrip_logo_hitam.png';
 import logoPutih from '../assets/mapahtrip_logo_putih.png';
 import buildingPhoto from '../assets/MapahTrip.jpg';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Pengajuan, KonsjenKota } from '../types';
 import { searchPasporInDB, createPengajuanInDB } from '../lib/supabase';
 import { kirimPesanWA } from '../whatsapp';
+import { REAL_AFFILIATE_LEADERBOARD } from '../data/affiliateLeaderboardData';
+import { compressImageUnder100KB } from '../utils/imageCompressor';
 
 interface CustomerHomeProps {
   pengajuanList: Pengajuan[];
+  onAddNewPengajuan?: (pengajuan: Pengajuan) => void;
 }
+
+// Helper validasi kode referral mitra resmi
+export const validateReferralCode = (
+  rawCode: string,
+  pengajuanList: Pengajuan[] = []
+): { isValid: boolean; partnerName: string | null; code: string } => {
+  const clean = (rawCode || '').trim().toUpperCase();
+  if (!clean) {
+    return { isValid: false, partnerName: null, code: '' };
+  }
+
+  // 1. Akun Demo LPK / MPC
+  if (clean === 'MPH425MI' || clean === 'MPC') {
+    return { isValid: true, partnerName: 'Mitra Demo LPK (MPC)', code: 'MPH425MI' };
+  }
+
+  // 2. Cek Real Affiliate Leaderboard (Spreadsheet Resmi)
+  const foundLeaderboard = REAL_AFFILIATE_LEADERBOARD.find(
+    (m) => m.code.toUpperCase().trim() === clean
+  );
+  if (foundLeaderboard) {
+    return { isValid: true, partnerName: foundLeaderboard.nama, code: foundLeaderboard.code };
+  }
+
+  // 3. Cek localStorage mapahtrip_all_affiliates
+  try {
+    const saved = localStorage.getItem('mapahtrip_all_affiliates');
+    if (saved) {
+      const all: any[] = JSON.parse(saved);
+      const found = all.find(
+        (u) => (u.affiliateCode || '').toUpperCase().trim() === clean
+      );
+      if (found) {
+        return {
+          isValid: true,
+          partnerName: found.lembaga || found.nama || 'Mitra Terdaftar',
+          code: found.affiliateCode,
+        };
+      }
+    }
+  } catch {}
+
+  // 4. Cek current logged in affiliate
+  try {
+    const curr = localStorage.getItem('mapahtrip_current_affiliate');
+    if (curr) {
+      const parsed = JSON.parse(curr);
+      if ((parsed.affiliateCode || '').toUpperCase().trim() === clean) {
+        return {
+          isValid: true,
+          partnerName: parsed.lembaga || parsed.nama || 'Mitra Terdaftar',
+          code: parsed.affiliateCode,
+        };
+      }
+    }
+  } catch {}
+
+  // 5. Cek kode dari pengajuanList
+  const foundInPengajuan = pengajuanList.find(
+    (p) => (p.affiliateCode || '').toUpperCase().trim() === clean
+  );
+  if (foundInPengajuan && foundInPengajuan.affiliateCode) {
+    return {
+      isValid: true,
+      partnerName: `Mitra ${foundInPengajuan.affiliateCode}`,
+      code: foundInPengajuan.affiliateCode,
+    };
+  }
+
+  return { isValid: false, partnerName: null, code: clean };
+};
 
 // --- Official Brand Logos (High-Fidelity SVGs) ---
 const InstagramBrandIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
@@ -277,7 +351,7 @@ const VISA_OPTIONS = [
   },
 ];
 
-export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => {
+export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAddNewPengajuan }) => {
   const [trackingPaspor, setTrackingPaspor] = useState('');
   const [trackingResult, setTrackingResult] = useState<Pengajuan | null | 'NOT_FOUND'>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -321,6 +395,11 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
     coe: null,
     foto: null,
   });
+
+  // State Pasfoto Terkompresi Otomatis Di Bawah 100KB untuk Supabase Cloud
+  const [formFotoBase64, setFormFotoBase64] = useState<string | null>(null);
+  const [formFotoSizeKB, setFormFotoSizeKB] = useState<{ original: number; compressed: number } | null>(null);
+  const [isCompressingFoto, setIsCompressingFoto] = useState(false);
 
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formSuccessMessage, setFormSuccessMessage] = useState<string | null>(null);
@@ -392,6 +471,15 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
       // ignore
     }
   }, []);
+
+  // Status Validasi Kode Referral (Khusus jika memilih "Ya, Punya Kode")
+  const referralValidation = useMemo(() => {
+    if (hasRefChoice !== 'yes') {
+      return { isValid: true, partnerName: null, code: '' };
+    }
+    return validateReferralCode(customerRefCode, pengajuanList);
+  }, [hasRefChoice, customerRefCode, pengajuanList]);
+
   const [activeVisaTab, setActiveVisaTab] = useState<'all' | 'turis' | 'bisnis' | 'keluarga'>('all');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -401,22 +489,83 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
 
 
 
+  const getCustomerStages = (item: Pengajuan) => {
+    let stageOverrides: Record<string, any> = {};
+    try {
+      const saved = localStorage.getItem('mapahtrip_stage_overrides');
+      if (saved) stageOverrides = JSON.parse(saved);
+    } catch {}
+
+    const ov = stageOverrides[item.id] || {};
+    const tglSampai = ov.tglSampai !== undefined ? ov.tglSampai : (item.tglBerkasMasuk || '');
+    const tglProses = ov.tglProses !== undefined ? ov.tglProses : (item.tglApply || '');
+    const tglSelesai = ov.tglSelesai !== undefined ? ov.tglSelesai : (item.tglSelesai || '');
+    const tglKirim = ov.tglKirim !== undefined ? ov.tglKirim : (item.tglKirim || '');
+    const noResi = ov.noResi !== undefined ? ov.noResi : (item.noResi || '');
+    const currentStatus = ov.status || item.status;
+
+    return {
+      tglSampai,
+      isSampai: Boolean(tglSampai && tglSampai !== '-'),
+      tglProses,
+      isProses: Boolean(tglProses && tglProses !== '-'),
+      tglSelesai,
+      isSelesai: Boolean(tglSelesai && tglSelesai !== '-'),
+      tglKirim,
+      isKirim: Boolean((tglKirim && tglKirim !== '-') || (noResi && noResi !== '-')),
+      noResi,
+      currentStatus,
+    };
+  };
+
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trackingPaspor.trim()) return;
     setIsSearching(true);
     const cleanQuery = trackingPaspor.trim().toLowerCase();
+    const numOnly = cleanQuery.replace(/[^0-9]/g, '');
 
-    // 1. Check in loaded list first
-    const found = pengajuanList.find(
-      (p) =>
-        p.noPaspor.toLowerCase() === cleanQuery ||
-        p.noPengajuan.toLowerCase() === cleanQuery ||
-        p.namaPemohon.toLowerCase().includes(cleanQuery)
-    );
+    // 1. Baca data lokal & stage overrides agar sinkron instan
+    let localList: Pengajuan[] = [];
+    let stageOverrides: Record<string, any> = {};
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) localList = JSON.parse(raw);
+      const ovRaw = localStorage.getItem('mapahtrip_stage_overrides');
+      if (ovRaw) stageOverrides = JSON.parse(ovRaw);
+    } catch {}
+
+    const mergeWithOverrides = (item: Pengajuan): Pengajuan => {
+      const ov = stageOverrides[item.id] || {};
+      return {
+        ...item,
+        tglBerkasMasuk: ov.tglSampai !== undefined ? ov.tglSampai : item.tglBerkasMasuk,
+        tglApply: ov.tglProses !== undefined ? ov.tglProses : item.tglApply,
+        tglSelesai: ov.tglSelesai !== undefined ? ov.tglSelesai : item.tglSelesai,
+        tglKirim: ov.tglKirim !== undefined ? ov.tglKirim : item.tglKirim,
+        noResi: ov.noResi !== undefined ? ov.noResi : item.noResi,
+        status: ov.status || item.status,
+      };
+    };
+
+    // Cari di pendaftaran lokal dan pengajuanList
+    const all = [...localList, ...pengajuanList];
+    const found = all.find((p) => {
+      const pPaspor = (p.noPaspor || '').toLowerCase();
+      const pPengajuan = (p.noPengajuan || '').toLowerCase();
+      const pId = (p.id || '').toLowerCase();
+      const pNama = (p.namaPemohon || '').toLowerCase();
+      return (
+        pPaspor === cleanQuery ||
+        pPengajuan === cleanQuery ||
+        pId === cleanQuery ||
+        (numOnly && (pPengajuan.includes(numOnly) || pId === numOnly)) ||
+        pNama.includes(cleanQuery)
+      );
+    });
 
     if (found) {
-      setTrackingResult(found);
+      setTrackingResult(mergeWithOverrides(found));
       setIsSearching(false);
       return;
     }
@@ -425,7 +574,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
     try {
       const dbResult = await searchPasporInDB(cleanQuery);
       if (dbResult) {
-        setTrackingResult(dbResult);
+        setTrackingResult(mergeWithOverrides(dbResult));
       } else {
         setTrackingResult('NOT_FOUND');
       }
@@ -436,72 +585,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
     }
   };
 
-  // Helper untuk mengonversi berkas dokumen/gambar menjadi base64 (dengan kompresi ultra-cepat)
-  const processFileForUpload = (
-    file: File | null
-  ): Promise<{ name: string; type: string; base64: string } | null> => {
-    if (!file) return Promise.resolve(null);
-    return new Promise((resolve) => {
-      // Jika berkas berupa gambar, kompres dengan ukuran ideal (max 1200px, ~80-120 KB) agar upload super cepat
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            const maxDim = 1200;
-            let w = img.width;
-            let h = img.height;
-            if (w > maxDim || h > maxDim) {
-              if (w > h) {
-                h = Math.round((h * maxDim) / w);
-                w = maxDim;
-              } else {
-                w = Math.round((w * maxDim) / h);
-                h = maxDim;
-              }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, w, h);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-              const base64 = dataUrl.split(',')[1] || '';
-              resolve({
-                name: file.name.replace(/\.[^/.]+$/, '') + '.jpg',
-                type: 'image/jpeg',
-                base64,
-              });
-              return;
-            }
-            const rawBase64 = ((e.target?.result as string) || '').split(',')[1] || '';
-            resolve({ name: file.name, type: file.type || 'image/jpeg', base64: rawBase64 });
-          };
-          img.onerror = () => {
-            const rawBase64 = ((e.target?.result as string) || '').split(',')[1] || '';
-            resolve({ name: file.name, type: file.type || 'application/octet-stream', base64: rawBase64 });
-          };
-          img.src = e.target?.result as string;
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
-      } else {
-        // PDF atau dokumen lainnya
-        const reader = new FileReader();
-        reader.onload = () => {
-          const res = (reader.result as string).split(',')[1] || '';
-          resolve({
-            name: file.name,
-            type: file.type || 'application/pdf',
-            base64: res,
-          });
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
-      }
-    });
-  };
+
 
   const handleKirimPendaftaran = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -514,43 +598,33 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
       return;
     }
 
+    // Validasi Kode Referral (Khusus pemohon yang memilih punya kode)
+    if (hasRefChoice === 'yes') {
+      const check = validateReferralCode(customerRefCode, pengajuanList);
+      if (!check.isValid) {
+        setFormError(
+          `Kode referral "${customerRefCode}" tidak valid atau tidak terdaftar. Harap masukkan kode mitra resmi yang valid (contoh: MPH425MI).`
+        );
+        return;
+      }
+    }
+
     const finalDomisili =
       formDomisili === 'Lainnya' ? formDomisiliLainnya.trim() || 'Lainnya' : formDomisili;
 
-    const finalRefCode =
-      hasRefChoice === 'yes' && customerRefCode.trim()
-        ? customerRefCode.trim().toUpperCase()
-        : 'MAPAHTRIP';
+    const cleanInputCode = customerRefCode.trim().toUpperCase();
+    let finalRefCode = 'MAPAHTRIP';
+    if (cleanInputCode) {
+      const check = validateReferralCode(cleanInputCode, pengajuanList);
+      finalRefCode = check.isValid ? check.code : cleanInputCode;
+    }
 
     setFormSubmitting(true);
     setFormError(null);
 
-    // 1. Siapkan file berkas untuk diunggah (kompresi lokal sangat cepat secara paralel)
-    let fileFormVisa = null;
-    let fileKtp = null;
-    let fileEktln = null;
-    let fileCoe = null;
-    let fileFoto = null;
 
-    try {
-      [fileFormVisa, fileKtp, fileEktln, fileCoe, fileFoto] = await Promise.all([
-        processFileForUpload(formFiles.formVisa),
-        processFileForUpload(formFiles.ktp),
-        processFileForUpload(formFiles.ektln),
-        processFileForUpload(formFiles.coe),
-        processFileForUpload(formFiles.foto),
-      ]);
-    } catch (fileErr) {
-      console.warn('Catatan pemrosesan file upload:', fileErr);
-    }
-
-    // 2. Jalankan penyimpanan Database Supabase dan pengiriman Google Apps Script secara SIMULTAN / PARALEL
-    const sheetsWebhookUrl =
-      (import.meta as any).env?.VITE_GOOGLE_SHEETS_WEBHOOK_URL ||
-      localStorage.getItem('mapahtrip_sheets_webhook_url') ||
-      'https://script.google.com/macros/s/AKfycbz789i6peUgtZwAaGb35BvpT2jR7-DnvZou5I6xvLkSsPnE3w_bnAyEIu08wdcU1T2Reg/exec';
-
-    const saveToSupabase = createPengajuanInDB({
+    // 1. Simpan pendaftaran langsung dan aman ke database Supabase Cloud
+    const savedDb = await createPengajuanInDB({
       nama: formNama.trim(),
       domisili_ktp: finalDomisili,
       konsjen: formKonsjen,
@@ -564,59 +638,121 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
       foto: !!formFiles.foto,
       program: selectedVisaModal?.title || 'Visa Jepang',
       paket: formPaket,
+      foto_base64: formFotoBase64 || undefined,
+      original_size_kb: formFotoSizeKB?.original,
+      compressed_size_kb: formFotoSizeKB?.compressed,
     }).catch((err) => {
-      console.warn('Gagal mencatat pengajuan ke DB:', err);
+      console.warn('Gagal mencatat pengajuan ke Supabase:', err);
+      return null;
     });
 
-    const sendToGoogleSheets = sheetsWebhookUrl
-      ? fetch(sheetsWebhookUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            timestamp: new Date().toLocaleString('id-ID'),
-            nama: formNama.trim(),
-            domisili_ktp: finalDomisili,
-            konsjen: formKonsjen,
-            no_wa: formNoWa.trim(),
-            no_paspor: formNoPaspor.trim() || '-',
-            code_referral: finalRefCode,
-            program: selectedVisaModal?.title || 'Visa Jepang',
-            paket: formPaket,
-            form_visa: fileFormVisa || (formFiles.formVisa ? formFiles.formVisa.name : '-'),
-            ktp: fileKtp || (formFiles.ktp ? formFiles.ktp.name : '-'),
-            ektln: fileEktln || (formFiles.ektln ? formFiles.ektln.name : '-'),
-            coe: fileCoe || (formFiles.coe ? formFiles.coe.name : '-'),
-            foto: fileFoto || (formFiles.foto ? formFiles.foto.name : '-'),
-          }),
-        }).catch((sheetErr) => {
-          console.warn('Google Sheets Webhook note:', sheetErr);
-        })
-      : Promise.resolve();
+    const dbRow = savedDb as any;
+    const rawNumber = dbRow?.no_urut || dbRow?.id || (pengajuanList.length + 1);
+    const idPendaftaran = `MT-${String(rawNumber).padStart(4, '0')}`;
+    const newApplicantId = dbRow?.id ? String(dbRow.id) : `MT-REG-${Date.now()}`;
 
-    // 3. Kirim notifikasi WhatsApp otomatis via Gateway API (Session: Mapahtrip)
+    // 2. Kirim notifikasi WhatsApp otomatis via Gateway API (Session: Mapahtrip)
     const namaPendaftar = formNama.trim();
     const programVisa = selectedVisaModal?.title || 'Visa Jepang';
-    const noPasporText = formNoPaspor.trim() && formNoPaspor.trim() !== '-' ? formNoPaspor.trim() : '-';
+    const noPasporText = formNoPaspor.trim() && formNoPaspor.trim() !== '-' ? formNoPaspor.trim().toUpperCase() : '-';
 
     const waMessage =
-      `Halo Kak *${namaPendaftar}*, terima kasih sudah mendaftar di *Mapah Trip*! 🇯🇵✨\n\n` +
-      `Data pendaftaran pengajuan visa Anda telah berhasil kami terima:\n` +
-      `📋 *Program:* ${programVisa} (${formPaket})\n` +
-      `🏛️ *Konsulat Tujuan:* Konsjen ${formKonsjen}\n` +
-      `📍 *Domisili KTP:* ${finalDomisili}\n` +
-      (noPasporText !== '-' ? `🛂 *No. Paspor:* ${noPasporText}\n` : '') +
-      `🏷️ *Kode Referral:* ${finalRefCode}\n\n` +
-      `Tim operasional Mapah Trip akan segera memverifikasi kelengkapan berkas Anda dan memberikan arahan tahapan berikutnya.\n\n` +
-      `Jika ada berkas tambahan atau pertanyaan seputar proses visa Jepang, silakan langsung membalas pesan WhatsApp ini ya Kak. Terima kasih! 🙏\n\n` +
-      `_Mapah Trip - Layanan Pengajuan Visa Jepang Resmi & Terpercaya_`;
+`Halo Kak *${namaPendaftar}*! 👋🇯🇵
 
-    const sendToWhatsApp = kirimPesanWA(formNoWa.trim(), waMessage).catch((waErr) => {
+Terima kasih telah mendaftar layanan pengajuan visa Jepang di *Mapah Trip*. ✨
+
+Pendaftaran Kakak berhasil kami terima dengan detail berikut:
+
+📋 *Detail Pendaftaran*
+• *Program Visa:* ${programVisa} (${formPaket})
+• *Konsulat Tujuan:* Konsulat Jenderal Jepang di ${formKonsjen}
+• *Domisili KTP:* ${finalDomisili}
+• *No. Paspor:* ${noPasporText}
+• *Kode Referral:* ${finalRefCode}
+• *ID Pendaftaran:* *${idPendaftaran}*
+
+📌 *Status Pengajuan:*
+Menunggu verifikasi kelengkapan berkas oleh tim operasional Mapah Trip.
+
+📍 *Tahapan Selanjutnya*
+
+Tim kami akan memeriksa data dan kelengkapan berkas Kakak.
+
+Jika terdapat kekurangan dokumen, tim kami akan menghubungi Kakak melalui WhatsApp.
+
+Setelah verifikasi selesai, Kakak akan mendapatkan arahan untuk tahapan pengajuan berikutnya.
+
+🙏 *Mohon diperhatikan:*
+• Pastikan nomor WhatsApp Kakak tetap aktif.
+• Silakan menunggu informasi selanjutnya dari tim kami.
+• Demi keamanan data, kirimkan dokumen tambahan hanya melalui kanal resmi Mapah Trip.
+
+Jika ada pertanyaan, Kakak bisa langsung membalas pesan WhatsApp ini ya.
+
+Terima kasih telah mempercayakan proses pengajuan visa Jepang kepada Mapah Trip. 🇯🇵
+
+*Mapah Trip*
+_Layanan Pengajuan Visa Jepang_`;
+
+    kirimPesanWA(formNoWa.trim(), waMessage).catch((waErr) => {
       console.warn('Catatan pengiriman WhatsApp Gateway:', waErr);
       return null;
     });
 
-    await Promise.all([saveToSupabase, sendToGoogleSheets, sendToWhatsApp]);
+    const paspor =
+      formNoPaspor.trim() && formNoPaspor.trim() !== '-'
+        ? formNoPaspor.trim().toUpperCase()
+        : `MT${Math.floor(100000 + Math.random() * 900000)}`;
+    const masked = paspor.length > 4 ? `${paspor.slice(0, 3)}***${paspor.slice(-2)}` : paspor;
+
+    const newPengajuan: Pengajuan = {
+      id: newApplicantId,
+      noPengajuan: idPendaftaran,
+      namaPemohon: formNama.trim(),
+      noPaspor: paspor,
+      maskedPaspor: masked,
+      noTelp: formNoWa.trim(),
+      konsjen: formKonsjen,
+      staffPic: 'Rizky Muhammad',
+      program: selectedVisaModal?.title || 'Visa Jepang',
+      paket: formPaket,
+      tglBerkasMasuk: new Date().toLocaleDateString('id-ID'),
+      tglApply: '-',
+      tglEstimasiSelesai: 'Menunggu Verifikasi Berkas',
+      status: 'Menunggu Verifikasi',
+      affiliateCode: finalRefCode,
+      dibayarPemohon: 1650000,
+      nominalKeluar: 1135000,
+      cashback: 100000,
+      feeBersih: 415000,
+      referralFee: 100000,
+      berkas: {
+        formVisa: true,
+        ktp: true,
+        ektln: !!formFiles.ektln,
+        coe: !!formFiles.coe,
+        foto: !!formFiles.foto,
+        pasporFisik: false,
+      },
+      catatan: `Pendaftaran mandiri via Website. Domisili: ${finalDomisili}`,
+      fotoBase64: formFotoBase64 || undefined,
+      fotoSizeKB: formFotoSizeKB?.compressed,
+    };
+
+    // Simpan ke localStorage agar data pendaftar tersinkron instan di semua portal
+    try {
+      const localSaved = localStorage.getItem('mapahtrip_local_registrations');
+      const list: Pengajuan[] = localSaved ? JSON.parse(localSaved) : [];
+      const filtered = list.filter((p) => p.id !== newPengajuan.id);
+      filtered.unshift(newPengajuan);
+      localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(filtered));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+
+    // Panggil callback agar state pengajuanList di App.tsx terupdate secara realtime
+    if (onAddNewPengajuan) {
+      onAddNewPengajuan(newPengajuan);
+    }
 
     setFormSubmitting(false);
     setModalStep('success');
@@ -1503,56 +1639,196 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
             </div>
           )}
 
-          {typeof trackingResult === 'object' && trackingResult !== null && (
-            <div
-              style={{
-                marginTop: '28px',
-                padding: '24px',
-                borderRadius: '20px',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                textAlign: 'left',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Nama Pemohon</span>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A' }}>
-                    {trackingResult.namaPemohon}
+          {typeof trackingResult === 'object' && trackingResult !== null && (() => {
+            const st = getCustomerStages(trackingResult);
+            const stageSteps = [
+              { key: 'sampai', label: '1. Berkas Sampai', ok: st.isSampai, date: st.tglSampai, desc: 'Dokumen & paspor fisik diterima di kantor MapahTrip', icon: 'inventory_2', color: '#0284C7', bg: '#E0F2FE' },
+              { key: 'proses', label: '2. Diproses', ok: st.isProses, date: st.tglProses, desc: 'Diajukan & diproses di Kedutaan/JVAC', icon: 'sync', color: '#D97706', bg: '#FEF3C7' },
+              { key: 'selesai', label: '3. Visa Terbit', ok: st.isSelesai, date: st.tglSelesai, desc: 'Visa resmi Jepang disetujui & tertempel', icon: 'verified', color: '#16A34A', bg: '#DCFCE7' },
+              { key: 'kirim', label: '4. Paspor Dikirim', ok: st.isKirim, date: st.tglKirim, desc: st.noResi ? `Resi: ${st.noResi}` : 'Diserahkan via kurir / diambil langsung', icon: 'local_shipping', color: '#7C3AED', bg: '#F3E8FF' },
+            ];
+
+            const completedCount = stageSteps.filter(s => s.ok).length;
+
+            return (
+              <div
+                style={{
+                  marginTop: '28px',
+                  padding: '28px',
+                  borderRadius: '20px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  textAlign: 'left',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+                }}
+              >
+                {/* Header Info Pemohon & Status Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingBottom: '16px', borderBottom: '1px solid #F1F5F9' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Nama Pemohon:</span>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A' }}>
+                      {trackingResult.namaPemohon}
+                    </div>
+                    <div style={{ fontSize: '0.80rem', color: '#64748B', fontFamily: 'monospace', marginTop: '2px' }}>
+                      No. Paspor: <strong>{trackingResult.noPaspor}</strong> • ID: <strong>{trackingResult.noPengajuan}</strong>
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: '9999px',
+                        background: st.isKirim
+                          ? '#F3E8FF'
+                          : st.isSelesai
+                          ? '#ECFDF5'
+                          : st.isProses
+                          ? '#FEF3C7'
+                          : st.isSampai
+                          ? '#E0F2FE'
+                          : '#F1F5F9',
+                        color: st.isKirim
+                          ? '#6B21A8'
+                          : st.isSelesai
+                          ? '#047857'
+                          : st.isProses
+                          ? '#B45309'
+                          : st.isSampai
+                          ? '#0369A1'
+                          : '#475569',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      }}
+                    >
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
+                      <span>
+                        {st.isKirim
+                          ? 'Selesai & Paspor Dikirim'
+                          : st.isSelesai
+                          ? 'Visa Telah Terbit'
+                          : st.isProses
+                          ? 'Sedang Diproses Konsulat'
+                          : st.isSampai
+                          ? 'Berkas Diterima di Kantor'
+                          : 'Pendaftaran Diterima'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div style={{ padding: '4px 14px', borderRadius: '9999px', background: '#ecfdf5', color: '#047857', fontWeight: 700, fontSize: '0.85rem' }}>
-                  Status: {trackingResult.status}
-                </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '18px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
-                <div>
-                  <span style={{ color: '#64748B' }}>Nomor Pengajuan:</span>
-                  <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{trackingResult.noPengajuan}</div>
-                </div>
-                <div>
-                  <span style={{ color: '#64748B' }}>Konsulat Tujuan:</span>
-                  <div style={{ fontWeight: 600 }}>Konsjen {trackingResult.konsjen}</div>
-                </div>
-                <div>
-                  <span style={{ color: '#64748B' }}>Program:</span>
-                  <div style={{ fontWeight: 600 }}>{trackingResult.program}</div>
-                </div>
-                <div>
-                  <span style={{ color: '#64748B' }}>Nomor Resi / Paspor:</span>
-                  <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{trackingResult.noResi || 'Sedang Diproses'}</div>
-                </div>
-              </div>
+                {/* 4-Tahapan Progress Stepper Timeline */}
+                <div style={{ marginTop: '22px', padding: '18px 16px', backgroundColor: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563EB' }}>timeline</span>
+                      <span>Tahapan Pengerjaan Dokumen ({completedCount}/4 Tahap Selesai)</span>
+                    </div>
+                    <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      Program: <strong style={{ color: '#0F172A' }}>{trackingResult.program}</strong>
+                    </span>
+                  </div>
 
-              {trackingResult.catatan && (
-                <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#eff6ff', fontSize: '0.825rem', color: '#1e40af' }}>
-                  <strong>Catatan Operasional:</strong> {trackingResult.catatan}
+                  {/* 4 Cards Grid Stepper */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                    {stageSteps.map((s, sIdx) => (
+                      <div
+                        key={s.key}
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          border: s.ok ? `2px solid ${s.color}` : '1px solid #E2E8F0',
+                          borderRadius: '12px',
+                          padding: '12px 10px',
+                          position: 'relative',
+                          boxShadow: s.ok ? '0 2px 6px rgba(0,0,0,0.04)' : 'none',
+                          opacity: s.ok ? 1 : 0.65,
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              backgroundColor: s.ok ? s.color : '#E2E8F0',
+                              color: s.ok ? '#FFFFFF' : '#64748B',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                            }}
+                          >
+                            {s.ok ? '✓' : sIdx + 1}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: s.ok ? s.bg : '#F1F5F9',
+                              color: s.ok ? s.color : '#64748B',
+                            }}
+                          >
+                            {s.ok ? 'Selesai' : 'Menunggu'}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: '0.82rem', color: s.ok ? '#0F172A' : '#64748B' }}>
+                          {s.label}
+                        </div>
+                        <div style={{ fontSize: '0.70rem', color: s.ok ? s.color : '#94A3B8', fontFamily: 'monospace', fontWeight: 700, marginTop: '2px' }}>
+                          {s.ok ? (s.date || 'Selesai') : '-'}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '4px', lineHeight: 1.3 }}>
+                          {s.desc}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Detail Info Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '18px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Nomor Pengajuan:</span>
+                    <div style={{ fontWeight: 700, fontFamily: 'monospace', color: '#0F172A' }}>{trackingResult.noPengajuan}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Konsulat Tujuan:</span>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>Konsjen {trackingResult.konsjen}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Program Visa:</span>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{trackingResult.program}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Nomor Resi / Pengiriman:</span>
+                    <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                      {st.isKirim && st.noResi ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F3E8FF', color: '#6B21A8' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_shipping</span>
+                          <span>{st.noResi}</span>
+                        </span>
+                      ) : (
+                        <span style={{ color: '#94A3B8' }}>Belum Dikirim</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {trackingResult.catatan && (
+                  <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#eff6ff', fontSize: '0.825rem', color: '#1e40af' }}>
+                    <strong>Catatan:</strong> {trackingResult.catatan}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </section>
 
@@ -2055,7 +2331,13 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 <div
                   style={{
                     backgroundColor: '#F8FAFC',
-                    border: hasRefChoice === 'yes' ? '1.5px solid #005BB5' : '1.5px solid #E2E8F0',
+                    border: hasRefChoice === 'yes'
+                      ? customerRefCode.trim()
+                        ? referralValidation.isValid
+                          ? '1.5px solid #10B981'
+                          : '1.5px solid #EF4444'
+                        : '1.5px solid #005BB5'
+                      : '1.5px solid #E2E8F0',
                     borderRadius: '14px',
                     padding: '12px 14px',
                     marginBottom: '20px',
@@ -2069,19 +2351,55 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                       </span>
                       Apakah kamu punya kode referral mitra?
                     </span>
-                    {hasRefChoice === 'yes' && customerRefCode.trim() && (
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          backgroundColor: '#DCFCE7',
-                          color: '#15803D',
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: '9999px',
-                        }}
-                      >
-                        ✓ Kode Terpasang
-                      </span>
+                    {hasRefChoice === 'yes' && (
+                      customerRefCode.trim() ? (
+                        referralValidation.isValid ? (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              backgroundColor: '#DCFCE7',
+                              color: '#15803D',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '9999px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            ✓ Kode Valid
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              backgroundColor: '#FEE2E2',
+                              color: '#DC2626',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '9999px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            ✕ Kode Tidak Valid
+                          </span>
+                        )
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            backgroundColor: '#FEF3C7',
+                            color: '#D97706',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                          }}
+                        >
+                          Wajib Isi Kode
+                        </span>
+                      )
                     )}
                   </div>
 
@@ -2151,12 +2469,17 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                           setCustomerRefCode(val);
                           localStorage.setItem('mapahtrip_customer_ref', val);
                         }}
-                        placeholder="Masukkan Kode Referral (cth: MT-AGUS482)"
+                        placeholder="Masukkan Kode Referral Resmi (contoh: MPH425MI)"
                         style={{
                           width: '100%',
-                          padding: '8px 12px',
+                          padding: '9px 12px',
                           borderRadius: '8px',
-                          border: '1.5px solid #005BB5',
+                          border: customerRefCode.trim()
+                            ? referralValidation.isValid
+                              ? '1.5px solid #10B981'
+                              : '1.5px solid #EF4444'
+                            : '1.5px solid #005BB5',
+                          backgroundColor: '#FFFFFF',
                           fontSize: '0.85rem',
                           fontWeight: 700,
                           color: '#0F172A',
@@ -2165,6 +2488,25 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                           textTransform: 'uppercase',
                         }}
                       />
+
+                      {/* Feedback Text Real-time di Bawah Input */}
+                      {customerRefCode.trim() ? (
+                        referralValidation.isValid ? (
+                          <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#16A34A', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>verified</span>
+                            <span>Kode valid milik <strong>{referralValidation.partnerName}</strong>. Pengajuan Anda otomatis terhubung ke portal affiliate mitra.</span>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#DC2626', display: 'flex', alignItems: 'flex-start', gap: '5px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px', marginTop: '1px' }}>error</span>
+                            <span>Kode referral <strong>"{customerRefCode}"</strong> tidak terdaftar. Kode harus sama/sesuai kode mitra resmi (contoh: <strong>MPH425MI</strong>) agar masuk ke affiliate.</span>
+                          </div>
+                        )
+                      ) : (
+                        <div style={{ marginTop: '6px', fontSize: '0.74rem', color: '#64748B' }}>
+                          Harap masukkan kode referral mitra Anda. Jika tidak punya, silakan pilih "Tidak Punya".
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2173,26 +2515,48 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => setModalStep('form')}
+                    disabled={hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)}
+                    onClick={() => {
+                      if (hasRefChoice === 'yes') {
+                        if (!customerRefCode.trim()) {
+                          alert('Silakan masukkan kode referral mitra terlebih dahulu, atau pilih opsi "Tidak Punya".');
+                          return;
+                        }
+                        if (!referralValidation.isValid) {
+                          alert(`Kode referral "${customerRefCode}" tidak terdaftar. Harap masukkan kode referral mitra yang valid agar masuk ke affiliate.`);
+                          return;
+                        }
+                      }
+                      setModalStep('form');
+                    }}
                     style={{
                       flex: 1,
-                      backgroundColor: '#005BB5',
+                      backgroundColor: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? '#94A3B8' : '#005BB5',
                       color: '#FFFFFF',
                       padding: '14px 20px',
                       borderRadius: '9999px',
                       fontWeight: 700,
                       fontSize: '0.92rem',
                       border: 'none',
-                      cursor: 'pointer',
+                      cursor: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      boxShadow: '0 4px 14px rgba(0, 91, 181, 0.28)',
+                      boxShadow: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'none' : '0 4px 14px rgba(0, 91, 181, 0.28)',
                       transition: 'all 0.15s ease',
+                      opacity: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 0.7 : 1,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#00478F')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#005BB5')}
+                    onMouseEnter={(e) => {
+                      if (!(hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
+                        e.currentTarget.style.backgroundColor = '#00478F';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!(hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
+                        e.currentTarget.style.backgroundColor = '#005BB5';
+                      }
+                    }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
                       assignment
@@ -2268,6 +2632,49 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                     <strong>Formulir Pendaftaran.</strong> Lengkapi data di bawah ini untuk memulai pengajuan visa Anda.
                   </span>
                 </div>
+
+                {hasRefChoice === 'yes' && referralValidation.isValid && (
+                  <div
+                    style={{
+                      backgroundColor: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      borderRadius: '10px',
+                      padding: '8px 12px',
+                      marginBottom: '16px',
+                      fontSize: '0.8rem',
+                      color: '#1E40AF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563EB' }}>
+                        loyalty
+                      </span>
+                      <span>
+                        Mitra Affiliate: <strong>{referralValidation.code}</strong> {referralValidation.partnerName ? `(${referralValidation.partnerName})` : ''}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        backgroundColor: '#DCFCE7',
+                        color: '#15803D',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      ✓ Terhubung ke Affiliate
+                    </span>
+                  </div>
+                )}
 
                 <form onSubmit={handleKirimPendaftaran}>
                   {/* Error Banner */}
@@ -2356,6 +2763,69 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                           onFocus={(e) => (e.currentTarget.style.borderColor = '#005BB5')}
                           onBlur={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
                         />
+                      </div>
+
+                      {/* Input Kode Referral Mitra (Affiliate) */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
+                            Kode Referral Mitra / Rekomendasi (Opsional)
+                          </label>
+                          {customerRefCode.trim() && (
+                            referralValidation.isValid ? (
+                              <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '1px 8px', borderRadius: '9999px' }}>
+                                ✓ Terhubung: {referralValidation.partnerName}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.7rem', color: '#DC2626', fontWeight: 700, backgroundColor: '#FEE2E2', padding: '1px 8px', borderRadius: '9999px' }}>
+                                ✕ Kode Tidak Dikenali
+                              </span>
+                            )
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={customerRefCode}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase();
+                            setCustomerRefCode(val);
+                            setHasRefChoice(val.trim() ? 'yes' : 'no');
+                            if (val.trim()) {
+                              localStorage.setItem('mapahtrip_customer_ref', val);
+                            } else {
+                              localStorage.removeItem('mapahtrip_customer_ref');
+                            }
+                          }}
+                          placeholder="Masukkan kode mitra jika ada (contoh: MPH425MI atau MPC)"
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            border: customerRefCode.trim()
+                              ? referralValidation.isValid
+                                ? '1.5px solid #10B981'
+                                : '1.5px solid #EF4444'
+                              : '1px solid #CBD5E1',
+                            fontSize: '0.88rem',
+                            fontWeight: customerRefCode.trim() ? 700 : 400,
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            backgroundColor: '#F8FAFC',
+                            color: '#0F172A',
+                            textTransform: 'uppercase',
+                          }}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = '#005BB5')}
+                          onBlur={(e) => {
+                            if (customerRefCode.trim()) {
+                              e.currentTarget.style.borderColor = referralValidation.isValid ? '#10B981' : '#EF4444';
+                            } else {
+                              e.currentTarget.style.borderColor = '#CBD5E1';
+                            }
+                          }}
+                        />
+                        <div style={{ marginTop: '4px', fontSize: '0.72rem', color: '#64748B' }}>
+                          💡 Pemohon yang menggunakan kode mitra akan otomatis terhubung ke portal mitra &amp; staf operasional.
+                        </div>
                       </div>
 
                       {/* Baris 2 Kolom: No WA & No Paspor */}
@@ -2761,9 +3231,40 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                                     &bull; {item.sub}
                                   </span>
                                 </div>
+                                {item.key === 'foto' && isCompressingFoto && (
+                                  <div style={{ fontSize: '0.72rem', color: '#005BB5', fontWeight: 600, marginTop: '2px' }}>
+                                    ⏳ Sedang mengompresi otomatis di bawah 100 KB...
+                                  </div>
+                                )}
                                 {file && (
-                                  <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    📄 {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                                  <div>
+                                    <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      📄 {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                                    </div>
+                                    {item.key === 'foto' && formFotoSizeKB && (
+                                      <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {formFotoBase64 && (
+                                          <img
+                                            src={formFotoBase64}
+                                            alt="Preview Foto"
+                                            style={{
+                                              width: '32px',
+                                              height: '40px',
+                                              objectFit: 'cover',
+                                              borderRadius: '4px',
+                                              border: '1.5px solid #16A34A',
+                                            }}
+                                          />
+                                        )}
+                                        <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>
+                                          <span style={{ textDecoration: 'line-through', color: '#94A3B8' }}>{formFotoSizeKB.original} KB</span>
+                                          <span style={{ fontWeight: 800, color: '#16A34A', marginLeft: '4px' }}>➔ {formFotoSizeKB.compressed} KB</span>
+                                          <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', marginLeft: '4px', fontWeight: 700 }}>
+                                            ⚡ Di bawah 100 KB
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2775,9 +3276,39 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                                 id={`upload-${item.key}`}
                                 accept={item.accept}
                                 style={{ display: 'none' }}
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const f = e.target.files?.[0] || null;
-                                  setFormFiles((prev) => ({ ...prev, [item.key]: f }));
+                                  if (!f) {
+                                    setFormFiles((prev) => ({ ...prev, [item.key]: null }));
+                                    if (item.key === 'foto') {
+                                      setFormFotoBase64(null);
+                                      setFormFotoSizeKB(null);
+                                    }
+                                    return;
+                                  }
+
+                                  // Auto-kompresi gambar foto agar PASTI di bawah 100 KB
+                                  if (item.key === 'foto' || f.type.startsWith('image/')) {
+                                    try {
+                                      if (item.key === 'foto') setIsCompressingFoto(true);
+                                      const res = await compressImageUnder100KB(f);
+                                      setFormFiles((prev) => ({ ...prev, [item.key]: res.file }));
+                                      if (item.key === 'foto') {
+                                        setFormFotoBase64(res.base64);
+                                        setFormFotoSizeKB({
+                                          original: res.originalSizeKB,
+                                          compressed: res.compressedSizeKB,
+                                        });
+                                      }
+                                    } catch (err) {
+                                      console.warn('Gagal kompresi foto:', err);
+                                      setFormFiles((prev) => ({ ...prev, [item.key]: f }));
+                                    } finally {
+                                      if (item.key === 'foto') setIsCompressingFoto(false);
+                                    }
+                                  } else {
+                                    setFormFiles((prev) => ({ ...prev, [item.key]: f }));
+                                  }
                                 }}
                               />
                               {file ? (
@@ -2930,7 +3461,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                   Pendaftaran Berhasil Masuk!
                 </h3>
                 <p style={{ fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5, maxWidth: '460px', margin: '0 auto 18px' }}>
-                  Data pendaftaran Anda telah berhasil dicatat dan masuk ke antrean database &amp; lembar kerja spreadsheet.
+                  Data pendaftaran Anda telah berhasil dicatat dan masuk ke antrean database MapahTrip.
                 </p>
 
                 {/* Ringkasan Data yang Masuk */}
@@ -4352,7 +4883,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
               {/* Action Buttons */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <a
-                  href="#affiliate"
+                  href="#affiliate-register"
                   style={{
                     backgroundColor: '#005BB5',
                     color: '#FFFFFF',
@@ -4385,7 +4916,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList }) => 
                 </a>
 
                 <a
-                  href="#affiliate"
+                  href="#affiliate-login"
                   style={{
                     backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
                     color: isDarkMode ? '#FFFFFF' : '#334155',
