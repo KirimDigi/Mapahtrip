@@ -78,12 +78,16 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   let noteText = db.keterangan || (db.jadwal_terbang ? `Flight: ${db.jadwal_terbang}` : undefined);
   let fotoData: string | undefined = undefined;
   let fotoSize: number | undefined = undefined;
+  let uploadedDocsData: Record<string, { name: string; base64: string; sizeKB?: number }> | undefined = undefined;
+
   try {
     if (db.keterangan && db.keterangan.startsWith('{') && db.keterangan.endsWith('}')) {
       const parsed = JSON.parse(db.keterangan);
       if (parsed.note) noteText = parsed.note;
       if (parsed.fotoBase64) fotoData = parsed.fotoBase64;
       if (parsed.compressedSizeKB) fotoSize = parsed.compressedSizeKB;
+      if (parsed.uploadedDocs) uploadedDocsData = parsed.uploadedDocs;
+      else if (parsed.documents) uploadedDocsData = parsed.documents;
     }
   } catch {}
 
@@ -122,6 +126,7 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     catatan: noteText,
     fotoBase64: fotoData,
     fotoSizeKB: fotoSize,
+    uploadedDocs: uploadedDocsData,
   };
 }
 
@@ -175,15 +180,18 @@ export async function createPengajuanInDB(payload: {
   foto_base64?: string;
   original_size_kb?: number;
   compressed_size_kb?: number;
+  uploaded_docs?: Record<string, { name: string; base64: string; sizeKB?: number }>;
 }) {
   try {
     let ketString = payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id';
-    if (payload.foto_base64) {
+    const fotoFinal = payload.foto_base64 || payload.uploaded_docs?.foto?.base64;
+    if (fotoFinal || payload.uploaded_docs) {
       ketString = JSON.stringify({
         note: payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id',
-        fotoBase64: payload.foto_base64,
+        fotoBase64: fotoFinal,
         originalSizeKB: payload.original_size_kb,
         compressedSizeKB: payload.compressed_size_kb,
+        uploadedDocs: payload.uploaded_docs || {},
         uploadedAt: new Date().toISOString(),
       });
     }
@@ -221,6 +229,65 @@ export async function createPengajuanInDB(payload: {
   } catch (err) {
     console.warn('DB error:', err);
     return null;
+  }
+}
+
+/**
+ * Update atau upload dokumen pemohon langsung dari antarmuka Staf / Owner
+ */
+export async function updatePengajuanDocumentInDB(
+  id: string | number,
+  docKey: string,
+  base64Data: string,
+  docName: string = 'Dokumen',
+  sizeKB?: number
+) {
+  try {
+    const numId = Number(id);
+    if (isNaN(numId)) return false;
+
+    // Ambil keterangan saat ini
+    const { data: row } = await supabase
+      .from('pengajuan_visa')
+      .select('keterangan')
+      .eq('id', numId)
+      .maybeSingle();
+
+    let parsed: any = {};
+    if (row?.keterangan && row.keterangan.startsWith('{') && row.keterangan.endsWith('}')) {
+      try {
+        parsed = JSON.parse(row.keterangan);
+      } catch {}
+    } else {
+      parsed = { note: row?.keterangan || 'Update berkas pemohon' };
+    }
+
+    if (!parsed.uploadedDocs) parsed.uploadedDocs = {};
+    parsed.uploadedDocs[docKey] = {
+      name: docName,
+      base64: base64Data,
+      sizeKB: sizeKB || Math.round((base64Data.length * 0.75) / 1024),
+    };
+
+    if (docKey === 'foto') {
+      parsed.fotoBase64 = base64Data;
+      parsed.compressedSizeKB = sizeKB || Math.round((base64Data.length * 0.75) / 1024);
+    }
+
+    const updatedKet = JSON.stringify(parsed);
+    await supabase
+      .from('pengajuan_visa')
+      .update({
+        keterangan: updatedKet,
+        [docKey === 'foto' ? 'foto' : docKey]: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', numId);
+
+    return true;
+  } catch (err) {
+    console.warn('updatePengajuanDocumentInDB failed:', err);
+    return false;
   }
 }
 

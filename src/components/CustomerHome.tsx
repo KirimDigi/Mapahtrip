@@ -398,6 +398,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
 
   // State Pasfoto Terkompresi Otomatis Di Bawah 100KB untuk Supabase Cloud
   const [formFotoBase64, setFormFotoBase64] = useState<string | null>(null);
+  const [formUploadedDocs, setFormUploadedDocs] = useState<Record<string, { name: string; base64: string; sizeKB?: number }>>({});
   const [formFotoSizeKB, setFormFotoSizeKB] = useState<{ original: number; compressed: number } | null>(null);
   const [isCompressingFoto, setIsCompressingFoto] = useState(false);
 
@@ -638,9 +639,10 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
       foto: !!formFiles.foto,
       program: selectedVisaModal?.title || 'Visa Jepang',
       paket: formPaket,
-      foto_base64: formFotoBase64 || undefined,
+      foto_base64: formFotoBase64 || formUploadedDocs['foto']?.base64 || undefined,
       original_size_kb: formFotoSizeKB?.original,
       compressed_size_kb: formFotoSizeKB?.compressed,
+      uploaded_docs: formUploadedDocs,
     }).catch((err) => {
       console.warn('Gagal mencatat pengajuan ke Supabase:', err);
       return null;
@@ -735,8 +737,9 @@ _Layanan Pengajuan Visa Jepang_`;
         pasporFisik: false,
       },
       catatan: `Pendaftaran mandiri via Website. Domisili: ${finalDomisili}`,
-      fotoBase64: formFotoBase64 || undefined,
+      fotoBase64: formFotoBase64 || formUploadedDocs['foto']?.base64 || undefined,
       fotoSizeKB: formFotoSizeKB?.compressed,
+      uploadedDocs: formUploadedDocs,
     };
 
     // Simpan ke localStorage agar data pendaftar tersinkron instan di semua portal
@@ -3280,6 +3283,11 @@ _Layanan Pengajuan Visa Jepang_`;
                                   const f = e.target.files?.[0] || null;
                                   if (!f) {
                                     setFormFiles((prev) => ({ ...prev, [item.key]: null }));
+                                    setFormUploadedDocs((prev) => {
+                                      const next = { ...prev };
+                                      delete next[item.key];
+                                      return next;
+                                    });
                                     if (item.key === 'foto') {
                                       setFormFotoBase64(null);
                                       setFormFotoSizeKB(null);
@@ -3287,12 +3295,20 @@ _Layanan Pengajuan Visa Jepang_`;
                                     return;
                                   }
 
-                                  // Auto-kompresi gambar foto agar PASTI di bawah 100 KB
+                                  // Konversi & kompresi gambar agar langsung tersimpan di Supabase
                                   if (item.key === 'foto' || f.type.startsWith('image/')) {
                                     try {
                                       if (item.key === 'foto') setIsCompressingFoto(true);
                                       const res = await compressImageUnder100KB(f);
                                       setFormFiles((prev) => ({ ...prev, [item.key]: res.file }));
+                                      setFormUploadedDocs((prev) => ({
+                                        ...prev,
+                                        [item.key]: {
+                                          name: f.name,
+                                          base64: res.base64,
+                                          sizeKB: res.compressedSizeKB,
+                                        },
+                                      }));
                                       if (item.key === 'foto') {
                                         setFormFotoBase64(res.base64);
                                         setFormFotoSizeKB({
@@ -3302,12 +3318,36 @@ _Layanan Pengajuan Visa Jepang_`;
                                       }
                                     } catch (err) {
                                       console.warn('Gagal kompresi foto:', err);
+                                      const reader = new FileReader();
+                                      reader.onload = (re) => {
+                                        const b64 = re.target?.result as string;
+                                        if (b64) {
+                                          setFormUploadedDocs((prev) => ({
+                                            ...prev,
+                                            [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
+                                          }));
+                                          if (item.key === 'foto') setFormFotoBase64(b64);
+                                        }
+                                      };
+                                      reader.readAsDataURL(f);
                                       setFormFiles((prev) => ({ ...prev, [item.key]: f }));
                                     } finally {
                                       if (item.key === 'foto') setIsCompressingFoto(false);
                                     }
                                   } else {
+                                    // File non-gambar (misal PDF)
                                     setFormFiles((prev) => ({ ...prev, [item.key]: f }));
+                                    const reader = new FileReader();
+                                    reader.onload = (re) => {
+                                      const b64 = re.target?.result as string;
+                                      if (b64) {
+                                        setFormUploadedDocs((prev) => ({
+                                          ...prev,
+                                          [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
+                                        }));
+                                      }
+                                    };
+                                    reader.readAsDataURL(f);
                                   }
                                 }}
                               />

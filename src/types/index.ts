@@ -55,6 +55,7 @@ export interface Pengajuan {
   catatan?: string;
   fotoBase64?: string;
   fotoSizeKB?: number;
+  uploadedDocs?: Record<string, { name: string; base64: string; sizeKB?: number }>;
 }
 
 export interface KonsjenMaster {

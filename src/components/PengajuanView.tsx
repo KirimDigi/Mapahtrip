@@ -34,6 +34,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   const [selectedKonsjen, setSelectedKonsjen] = useState<string>('Semua');
   const [selectedPaket, setSelectedPaket] = useState<string>('Semua');
   const [showMaskedPaspor, setShowMaskedPaspor] = useState<boolean>(true);
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
   // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
   const [localStageOverrides, setLocalStageOverrides] = useState<
@@ -755,27 +756,46 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     {/* 1. Pemohon & Identitas */}
                     <td style={{ padding: '10px 10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 700,
-                            fontSize: '0.8rem',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {row.namaPemohon
-                            .split(' ')
-                            .map((n) => n[0])
-                            .slice(0, 2)
-                            .join('')}
-                        </div>
+                        {row.fotoBase64 ? (
+                          <img
+                            src={row.fotoBase64}
+                            alt={row.namaPemohon}
+                            onClick={() => setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` })}
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: '2px solid #16A34A',
+                              boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                            title="Klik untuk melihat pasfoto ukuran penuh"
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.8rem',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {row.namaPemohon
+                              .split(' ')
+                              .map((n) => n[0])
+                              .slice(0, 2)
+                              .join('')}
+                          </div>
+                        )}
                         <div>
                           <div
                             style={{ fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem' }}
@@ -791,11 +811,53 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             <span>•</span>
                             <span>{row.noPengajuan}</span>
                           </div>
-                          {row.noTelp && (
-                            <div style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: 600 }}>
-                              WA: {row.noTelp}
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                            {row.noTelp && (
+                              <span style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: 600 }}>
+                                WA: {row.noTelp}
+                              </span>
+                            )}
+                            {row.fotoBase64 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` });
+                                }}
+                                style={{
+                                  background: '#DCFCE7',
+                                  color: '#15803D',
+                                  border: '1px solid #BBF7D0',
+                                  borderRadius: '4px',
+                                  padding: '1px 5px',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                }}
+                                title="Lihat Foto Penuh"
+                              >
+                                <span>📷 Pasfoto</span>
+                              </button>
+                            )}
+                            {row.uploadedDocs && Object.keys(row.uploadedDocs).length > 0 && (
+                              <span
+                                style={{
+                                  background: '#EFF6FF',
+                                  color: '#1E40AF',
+                                  border: '1px solid #DBEAFE',
+                                  borderRadius: '4px',
+                                  padding: '1px 5px',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                📁 {Object.keys(row.uploadedDocs).length} Berkas
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -962,6 +1024,143 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           </tbody>
         </table>
       </div>
+      {/* Lightbox Preview Pasfoto Pemohon */}
+      {selectedPreviewImage && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={() => setSelectedPreviewImage(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '520px',
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #E2E8F0',
+                background: '#F8FAFC',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="material-symbols-outlined" style={{ color: '#2B68E0', fontSize: '22px' }}>
+                  account_box
+                </span>
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0F172A' }}>
+                  {selectedPreviewImage.title}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedPreviewImage(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#64748B',
+                  lineHeight: 1,
+                  padding: '4px',
+                  borderRadius: '6px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Image Body */}
+            <div
+              style={{
+                padding: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#0F172A',
+                minHeight: '360px',
+              }}
+            >
+              <img
+                src={selectedPreviewImage.url}
+                alt={selectedPreviewImage.title}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '60vh',
+                  objectFit: 'contain',
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                }}
+              />
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: '16px 20px',
+                borderTop: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: '#F8FAFC',
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                Format Resmi Standar Konsulat Jepang
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <a
+                  href={selectedPreviewImage.url}
+                  download={selectedPreviewImage.title.replace(/[^a-zA-Z0-9_-]/g, '_') + '.jpg'}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    download
+                  </span>
+                  <span>Unduh Foto</span>
+                </a>
+                <button
+                  onClick={() => setSelectedPreviewImage(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: '0.82rem', fontWeight: 600 }}
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
