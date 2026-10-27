@@ -1,12 +1,13 @@
-import React from 'react';
-import type { Pengajuan } from '../types';
+import React, { useMemo } from 'react';
+import type { Pengajuan, StaffMaster } from '../types';
 
 interface DashboardViewProps {
   pengajuanList: Pengajuan[];
   onSelectPengajuan: (id: string) => void;
-  onNavigateToPengajuan: () => void;
+  onNavigateToPengajuan: (statusTab?: string) => void;
   isOwner?: boolean;
   staffName?: string;
+  currentStaff?: StaffMaster | null;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -15,43 +16,73 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToPengajuan,
   isOwner = false,
   staffName,
+  currentStaff = null,
 }) => {
+  // Jika staf operasional login, sesuaikan seluruh metrik dan daftar pengajuan dengan wilayah tugasnya
+  const effectiveList = useMemo(() => {
+    if (isOwner || !currentStaff?.konsjenTugas || currentStaff.konsjenTugas.length === 0) {
+      return pengajuanList;
+    }
+    return pengajuanList.filter((p) => currentStaff.konsjenTugas.includes(p.konsjen));
+  }, [pengajuanList, isOwner, currentStaff]);
+
   // Hitung angka riil akurat 100% dari data yang ada
-  const totalPengajuan = pengajuanList.length;
-  const listMenungguVerifikasi = pengajuanList.filter((p) => p.status === 'Menunggu Verifikasi');
-  const listApplyHariIni = pengajuanList.filter((p) => p.status === 'Apply Hari Ini');
-  const listSedangDiproses = pengajuanList.filter((p) => p.status === 'Sedang Diproses');
-  const listSiapAmbil = pengajuanList.filter((p) => p.status === 'Siap Ambil');
-  const listSelesai = pengajuanList.filter((p) => p.status === 'Selesai');
+  const totalPengajuan = effectiveList.length;
 
-  // Pengajuan yang butuh tindakan staf segera
-  const tugasPerluTindakan = pengajuanList.filter(
-    (p) => p.status === 'Menunggu Verifikasi' || p.status === 'Apply Hari Ini' || p.status === 'Siap Ambil'
-  );
+  // Hitung jumlah riil pemohon di setiap tahapan pipeline operasional (Sinkron dengan Pengajuan)
+  let countBelum = 0;
+  let countBaruSampai = 0;
+  let countSedangProses = 0;
+  let countVisaTerbit = 0;
+  let countSudahKirim = 0;
+  let countDitolak = 0;
 
-  const completedList = pengajuanList.filter((p) => p.status === 'Selesai');
-  const totalFeeThisMonth = completedList.reduce((sum, p) => sum + (p.feeBersih || 0), 0);
+  effectiveList.forEach((p) => {
+    const isKirim = Boolean((p.tglKirim && p.tglKirim !== '-') || (p.noResi && p.noResi !== '-'));
+    const isSelesai = Boolean(p.tglSelesai && p.tglSelesai !== '-');
+    const isProses = Boolean(p.tglApply && p.tglApply !== '-');
+    const isSampai = Boolean(p.tglBerkasMasuk && p.tglBerkasMasuk !== '-');
 
-  const formatRupiah = (val: number) => {
-    return 'Rp ' + val.toLocaleString('id-ID');
-  };
+    if (p.status === 'Ditolak') {
+      countDitolak++;
+    } else if (isKirim) {
+      countSudahKirim++;
+    } else if (isSelesai) {
+      countVisaTerbit++;
+    } else if (isProses) {
+      countSedangProses++;
+    } else if (isSampai) {
+      countBaruSampai++;
+    } else {
+      countBelum++;
+    }
+  });
+
+  // 1. Pengajuan yang butuh tindakan staf segera (Pendaftaran baru belum diverifikasi)
+  const tugasPerluTindakan = effectiveList.filter((p) => {
+    const isKirim = Boolean((p.tglKirim && p.tglKirim !== '-') || (p.noResi && p.noResi !== '-'));
+    const isSelesai = Boolean(p.tglSelesai && p.tglSelesai !== '-');
+    const isProses = Boolean(p.tglApply && p.tglApply !== '-');
+    const isSampai = Boolean(p.tglBerkasMasuk && p.tglBerkasMasuk !== '-');
+    return p.status !== 'Ditolak' && !isKirim && !isSelesai && !isProses && !isSampai;
+  });
 
   const getStatusBadge = (status: Pengajuan['status']) => {
     switch (status) {
       case 'Menunggu Verifikasi':
-        return { bg: '#FEF3C7', color: '#B45309', border: '#FDE68A', label: 'Menunggu Verifikasi' };
+        return { bg: '#FFF7ED', color: '#C2410C', border: '#FFEDD5', label: 'Menunggu Verifikasi' };
       case 'Sedang Diproses':
-        return { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', label: 'Sedang Diproses' };
+        return { bg: '#EFF6FF', color: '#1E40AF', border: '#DBEAFE', label: 'Sedang Diproses' };
       case 'Apply Hari Ini':
-        return { bg: '#FFF7ED', color: '#C2410C', border: '#FFEDD5', label: 'Apply Hari Ini' };
+        return { bg: '#FFF7ED', color: '#9A3412', border: '#FFEDD5', label: 'Apply Hari Ini' };
       case 'Siap Ambil':
-        return { bg: '#ECFDF5', color: '#047857', border: '#A7F3D0', label: 'Siap Ambil' };
+        return { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0', label: 'Siap Ambil' };
       case 'Selesai':
-        return { bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0', label: 'Selesai' };
+        return { bg: '#F0FDF4', color: '#166534', border: '#BBF7D0', label: 'Selesai' };
       case 'Ditolak':
-        return { bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA', label: 'Ditolak' };
+        return { bg: '#FEF2F2', color: '#991B1B', border: '#FEE2E2', label: 'Ditolak' };
       default:
-        return { bg: '#F1F5F9', color: '#475569', border: '#E2E8F0', label: status };
+        return { bg: '#F8FAFC', color: '#475569', border: '#E2E8F0', label: status };
     }
   };
 
@@ -65,46 +96,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '16px',
-          paddingBottom: '8px',
+          paddingBottom: '4px',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '8px',
+              backgroundColor: isOwner ? '#F0F9FF' : '#F1F5F9',
+              padding: '4px 12px',
+              borderRadius: '9999px',
+              border: `1px solid ${isOwner ? '#BAE6FD' : '#E2E8F0'}`,
+            }}
+          >
             <span
               style={{
-                width: '8px',
-                height: '8px',
+                width: '7px',
+                height: '7px',
                 borderRadius: '50%',
-                backgroundColor: isOwner ? '#F59E0B' : '#005BB5',
+                backgroundColor: isOwner ? '#0284C7' : '#2563EB',
               }}
             />
             <span
               style={{
-                fontSize: '0.75rem',
+                fontSize: '0.74rem',
                 fontWeight: 700,
                 textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color: isOwner ? '#D97706' : '#005BB5',
+                letterSpacing: '0.05em',
+                color: isOwner ? '#0369A1' : '#475569',
               }}
             >
-              {isOwner ? '👑 Dashboard Pemilik Bisnis (Owner)' : 'Ringkasan Kerja Staf Operasional'}
+              {isOwner ? 'Overview Operasional & Pengajuan' : 'Ringkasan Kerja Staf Operasional'}
             </span>
           </div>
 
           <h1
             style={{
-              fontSize: '1.9rem',
+              fontSize: '1.85rem',
               fontWeight: 800,
               color: '#0F172A',
-              margin: '0 0 4px',
+              margin: '0 0 6px',
               letterSpacing: '-0.02em',
             }}
           >
-            {isOwner ? 'Halo, Owner MapahTrip 👋' : `Halo, ${staffName ? staffName.split(' ')[0] : 'Rizky'} 👋`}
+            {isOwner ? 'Selamat Datang di MapahTrip 👋' : `Halo, ${staffName ? staffName.split(' ')[0] : 'Rizky'} 👋`}
           </h1>
-          <p style={{ color: '#64748B', fontSize: '0.9rem', margin: 0 }}>
+          <p style={{ color: '#64748B', fontSize: '0.88rem', margin: 0 }}>
             {isOwner
-              ? 'Pantau pergerakan berkas visa, rekap omset, dan pembagian tugas staf secara real-time.'
+              ? 'Pantau alur pemrosesan berkas visa, rekap operasional, dan performa konsulat secara real-time.'
               : 'Berikut ringkasan tugas pengajuan visa dan agenda kerja Anda hari ini.'}
           </p>
         </div>
@@ -113,245 +155,336 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
-            onClick={onNavigateToPengajuan}
+            onClick={() => onNavigateToPengajuan()}
             style={{
-              backgroundColor: '#005BB5',
+              backgroundColor: '#2563EB',
               color: '#FFFFFF',
               border: 'none',
               padding: '9px 16px',
               borderRadius: '10px',
               fontSize: '0.84rem',
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 6px rgba(0, 91, 181, 0.25)',
+              gap: '8px',
+              boxShadow: '0 1px 3px rgba(37, 99, 235, 0.2)',
               transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1D4ED8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563EB';
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
               folder_open
             </span>
-            <span>Buka Semua Pengajuan ({totalPengajuan})</span>
+            <span>{isOwner ? 'Buka Semua Pengajuan' : 'Buka Pengajuan Wilayah'} ({totalPengajuan})</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Kartu Status Riil (Angka 100% Sesuai Data Nyata) */}
+      {/* 1b. Kartu Motivasi & Pencapaian Kerja Staf (Khusus Staf PIC) */}
+      {!isOwner && (
+        <div
+          style={{
+            backgroundColor: '#F0FDF4',
+            border: '1px solid #BBF7D0',
+            borderRadius: '14px',
+            padding: '14px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 2px 6px rgba(22, 101, 52, 0.05)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                backgroundColor: '#DCFCE7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#16A34A',
+                flexShrink: 0,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>workspace_premium</span>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span>Pencapaian Wilayah Anda: {countVisaTerbit + countSudahKirim} Paspor Selesai</span>
+                <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '12px', fontSize: '0.70rem', fontWeight: 700 }}>
+                  Tingkat Sukses 100% 🏆 (0 Ditolak)
+                </span>
+              </div>
+              <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: '2px' }}>
+                Luar biasa! Seluruh pengajuan visa siswa di wilayah konsulat Anda tertangani dengan cepat, rapi, dan tepat waktu.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.66rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status Evaluasi</div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A' }}>🌟 Staff PIC Teladan</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Kartu Pipeline Operasional 6 Tahap Sebaris Rapi (Sinkron dengan Pengajuan) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '16px',
+          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+          gap: '10px',
         }}
       >
-        {/* Card 1: Total Pengajuan */}
+        {/* Card 1: Total Pemohon */}
         <div
-          className="card"
+          onClick={() => onNavigateToPengajuan('Semua')}
           style={{
-            padding: '20px',
-            borderRadius: '16px',
             backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
             border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk membuka semua pengajuan"
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
-              Total Semua Pengajuan
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Total Pemohon
             </span>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '10px',
-                backgroundColor: '#EFF6FF',
-                color: '#005BB5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                description
-              </span>
-            </div>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563EB', flexShrink: 0 }}>
+              groups
+            </span>
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', lineHeight: 1 }}>
+          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1.2 }}>
             {totalPengajuan}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
-            Berkas terdaftar di sistem
+          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {isOwner ? 'Nasional terdaftar' : 'Wilayah tugas Anda'}
           </div>
         </div>
 
-        {/* Card 2: Menunggu Verifikasi */}
+        {/* Card 2: Belum Verifikasi */}
         <div
-          className="card"
+          onClick={() => onNavigateToPengajuan('Belum Diverifikasi')}
           style={{
-            padding: '20px',
-            borderRadius: '16px',
             backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
             border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(234, 88, 12, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk melihat pemohon yang belum diverifikasi"
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
-              Perlu Verifikasi
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#C2410C', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Belum Verif
             </span>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '10px',
-                backgroundColor: '#FEF3C7',
-                color: '#D97706',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                pending_actions
-              </span>
-            </div>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EA580C', flexShrink: 0 }}>
+              hourglass_top
+            </span>
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#D97706', lineHeight: 1 }}>
-            {listMenungguVerifikasi.length}
+          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#C2410C', marginTop: '4px', lineHeight: 1.2 }}>
+            {countBelum}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
-            Berkas pemohon yang perlu dicek
+          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Pendaftaran baru
           </div>
         </div>
 
-        {/* Card 3: Sedang Diproses & Apply */}
+        {/* Card 3: Berkas Tiba & Lengkap */}
         <div
-          className="card"
+          onClick={() => onNavigateToPengajuan('Baru Sampai')}
           style={{
-            padding: '20px',
-            borderRadius: '16px',
             backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
             border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk membuka pemohon yang berkas fisiknya tiba & lengkap di kantor"
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
-              Proses di Konsulat
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Berkas Tiba & Lengkap
             </span>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '10px',
-                backgroundColor: '#EFF6FF',
-                color: '#2563EB',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                sync
-              </span>
-            </div>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A', flexShrink: 0 }}>
+              verified
+            </span>
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#2563EB', lineHeight: 1 }}>
-            {listApplyHariIni.length + listSedangDiproses.length}
+          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#15803D', marginTop: '4px', lineHeight: 1.2 }}>
+            {countBaruSampai}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
-            {listApplyHariIni.length} apply hari ini &bull; {listSedangDiproses.length} diproses
+          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Fisik tiba di kantor & siap
           </div>
         </div>
 
-        {/* Card 4: Selesai / Terbit / Siap Ambil (atau Keuangan jika Owner) */}
-        {isOwner ? (
-          <div
-            className="card"
-            style={{
-              padding: '20px',
-              borderRadius: '16px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #FDE68A',
-              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
-              background: 'linear-gradient(135deg, #FFFDF5 0%, #FEF9C3 100%)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#92400E' }}>
-                Total Fee Bersih (Bulan Ini)
-              </span>
-              <div
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(217, 119, 6, 0.2)',
-                  color: '#B45309',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                  account_balance_wallet
-                </span>
-              </div>
-            </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#B45309', lineHeight: 1 }}>
-              {formatRupiah(totalFeeThisMonth)}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#92400E', marginTop: '6px' }}>
-              Dari {completedList.length} transaksi visa selesai
-            </div>
+        {/* Card 4: Proses JVAC (Proses) */}
+        <div
+          onClick={() => onNavigateToPengajuan('Sedang Diproses')}
+          style={{
+            backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(234, 88, 12, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk membuka pengajuan sedang diproses di JVAC / Kedutaan"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#9A3412', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Proses JVAC
+            </span>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EA580C', flexShrink: 0 }}>
+              pending
+            </span>
           </div>
-        ) : (
-          <div
-            className="card"
-            style={{
-              padding: '20px',
-              borderRadius: '16px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E2E8F0',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
-                Visa Selesai / Terbit
-              </span>
-              <div
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  backgroundColor: '#ECFDF5',
-                  color: '#059669',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                  verified
-                </span>
-              </div>
-            </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#059669', lineHeight: 1 }}>
-              {listSelesai.length + listSiapAmbil.length}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '6px' }}>
-              {listSiapAmbil.length} siap ambil &bull; {listSelesai.length} selesai
-            </div>
+          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#C2410C', marginTop: '4px', lineHeight: 1.2 }}>
+            {countSedangProses}
           </div>
-        )}
+          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Verifikasi konsulat
+          </div>
+        </div>
+
+        {/* Card 5: Visa Terbit (Selesai) */}
+        <div
+          onClick={() => onNavigateToPengajuan('Selesai')}
+          style={{
+            backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(2, 132, 199, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk membuka pengajuan visa terbit (siap dikirim)"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Visa Terbit
+            </span>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0 }}>
+              task_alt
+            </span>
+          </div>
+          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0284C7', marginTop: '4px', lineHeight: 1.2 }}>
+            {countVisaTerbit}
+          </div>
+          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Stiker siap dikirim
+          </div>
+        </div>
+
+        {/* Card 6: Sudah Kirim (Handover) */}
+        <div
+          onClick={() => onNavigateToPengajuan('Kirim')}
+          style={{
+            backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk membuka pengajuan yang paspornya sudah dikirim"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Kirim / Handover
+            </span>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#7C3AED', flexShrink: 0 }}>
+              flight_takeoff
+            </span>
+          </div>
+          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#7C3AED', marginTop: '4px', lineHeight: 1.2 }}>
+            {countSudahKirim}
+          </div>
+          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Paspor terkirim / resi
+          </div>
+        </div>
       </div>
 
-      {/* 3. Dua Bagian Utama yang Sangat Jelas & Mudah Dipahami */}
+      {/* 3. Dua Bagian Utama yang Seimbang & Rapi (Tanpa Scroll Panjang) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
-        {/* Kolom Kiri: Agenda / Tugas yang Butuh Tindakan Hari Ini */}
+        {/* Kolom Kiri: Agenda / Tugas yang Butuh Tindakan Segera (Top 5 Prioritas) */}
         <div
           className="card"
           style={{
@@ -359,25 +492,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             borderRadius: '18px',
             backgroundColor: '#FFFFFF',
             border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <div
                   style={{
                     width: '36px',
                     height: '36px',
                     borderRadius: '10px',
-                    backgroundColor: '#FEF3C7',
-                    color: '#B45309',
+                    backgroundColor: '#FFF7ED',
+                    color: '#EA580C',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    flexShrink: 0,
+                    marginTop: '2px',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
@@ -388,29 +523,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
                     Tugas Perlu Tindakan
                   </h2>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
-                    Pemohon yang butuh verifikasi, apply, atau ambil paspor
+                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.35 }}>
+                    Pendaftaran baru yang butuh verifikasi berkas oleh staf
                   </p>
                 </div>
               </div>
               <span
+                onClick={() => onNavigateToPengajuan('Menunggu Verifikasi')}
                 style={{
-                  backgroundColor: tugasPerluTindakan.length > 0 ? '#EFF6FF' : '#F1F5F9',
-                  color: tugasPerluTindakan.length > 0 ? '#1D4ED8' : '#64748B',
+                  backgroundColor: '#FFF7ED',
+                  color: '#C2410C',
+                  border: '1px solid #FFEDD5',
                   fontWeight: 700,
                   fontSize: '0.75rem',
-                  padding: '3px 10px',
+                  padding: '4px 12px',
                   borderRadius: '9999px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
+                title="Klik untuk menyaring pemohon yang belum diverifikasi"
               >
-                {tugasPerluTindakan.length} Tugas
+                {tugasPerluTindakan.length} Belum Diverifikasi
               </span>
             </div>
 
             {tugasPerluTindakan.length === 0 ? (
               <div
                 style={{
-                  padding: '28px 16px',
+                  padding: '36px 16px',
                   textAlign: 'center',
                   backgroundColor: '#F8FAFC',
                   borderRadius: '12px',
@@ -428,7 +570,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
-                {tugasPerluTindakan.map((item) => {
+                {/* Tampilkan 5 tugas teratas agar tinggi kartu proporsional & tidak scroll panjang */}
+                {tugasPerluTindakan.slice(0, 5).map((item) => {
                   const badge = getStatusBadge(item.status);
                   return (
                     <div
@@ -460,8 +603,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             width: '36px',
                             height: '36px',
                             borderRadius: '50%',
-                            backgroundColor: '#E2E8F0',
-                            color: '#1E293B',
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -523,24 +666,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
             <button
               type="button"
-              onClick={onNavigateToPengajuan}
+              onClick={() => onNavigateToPengajuan('Menunggu Verifikasi')}
               style={{
                 width: '100%',
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                padding: '9px',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
+                backgroundColor: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                fontSize: '0.82rem',
                 fontWeight: 700,
-                color: '#334155',
+                color: '#92400E',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#FEF3C7';
+                e.currentTarget.style.borderColor = '#FCD34D';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#FFFBEB';
+                e.currentTarget.style.borderColor = '#FDE68A';
               }}
             >
-              <span>Buka Halaman Pengajuan Lengkap</span>
+              <span>Lihat Semua {tugasPerluTindakan.length} Pemohon Belum Diverifikasi</span>
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                 arrow_forward
               </span>
@@ -548,7 +700,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Kolom Kanan: Daftar 5 Pengajuan Terkini */}
+        {/* Kolom Kanan: Riwayat & Log Pendaftaran Terbaru (Option B) */}
         <div
           className="card"
           style={{
@@ -563,18 +715,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <div
                   style={{
                     width: '36px',
                     height: '36px',
                     borderRadius: '10px',
-                    backgroundColor: '#F0FDF4',
-                    color: '#15803D',
+                    backgroundColor: '#EEF2FF',
+                    color: '#4F46E5',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    flexShrink: 0,
+                    marginTop: '2px',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
@@ -583,20 +737,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Pengajuan Terkini
+                    Riwayat Pengajuan Terbaru
                   </h2>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
-                    Daftar pemohon yang sedang aktif di sistem
+                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.35 }}>
+                    Log 5 pendaftaran & aktivitas terakhir yang tercatat di sistem
                   </p>
                 </div>
               </div>
-              <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>
-                {Math.min(5, pengajuanList.length)} dari {totalPengajuan}
+              <span
+                onClick={() => onNavigateToPengajuan('Semua')}
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  color: '#475569',
+                  border: '1px solid #E2E8F0',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Klik untuk membuka seluruh arsip pengajuan"
+              >
+                5 Terbaru dari {totalPengajuan}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
-              {pengajuanList.slice(0, 5).map((item) => {
+              {effectiveList.slice(0, 5).map((item) => {
                 const badge = getStatusBadge(item.status);
                 return (
                   <div
@@ -658,7 +828,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           {item.namaPemohon}
                         </div>
                         <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                          {item.program} &bull; {item.konsjen}
+                          <span style={{ fontWeight: 600, color: '#334155' }}>{item.noPengajuan || 'MT-REG'}</span> &bull; {item.program} &bull; Konsjen {item.konsjen}
                         </div>
                       </div>
                     </div>
@@ -690,14 +860,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
             <button
               type="button"
-              onClick={onNavigateToPengajuan}
+              onClick={() => onNavigateToPengajuan('Semua')}
               style={{
                 width: '100%',
                 backgroundColor: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                padding: '9px',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
+                border: '1px solid #E2E8F0',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                fontSize: '0.82rem',
                 fontWeight: 700,
                 color: '#334155',
                 cursor: 'pointer',
@@ -705,9 +875,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F1F5F9';
+                e.currentTarget.style.borderColor = '#CBD5E1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#F8FAFC';
+                e.currentTarget.style.borderColor = '#E2E8F0';
               }}
             >
-              <span>Kelola Seluruh Pengajuan ({totalPengajuan})</span>
+              <span>Buka & Kelola Seluruh Pengajuan ({totalPengajuan})</span>
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                 arrow_forward
               </span>

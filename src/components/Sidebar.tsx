@@ -19,6 +19,8 @@ interface SidebarProps {
   currentStaff?: StaffMaster | null;
   onRequestOwnerLogin?: () => void;
   onLogout?: () => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,6 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentStaff = null,
   onRequestOwnerLogin,
   onLogout,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const allMenuItems: {
     key: NavItemKey;
@@ -57,10 +61,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
     onSelectTab(item.key);
+    onCloseMobile?.();
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isMobileOpen ? 'is-mobile-open' : ''}`}>
       <div>
         {/* Logo and Brand */}
         <div
@@ -96,24 +101,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </div>
 
-          {isOwner && (
-            <span
-              style={{
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '9999px',
-                background: '#FEF3C7',
-                color: '#B45309',
-                border: '1px solid #FDE68A',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '2px',
-              }}
-            >
-              👑 OWNER
+          {/* Tombol Tutup Sidebar Khusus Layar HP (hidden on desktop) */}
+          <button
+            type="button"
+            className="mobile-sidebar-close"
+            onClick={onCloseMobile}
+            aria-label="Tutup menu navigasi"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '6px',
+              borderRadius: '8px',
+              color: '#64748B',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+              close
             </span>
-          )}
+          </button>
         </div>
 
         {/* Navigation list */}
@@ -181,100 +189,99 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* User Profile Bar (Staff vs Owner) */}
+      {/* User Profile Bar (Staff vs Owner) - Format Senada dengan Affiliate */}
       <div
         style={{
           padding: '12px',
           margin: '12px',
-          borderRadius: '16px',
-          background: isOwner ? 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)' : 'var(--surface-container-low)',
-          border: isOwner ? '1px solid #FDE68A' : '1px solid rgba(195, 198, 214, 0.35)',
+          borderRadius: '12px',
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
+                width: '34px',
+                height: '34px',
                 borderRadius: '50%',
-                background: isOwner
-                  ? 'linear-gradient(135deg, #F59E0B, #B45309)'
-                  : 'linear-gradient(135deg, #2b68e0, #004fc0)',
-                color: '#fff',
+                background: '#0F172A',
+                color: '#FFFFFF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: isOwner ? '16px' : '12px',
+                fontSize: '0.78rem',
                 flexShrink: 0,
-                boxShadow: isOwner ? '0 4px 10px rgba(245, 158, 11, 0.3)' : 'none',
               }}
             >
-              {isOwner ? '👑' : (currentStaff?.inisial || 'RM')}
+              {isOwner ? 'AD' : (currentStaff?.inisial || 'RZ')}
             </div>
             <div style={{ minWidth: 0, overflow: 'hidden' }}>
-              <div
+              <strong
                 style={{
                   fontSize: '0.82rem',
-                  fontWeight: 800,
-                  color: isOwner ? '#78350F' : 'var(--on-surface)',
+                  fontWeight: 700,
+                  color: '#0F172A',
+                  display: 'block',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
                   overflow: 'hidden',
                 }}
               >
-                {isOwner ? 'Owner MapahTrip' : (currentStaff?.nama || 'Rizky Muhammad')}
-              </div>
-              <div
+                {isOwner ? 'Administrator' : (currentStaff?.nama || 'Rizky')}
+              </strong>
+              <span
                 style={{
                   fontSize: '0.7rem',
-                  color: isOwner ? '#92400E' : 'var(--on-surface-variant)',
+                  color: '#64748B',
+                  display: 'block',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
                   overflow: 'hidden',
                 }}
               >
-                {isOwner ? 'Founder & Keuangan' : (currentStaff?.role || 'Staf PIC Lapangan')}
-              </div>
+                {isOwner ? 'MapahTrip Official' : (currentStaff?.role || 'Staff PIC Jakarta')}
+              </span>
             </div>
           </div>
 
-          <div style={{ flexShrink: 0, marginLeft: '6px' }}>
-            {/* Tombol Keluar / Logout di Profile */}
-            <button
-              type="button"
-              onClick={onLogout}
-              title="Keluar dari Akun (Logout)"
-              style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                borderRadius: '8px',
-                color: '#DC2626',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 8px',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#EF4444';
-                e.currentTarget.style.color = '#FFFFFF';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                e.currentTarget.style.color = '#DC2626';
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                logout
-              </span>
-              <span>Keluar</span>
-            </button>
-          </div>
+          {/* Tombol Keluar / Logout Bersih & Minimalis seperti Affiliate */}
+          <button
+            type="button"
+            onClick={() => {
+              onCloseMobile?.();
+              onLogout?.();
+            }}
+            title="Keluar dari Akun"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#94A3B8',
+              cursor: 'pointer',
+              padding: '6px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#DC2626';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#94A3B8';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+              logout
+            </span>
+          </button>
         </div>
       </div>
     </aside>

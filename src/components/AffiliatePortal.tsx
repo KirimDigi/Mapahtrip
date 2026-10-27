@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Pengajuan, AffiliateUser, StatusPengajuan } from '../types';
 import logoPutih from '../assets/mapahtrip_logo_putih.png';
 import { REAL_AFFILIATE_LEADERBOARD } from '../data/affiliateLeaderboardData';
-import { kirimPesanWA } from '../whatsapp';
 import {
   supabase,
   registerMitraInDB,
@@ -201,7 +200,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   pengajuanList,
   onSwitchMode,
   onUpdateBerkas,
-  onUpdateStage,
 }) => {
   // Sinkronisasi lokal saat ada pemohon mendaftar dari tab lain
   const [localVersion, setLocalVersion] = useState(0);
@@ -347,6 +345,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   });
   const [notifFilter, setNotifFilter] = useState<'all' | 'new' | 'status' | 'fee'>('all');
   const [showLiveCustomerToast, setShowLiveCustomerToast] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [registrationSuccessData, setRegistrationSuccessData] = useState<{
     code: string;
@@ -414,28 +413,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     return 'Rp ' + val.toLocaleString('id-ID');
   };
 
-  // Helper Verifikasi Berkas Bertahap (FORM, KTP, KTLN, COE, FOTO diceklis sesuai tahapan proses)
-  const getStageChecklist = (
-    status: string = '',
-    berkas?: { formVisa?: boolean; ktp?: boolean; ektln?: boolean; coe?: boolean; foto?: boolean }
-  ) => {
-    const st = (status || '').toLowerCase();
-    const isSelesaiOrReady =
-      st.includes('selesai') ||
-      st.includes('terbit') ||
-      st.includes('siap') ||
-      st.includes('ambil') ||
-      st.includes('hari ini');
-    const isDiproses = st.includes('proses');
-
-    return {
-      formVisa: true, // Formulir pendaftaran otomatis selesai terisi saat pendaftar submit
-      ktp: true, // KTP / Identitas otomatis masuk dan tervalidasi saat pendaftaran
-      ektln: isSelesaiOrReady ? true : Boolean(berkas?.ektln),
-      coe: isSelesaiOrReady ? true : Boolean(berkas?.coe),
-      foto: isSelesaiOrReady || isDiproses ? true : Boolean(berkas?.foto),
-    };
-  };
 
   // State override ceklis berkas interaktif secara realtime (0ms lag)
   const [localBerkasOverrides, setLocalBerkasOverrides] = useState<Record<string, Partial<Pengajuan['berkas']>>>({});
@@ -521,7 +498,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   };
 
   // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
-  const [localStageOverrides, setLocalStageOverrides] = useState<
+  const [localStageOverrides] = useState<
     Record<
       string,
       {
@@ -573,364 +550,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     };
   };
 
-  const handleToggleStage = async (
-    item: Pengajuan,
-    stage: 'sampai' | 'proses' | 'selesai' | 'kirim'
-  ) => {
-    const stages = getCandidateStages(item);
-    const today = getTodayFormatted();
-    const newStages = { ...(localStageOverrides[item.id] || {}) };
-    let newStatus: StatusPengajuan = stages.currentStatus;
-    let shouldSendWAProses = false;
-    let shouldSendWASelesai = false;
-    let shouldSendWAKirim = false;
-
-    if (stage === 'sampai') {
-      if (stages.isSampai) {
-        newStages.tglSampai = '';
-      } else {
-        newStages.tglSampai = today;
-      }
-    } else if (stage === 'proses') {
-      if (stages.isProses) {
-        const confirmBatal = window.confirm(
-          `⚠️ Batalkan Status Proses?\n\nApakah Anda yakin ingin membatalkan status SEDANG DIPROSES untuk pengajuan atas nama "${item.namaPemohon}"?`
-        );
-        if (!confirmBatal) return;
-        newStages.tglProses = '';
-        if (newStatus === 'Sedang Diproses' || newStatus === 'Apply Hari Ini') {
-          newStatus = 'Menunggu Verifikasi';
-        }
-      } else {
-        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
-        const konfirmasi = window.confirm(
-          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
-          `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
-          `• Nama Pemohon : ${item.namaPemohon}\n` +
-          `• No. Paspor   : ${item.noPaspor}\n` +
-          `• No. WhatsApp : ${noWa}\n\n` +
-          `⚠️ PENTING:\n` +
-          `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
-          `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
-        );
-        if (!konfirmasi) return;
-
-        newStages.tglProses = today;
-        if (!stages.isSampai) newStages.tglSampai = today;
-        newStatus = 'Sedang Diproses';
-        shouldSendWAProses = true;
-      }
-    } else if (stage === 'selesai') {
-      if (stages.isSelesai) {
-        const confirmBatal = window.confirm(
-          `⚠️ Batalkan Status Selesai?\n\nApakah Anda yakin ingin membatalkan status SELESAI untuk pengajuan atas nama "${item.namaPemohon}"?`
-        );
-        if (!confirmBatal) return;
-        newStages.tglSelesai = '';
-        if (newStatus === 'Selesai') {
-          newStatus = stages.isProses ? 'Sedang Diproses' : 'Menunggu Verifikasi';
-        }
-      } else {
-        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
-        const konfirmasi = window.confirm(
-          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI?\n\n` +
-          `Anda akan menandai pengajuan visa ini sebagai SELESAI:\n` +
-          `• Nama Pemohon : ${item.namaPemohon}\n` +
-          `• No. Paspor   : ${item.noPaspor}\n` +
-          `• No. WhatsApp : ${noWa}\n\n` +
-          `⚠️ PENTING:\n` +
-          `Setelah Anda klik OK, status akan diubah menjadi "Selesai" dan notifikasi resmi bahwa visa telah terbit akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
-          `Apakah Anda yakin sudah selesai dan ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
-        );
-        if (!konfirmasi) return;
-
-        newStages.tglSelesai = today;
-        if (!stages.isSampai) newStages.tglSampai = today;
-        if (!stages.isProses) newStages.tglProses = today;
-        newStatus = 'Selesai';
-        shouldSendWASelesai = true;
-      }
-    } else if (stage === 'kirim') {
-      if (stages.isKirim) {
-        const confirmBatal = window.confirm(
-          `⚠️ Batalkan Status Kirim?\n\nApakah Anda yakin ingin membatalkan status pengiriman paspor untuk "${item.namaPemohon}"?`
-        );
-        if (!confirmBatal) return;
-        newStages.tglKirim = '';
-        newStages.noResi = '';
-      } else {
-        const inputResi = window.prompt(
-          `📦 Ceklis Pengiriman Paspor untuk ${item.namaPemohon}:\n\nMasukkan Nomor Resi Ekspedisi (JNE/J&T/TIKI/dll) atau ketik "Diambil Langsung":`,
-          item.noResi || ''
-        );
-        if (inputResi === null) return;
-
-        const resiFinal = inputResi.trim() ? inputResi.trim() : 'Diambil Langsung';
-        newStages.tglKirim = today;
-        newStages.noResi = resiFinal;
-        if (!stages.isSampai) newStages.tglSampai = today;
-        if (!stages.isProses) newStages.tglProses = today;
-        if (!stages.isSelesai) newStages.tglSelesai = today;
-        newStatus = 'Selesai';
-        shouldSendWAKirim = true;
-      }
-    }
-
-    newStages.status = newStatus;
-
-    // 1. Simpan ke local state override instan
-    setLocalStageOverrides((prev) => {
-      const updated = {
-        ...prev,
-        [item.id]: {
-          ...(prev[item.id] || {}),
-          ...newStages,
-        },
-      };
-      try {
-        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    // 2. Beritahu App.tsx
-    if (onUpdateStage) {
-      onUpdateStage(item.id, {
-        tglBerkasMasuk: newStages.tglSampai,
-        tglApply: newStages.tglProses,
-        tglSelesai: newStages.tglSelesai,
-        tglKirim: newStages.tglKirim,
-        noResi: newStages.noResi,
-        status: newStatus,
-      });
-    }
-
-    // 3. Simpan ke localStorage registrations
-    try {
-      const raw = localStorage.getItem('mapahtrip_local_registrations');
-      if (raw) {
-        const list: Pengajuan[] = JSON.parse(raw);
-        const updatedList = list.map((p) =>
-          p.id === item.id
-            ? {
-                ...p,
-                tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
-                tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
-                tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
-                tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : p.tglKirim,
-                noResi: newStages.noResi !== undefined ? newStages.noResi : p.noResi,
-                status: newStatus,
-              }
-            : p
-        );
-        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updatedList));
-      }
-    } catch {}
-
-    // 4. Update modal jika sedang terbuka
-    if (selectedKandidat && selectedKandidat.id === item.id) {
-      setSelectedKandidat((prev) =>
-        prev
-          ? {
-              ...prev,
-              tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : prev.tglBerkasMasuk,
-              tglApply: newStages.tglProses !== undefined ? newStages.tglProses : prev.tglApply,
-              tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : prev.tglSelesai,
-              tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : prev.tglKirim,
-              noResi: newStages.noResi !== undefined ? newStages.noResi : prev.noResi,
-              status: newStatus,
-            }
-          : null
-      );
-    }
-
-    // 5. Sinkronisasi ke Supabase Cloud
-    try {
-      const numId = Number(item.id);
-      if (!isNaN(numId)) {
-        await supabase
-          .from('pengajuan_visa')
-          .update({
-            tgl_sampai: newStages.tglSampai || null,
-            tgl_proses: newStages.tglProses || null,
-            tgl_selesai: newStages.tglSelesai || null,
-            tgl_kirim: newStages.tglKirim || null,
-            resi_pengiriman: newStages.noResi || null,
-            status: newStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', numId);
-      }
-    } catch (e) {
-      console.warn('Sync stage to Supabase failed:', e);
-    }
-
-    // Otomatis Kirim WhatsApp ke Customer jika Proses / Selesai / Kirim
-    if (shouldSendWAProses) {
-      if (item.noTelp && item.noTelp.trim()) {
-        const pesanWAProses =
-          `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
-          `📋 *Rincian Pengajuan:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Program: ${item.program || 'Visa Jepang'}\n` +
-          `• Tanggal Apply: ${today}\n` +
-          `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
-          `Estimasi waktu pemrosesan kedutaan sekitar 3 - 5 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
-          `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*\n` +
-          `Website: https://mapahtrip.com`;
-
-        kirimPesanWA(item.noTelp, pesanWAProses)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi proses ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi proses:', err);
-          });
-
-        alert(
-          `✅ STATUS VISA DIPROSES!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
-          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
-        );
-      } else {
-        alert(
-          `✅ STATUS VISA DIPROSES!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
-          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
-        );
-      }
-    } else if (shouldSendWASelesai) {
-      if (item.noTelp && item.noTelp.trim()) {
-        const pesanWASelesai =
-          `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
-          `📋 *Rincian Pengajuan:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Program: ${item.program || 'Visa Jepang'}\n` +
-          `• Tanggal Selesai: ${today}\n` +
-          `• Status: *SELESAI (Visa Terbit)*\n\n` +
-          `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi penyerahan langsung atau nomor resi pengiriman akan kami informasikan lebih lanjut.\n\n` +
-          `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*\n` +
-          `Website: https://mapahtrip.com`;
-
-        kirimPesanWA(item.noTelp, pesanWASelesai)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi selesai ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi selesai:', err);
-          });
-
-        alert(
-          `✅ STATUS VISA SELESAI!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
-          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
-        );
-      } else {
-        alert(
-          `✅ STATUS VISA SELESAI!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
-          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
-        );
-      }
-    } else if (shouldSendWAKirim) {
-      if (item.noTelp && item.noTelp.trim()) {
-        const pesanWAKirim =
-          `*PEMBERITAHUAN PENGIRIMAN PASPOR - MAPAHTRIP* 📦✈️\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Paspor dan berkas Visa Jepang Anda yang telah selesai kini telah dikirimkan / disiapkan untuk penyerahan.\n\n` +
-          `📋 *Rincian Pengiriman:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Status / Resi: *${newStages.noResi || 'Diambil Langsung'}*\n` +
-          `• Tanggal Kirim: ${today}\n\n` +
-          `Silakan simpan nomor resi ini untuk melacak paket Anda. Semoga perjalanan Anda ke Jepang menyenangkan dan berkesan! 🇯🇵🎌\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*`;
-
-        kirimPesanWA(item.noTelp, pesanWAKirim)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi kirim ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi kirim:', err);
-          });
-
-        alert(
-          `📦 STATUS PENGIRIMAN DISIMPAN!\n\n` +
-          `Resi/Status: "${newStages.noResi}" berhasil disimpan.\n` +
-          `Notifikasi WhatsApp pengiriman telah dikirimkan ke ${item.namaPemohon} (${item.noTelp}).`
-        );
-      }
-    }
-  };
-
-  const handleEditStageDate = (
-    item: Pengajuan,
-    stage: 'sampai' | 'proses' | 'selesai' | 'kirim',
-    currentDate: string
-  ) => {
-    const stageNames = {
-      sampai: 'Sampai (Berkas Diterima)',
-      proses: 'Proses (Diajukan ke Kedutaan/JVAC)',
-      selesai: 'Selesai (Visa Terbit)',
-      kirim: 'Kirim (Paspor Dikirim)',
-    };
-    const input = window.prompt(
-      `Ubah tanggal tahap "${stageNames[stage]}" untuk ${item.namaPemohon} (Format: DD/MM/YYYY):`,
-      currentDate || getTodayFormatted()
-    );
-    if (input === null) return;
-    const cleanDate = input.trim();
-
-    const keyMap = {
-      sampai: 'tglSampai',
-      proses: 'tglProses',
-      selesai: 'tglSelesai',
-      kirim: 'tglKirim',
-    } as const;
-
-    setLocalStageOverrides((prev) => {
-      const updated = {
-        ...prev,
-        [item.id]: {
-          ...(prev[item.id] || {}),
-          [keyMap[stage]]: cleanDate,
-        },
-      };
-      try {
-        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    const dbKeyMap = {
-      sampai: 'tgl_sampai',
-      proses: 'tgl_proses',
-      selesai: 'tgl_selesai',
-      kirim: 'tgl_kirim',
-    };
-    const numId = Number(item.id);
-    if (!isNaN(numId)) {
-      supabase
-        .from('pengajuan_visa')
-        .update({ [dbKeyMap[stage]]: cleanDate || null })
-        .eq('id', numId)
-        .then();
-    }
-  };
+  // Tahapan pengajuan dikelola dan diverifikasi oleh Tim Staf Operasional MapahTrip (Affiliate Read-Only)
 
   // Sync profile form when user changes or logs in
   useEffect(() => {
@@ -1342,7 +962,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     const code = (activeAffiliateCode || '').trim().toUpperCase();
     if (!code) return [];
 
-    // Baca juga pendaftaran lokal dari localStorage agar data yang baru didaftarkan langsung sinkron
+    // Baca juga pendaftaran lokal dari localStorage
     let localRegistrations: Pengajuan[] = [];
     try {
       const raw = localStorage.getItem('mapahtrip_local_registrations');
@@ -1363,12 +983,34 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       }
     } catch {}
 
-    // Gabungkan pendaftaran lokal dengan pengajuanList (tanpa duplikasi ID)
+    // Supabase (pengajuanList) adalah sumber kebenaran utama (Single Source of Truth)
+    // Jika data live dari Supabase sudah dimuat, bersihkan cache lokal dari data yang telah dihapus di Supabase
+    const liveIds = new Set(pengajuanList.map((p) => String(p.id)));
+    const liveNos = new Set(pengajuanList.map((p) => p.noPengajuan).filter(Boolean));
+
+    const validLocal = localRegistrations.filter((p) => {
+      // Jika pemohon memiliki format ID Supabase atau No. Pengajuan resmi (misal MT-0247)
+      // tapi tidak ada di data live Supabase, berarti data tersebut sudah dihapus di Supabase!
+      const hasOfficialId = !isNaN(Number(p.id)) || (p.noPengajuan && p.noPengajuan.startsWith('MT-'));
+      if (hasOfficialId && pengajuanList.length > 0) {
+        return liveIds.has(String(p.id)) || (p.noPengajuan && liveNos.has(p.noPengajuan));
+      }
+      return true;
+    });
+
+    // Otomatis sinkronkan penghapusan ke browser storage jika ada data yang dihapus
+    if (validLocal.length !== localRegistrations.length) {
+      try {
+        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(validLocal));
+      } catch {}
+    }
+
+    // Gabungkan dengan memprioritaskan data resmi Supabase
     const combinedMap = new Map<string, Pengajuan>();
-    localRegistrations.forEach((p) => combinedMap.set(p.id, p));
-    pengajuanList.forEach((p) => {
-      if (!combinedMap.has(p.id)) {
-        combinedMap.set(p.id, p);
+    pengajuanList.forEach((p) => combinedMap.set(String(p.id), p));
+    validLocal.forEach((p) => {
+      if (!combinedMap.has(String(p.id))) {
+        combinedMap.set(String(p.id), p);
       }
     });
 
@@ -1411,28 +1053,43 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         (statusFilter === 'verifikasi' && item.status === 'Menunggu Verifikasi');
 
       return matchQuery && matchStatus;
+    }).sort((a, b) => {
+      const numA = parseInt(a.noPengajuan.replace(/[^0-9]/g, '') || a.id.replace(/[^0-9]/g, '') || '0', 10);
+      const numB = parseInt(b.noPengajuan.replace(/[^0-9]/g, '') || b.id.replace(/[^0-9]/g, '') || '0', 10);
+      return numB - numA;
     });
   }, [affiliateCandidates, searchQuery, statusFilter]);
 
-  // Statistics tailored exclusively for this affiliate partner
+  // Statistics tailored exclusively for this affiliate partner, 100% sync dengan 4 ceklis tahapan
   const stats = useMemo(() => {
     const total = affiliateCandidates.length;
+
+    // 1. Berkas Sampai: berapa kandidat yang berkas fisiknya sudah sampai di kantor (Ceklis 'Sampai')
     const berkasLengkap = affiliateCandidates.filter((p) => {
-      const b = getStageChecklist(p.status, p.berkas);
-      return b.formVisa && b.ktp && b.coe && b.foto;
+      const st = getCandidateStages(p);
+      return st.isSampai;
     }).length;
-    const sedangProses = affiliateCandidates.filter(
-      (p) => p.status === 'Sedang Diproses' || p.status === 'Apply Hari Ini'
-    ).length;
-    const siapTerbang = affiliateCandidates.filter(
-      (p) => p.status === 'Selesai' || p.status === 'Siap Ambil'
-    ).length;
-    const handoverSoetta = affiliateCandidates.filter(
-      (p) => (p.noResi && p.noResi.toLowerCase().includes('soetta')) || (p.catatan && p.catatan.toLowerCase().includes('terminal 3'))
-    ).length;
+
+    // 2. Proses JVAC: berapa kandidat yang sudah diajukan ke Kedutaan / JVAC (Ceklis 'Proses')
+    const sedangProses = affiliateCandidates.filter((p) => {
+      const st = getCandidateStages(p);
+      return st.isProses;
+    }).length;
+
+    // 3. Visa Terbit: berapa kandidat yang visanya sudah terbit / selesai (Ceklis 'Selesai')
+    const siapTerbang = affiliateCandidates.filter((p) => {
+      const st = getCandidateStages(p);
+      return st.isSelesai;
+    }).length;
+
+    // 4. Pengiriman / Handover: berapa kandidat yang paspornya sudah dikirim / diserahkan (Ceklis 'Kirim')
+    const handoverSoetta = affiliateCandidates.filter((p) => {
+      const st = getCandidateStages(p);
+      return st.isKirim;
+    }).length;
 
     return { total, berkasLengkap, sedangProses, siapTerbang, handoverSoetta };
-  }, [affiliateCandidates]);
+  }, [affiliateCandidates, localStageOverrides]);
 
   // Upcoming flight schedules for this affiliate's candidates
   const flightSchedules = useMemo(() => {
@@ -1464,6 +1121,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     const list: AffiliateNotifItem[] = [];
 
     affiliateCandidates.forEach((cand, idx) => {
+      const st = getCandidateStages(cand);
+
       // 1. Notifikasi Pemohon Baru Mendaftar (Customer Masuk)
       list.push({
         id: `notif-cust-${cand.id}`,
@@ -1471,8 +1130,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         tipe: 'new_customer',
         judul: `Pemohon Baru: ${cand.namaPemohon}`,
         pesan: `Mendaftar visa ${cand.program} (${cand.konsjen}) menggunakan kode referral Anda.`,
-        detail: `No. Paspor: ${cand.maskedPaspor || cand.noPaspor} • Paket: ${cand.paket} • Status: ${cand.status}`,
-        waktu: cand.tglBerkasMasuk ? cand.tglBerkasMasuk : idx === 0 ? '10 menit lalu' : 'Hari ini',
+        detail: `No. Paspor: ${cand.maskedPaspor || cand.noPaspor} • Paket: ${cand.paket} • Status: ${st.isSampai ? 'Berkas Sampai di Kantor' : 'Menunggu Verifikasi'}`,
+        waktu: cand.tglBerkasMasuk && cand.tglBerkasMasuk !== '-' ? cand.tglBerkasMasuk : (idx === 0 ? 'Baru saja' : 'Hari ini'),
         icon: 'person_add',
         iconBg: '#DCFCE7',
         iconColor: '#16A34A',
@@ -1482,48 +1141,88 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         candidate: cand,
       });
 
-      // 2. Notifikasi Berkas Lengkap
-      if (cand.berkas.formVisa && cand.berkas.ktp && cand.berkas.coe) {
+      // 2. Notifikasi Berkas Sampai di Kantor (HANYA jika staf sudah ceklis 'Sampai')
+      if (st.isSampai) {
         list.push({
-          id: `notif-doc-${cand.id}`,
+          id: `notif-sampai-${cand.id}`,
           candidateId: cand.id,
           tipe: 'status_update',
-          judul: `Berkas Lengkap: ${cand.namaPemohon}`,
-          pesan: `Formulir, KTP, dan COE telah diverifikasi lengkap dan siap diajukan ke JVAC / Konsulat.`,
-          detail: `Petugas PIC: ${cand.staffPic || 'Staf Operasional'}`,
-          waktu: cand.tglApply || '1 hari lalu',
-          icon: 'verified',
+          judul: `Berkas Sampai: ${cand.namaPemohon}`,
+          pesan: `Paspor fisik dan berkas telah tiba di kantor MapahTrip dan diverifikasi oleh tim staf.`,
+          detail: `Petugas PIC: ${cand.staffPic || 'Staf Operasional'} • Tanggal: ${st.tglSampai}`,
+          waktu: st.tglSampai || 'Hari ini',
+          icon: 'inventory_2',
           iconBg: '#E0F2FE',
           iconColor: '#0284C7',
-          badgeText: 'Berkas Siap',
+          badgeText: 'Berkas Sampai',
           badgeBg: '#F0F9FF',
           badgeColor: '#0369A1',
           candidate: cand,
         });
       }
 
-      // 3. Notifikasi Visa Terbit / Siap Ambil
-      if (cand.status === 'Siap Ambil' || cand.status === 'Selesai') {
+      // 3. Notifikasi Proses JVAC / Konsulat (HANYA jika staf sudah ceklis 'Proses')
+      if (st.isProses) {
+        list.push({
+          id: `notif-proses-${cand.id}`,
+          candidateId: cand.id,
+          tipe: 'status_update',
+          judul: `Proses JVAC: ${cand.namaPemohon}`,
+          pesan: `Berkas permohonan visa telah diajukan ke Konsulat ${cand.konsjen} / JVAC untuk verifikasi.`,
+          detail: `Petugas PIC: ${cand.staffPic || 'Staf Operasional'} • Tanggal: ${st.tglProses}`,
+          waktu: st.tglProses || 'Hari ini',
+          icon: 'pending',
+          iconBg: '#FFF7ED',
+          iconColor: '#EA580C',
+          badgeText: 'Proses Konsulat',
+          badgeBg: '#FFFBEB',
+          badgeColor: '#C2410C',
+          candidate: cand,
+        });
+      }
+
+      // 4. Notifikasi Visa Terbit (HANYA jika staf sudah ceklis 'Selesai')
+      if (st.isSelesai) {
         list.push({
           id: `notif-visa-${cand.id}`,
           candidateId: cand.id,
           tipe: 'visa_ready',
           judul: `Visa Terbit: ${cand.namaPemohon} 🎉`,
-          pesan: `Visa Jepang telah selesai diterbitkan di Konsulat ${cand.konsjen}!`,
+          pesan: `Visa Jepang telah selesai diterbitkan di Konsulat ${cand.konsjen}! Stiker visa siap di paspor.`,
           detail: cand.noResi ? `No. Resi/Handover: ${cand.noResi}` : 'Paspor siap diambil atau dikirim.',
-          waktu: cand.tglSelesai || 'Kemarin',
+          waktu: st.tglSelesai || 'Hari ini',
           icon: 'task_alt',
           iconBg: '#FEF3C7',
           iconColor: '#D97706',
-          badgeText: 'Visa Siap',
+          badgeText: 'Visa Terbit',
           badgeBg: '#FFFBEB',
           badgeColor: '#B45309',
           candidate: cand,
         });
       }
 
-      // 4. Notifikasi Komisi Siap Cair
-      if (cand.status === 'Selesai') {
+      // 5. Notifikasi Paspor Terkirim (HANYA jika staf sudah ceklis 'Kirim')
+      if (st.isKirim) {
+        list.push({
+          id: `notif-kirim-${cand.id}`,
+          candidateId: cand.id,
+          tipe: 'status_update',
+          judul: `Paspor Terkirim: ${cand.namaPemohon} ✈️`,
+          pesan: `Paspor pemohon telah dikirimkan ke alamat pemohon atau diserahterimakan.`,
+          detail: st.noResi ? `No. Resi: ${st.noResi}` : 'Telah diserahterimakan.',
+          waktu: st.tglKirim || 'Selesai',
+          icon: 'flight_takeoff',
+          iconBg: '#F3E8FF',
+          iconColor: '#9333EA',
+          badgeText: 'Paspor Terkirim',
+          badgeBg: '#FAF5FF',
+          badgeColor: '#7E22CE',
+          candidate: cand,
+        });
+      }
+
+      // 6. Notifikasi Komisi Siap Cair (Hanya jika visa sudah Selesai / Kirim)
+      if (st.isSelesai || st.isKirim) {
         const komisiNominal = cand.referralFee || 100000;
         list.push({
           id: `notif-fee-${cand.id}`,
@@ -1532,7 +1231,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           judul: `Komisi Cair: Rp ${komisiNominal.toLocaleString('id-ID')} 💰`,
           pesan: `Komisi referral dari kandidat ${cand.namaPemohon} telah disetujui & siap ditransfer ke rekening Anda.`,
           detail: `Metode: Transfer Bank (${currentUser.namaBank || 'BCA'})`,
-          waktu: cand.tglSelesai || 'Baru saja',
+          waktu: st.tglSelesai || 'Baru saja',
           icon: 'payments',
           iconBg: '#FEE2E2',
           iconColor: '#DC2626',
@@ -1545,7 +1244,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     });
 
     return list;
-  }, [affiliateCandidates, currentUser]);
+  }, [affiliateCandidates, currentUser, localStageOverrides]);
 
   const unreadNotifications = useMemo(() => {
     return notifications.filter((n) => !readNotifIds.includes(n.id));
@@ -3927,23 +3626,72 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   }
 
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', display: 'flex', color: '#0F172A', fontFamily: 'inherit' }}>
-        {/* Persistent Left Sidebar */}
+      <div className="affiliate-portal-root" style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', display: 'flex', color: '#0F172A', fontFamily: 'inherit' }}>
+        {/* Mobile Backdrop Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            className="portal-mobile-backdrop"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Mobile Top Navigation Header */}
+        <header className="portal-mobile-topbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="portal-mobile-menu-btn"
+              title="Buka Menu Navigasi"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>menu</span>
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img src={logoPutih} alt="MapahTrip" style={{ height: '28px', width: 'auto' }} />
+              <div>
+                <strong style={{ fontSize: '0.92rem', color: '#0F172A', display: 'block', lineHeight: 1.1 }}>MapahTrip</strong>
+                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>Partner Portal</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setShowNotifPopover(!showNotifPopover)}
+              style={{ background: 'none', border: 'none', padding: '6px', cursor: 'pointer', position: 'relative' }}
+              title="Notifikasi Aktivitas"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: unreadNotifications.length > 0 ? '#10B981' : '#64748B' }}>
+                {unreadNotifications.length > 0 ? 'notifications_active' : 'notifications'}
+              </span>
+              {unreadNotifications.length > 0 && (
+                <span style={{ position: 'absolute', top: '2px', right: '2px', minWidth: '14px', height: '14px', borderRadius: '7px', backgroundColor: '#EF4444', color: '#FFF', fontSize: '0.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
+                  {unreadNotifications.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* Persistent Left Sidebar (Desktop) / Slide-over Drawer (Mobile) */}
         <aside
-            style={{
-              width: '240px',
-              backgroundColor: '#FFFFFF',
-              borderRight: '1px solid #E2E8F0',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              padding: '24px 16px',
-              flexShrink: 0,
-            }}
-          >
-            <div>
-              {/* Brand Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px', paddingLeft: '8px' }}>
+          className={`affiliate-portal-sidebar ${isMobileMenuOpen ? 'is-open' : ''}`}
+          style={{
+            width: '240px',
+            backgroundColor: '#FFFFFF',
+            borderRight: '1px solid #E2E8F0',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding: '24px 16px',
+            flexShrink: 0,
+          }}
+        >
+          <div>
+            {/* Brand Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', paddingLeft: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <img
                   src={logoPutih}
                   alt="MapahTrip Logo"
@@ -3956,47 +3704,28 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Partner Portal</span>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="portal-sidebar-close-btn"
+                title="Tutup Menu"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
 
-              {/* Nav Category 1: Platform User */}
-              <div style={{ marginBottom: '24px' }}>
-                <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
-                  Platform User
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setPortalTab('dasbor')}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: portalTab === 'dasbor' ? '1px solid #BBF7D0' : 'none',
-                      backgroundColor: portalTab === 'dasbor' ? '#F0FDF4' : 'transparent',
-                      color: portalTab === 'dasbor' ? '#166534' : '#64748B',
-                      fontSize: '0.85rem',
-                      fontWeight: portalTab === 'dasbor' ? 700 : 600,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: portalTab === 'dasbor' ? '#10B981' : 'inherit' }}>dashboard</span>
-                    <span>Dasbor</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Nav Category 2: Afiliasi */}
-              <div style={{ marginBottom: '24px' }}>
-                <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
-                  Afiliasi
-                </span>
+            {/* Nav Category 1: Platform User */}
+            <div style={{ marginBottom: '24px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
+                Platform User
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <button
                   type="button"
-                  onClick={() => setPortalTab('mpc')}
+                  onClick={() => {
+                    setPortalTab('dasbor');
+                    setIsMobileMenuOpen(false);
+                  }}
                   style={{
                     width: '100%',
                     display: 'flex',
@@ -4004,158 +3733,199 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     gap: '12px',
                     padding: '10px 12px',
                     borderRadius: '10px',
-                    border: portalTab === 'mpc' ? '1px solid #BBF7D0' : 'none',
-                    backgroundColor: portalTab === 'mpc' ? '#F0FDF4' : 'transparent',
-                    color: portalTab === 'mpc' ? '#166534' : '#64748B',
+                    border: portalTab === 'dasbor' ? '1px solid #BBF7D0' : 'none',
+                    backgroundColor: portalTab === 'dasbor' ? '#F0FDF4' : 'transparent',
+                    color: portalTab === 'dasbor' ? '#166534' : '#64748B',
                     fontSize: '0.85rem',
-                    fontWeight: portalTab === 'mpc' ? 700 : 600,
+                    fontWeight: portalTab === 'dasbor' ? 700 : 600,
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: portalTab === 'mpc' ? '#10B981' : 'inherit' }}>groups</span>
-                  <span>Partner Club (MPC)</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: portalTab === 'dasbor' ? '#10B981' : 'inherit' }}>dashboard</span>
+                  <span>Dasbor</span>
                 </button>
               </div>
-
-              {/* Nav Category 3: Bantuan */}
-              <div>
-                <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
-                  Bantuan &amp; Info
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowTermsModal(true)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#64748B',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>article</span>
-                    <span>Syarat &amp; Ketentuan</span>
-                  </button>
-                  <a
-                    href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20tanya%20program%20mitra%20affiliate%20visa"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      color: '#64748B',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>support_agent</span>
-                    <span>Pusat Bantuan</span>
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => onSwitchMode('customer')}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#64748B',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>public</span>
-                    <span>Halaman Pelanggan</span>
-                  </button>
-                </div>
-              </div>
             </div>
 
-            {/* Bottom User Pill */}
-            <div
-              style={{
-                backgroundColor: '#F8FAFC',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                padding: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    backgroundColor: '#0F172A',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.78rem',
-                    fontWeight: 800,
-                    flexShrink: 0,
-                  }}
-                >
-                  {currentUser.nama.slice(0, 2).toUpperCase()}
-                </div>
-                <div style={{ overflow: 'hidden' }}>
-                  <strong style={{ fontSize: '0.82rem', color: '#0F172A', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {currentUser.nama}
-                  </strong>
-                  <span style={{ fontSize: '0.7rem', color: '#94A3B8', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {currentUser.email}
-                  </span>
-                </div>
-              </div>
+            {/* Nav Category 2: Afiliasi */}
+            <div style={{ marginBottom: '24px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
+                Afiliasi
+              </span>
               <button
                 type="button"
-                onClick={handleLogout}
-                title="Keluar"
+                onClick={() => {
+                  setPortalTab('mpc');
+                  setIsMobileMenuOpen(false);
+                }}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94A3B8',
-                  cursor: 'pointer',
-                  padding: '4px',
+                  width: '100%',
                   display: 'flex',
                   alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: portalTab === 'mpc' ? '1px solid #BBF7D0' : 'none',
+                  backgroundColor: portalTab === 'mpc' ? '#F0FDF4' : 'transparent',
+                  color: portalTab === 'mpc' ? '#166534' : '#64748B',
+                  fontSize: '0.85rem',
+                  fontWeight: portalTab === 'mpc' ? 700 : 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px', color: portalTab === 'mpc' ? '#10B981' : 'inherit' }}>groups</span>
+                <span>Partner Club (MPC)</span>
               </button>
             </div>
-          </aside>
+
+            {/* Nav Category 3: Bantuan */}
+            <div>
+              <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', paddingLeft: '12px', display: 'block', marginBottom: '8px' }}>
+                Bantuan &amp; Info
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTermsModal(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#64748B',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>article</span>
+                  <span>Syarat &amp; Ketentuan</span>
+                </button>
+                <a
+                  href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20tanya%20program%20mitra%20affiliate%20visa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    color: '#64748B',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>support_agent</span>
+                  <span>Pusat Bantuan</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSwitchMode('customer');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#64748B',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>public</span>
+                  <span>Halaman Pelanggan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom User Pill */}
+          <div
+            style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  backgroundColor: '#0F172A',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  flexShrink: 0,
+                }}
+              >
+                {currentUser.nama.slice(0, 2).toUpperCase()}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <strong style={{ fontSize: '0.82rem', color: '#0F172A', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentUser.nama}
+                </strong>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentUser.email}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Keluar"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
+            </button>
+          </div>
+        </aside>
 
         {/* Right Main Content Area */}
-        <main style={{ flex: 1, minWidth: 0, padding: '20px 20px', overflowY: 'auto', overflowX: 'hidden' }}>
+        <main className="affiliate-portal-main" style={{ flex: 1, minWidth: 0, padding: '20px 20px', overflowY: 'auto', overflowX: 'hidden' }}>
           {portalTab === 'dasbor' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
         {/* Banner Welcome & Search */}
         <div
+          className="portal-welcome-banner"
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '20px',
@@ -4167,54 +3937,45 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           }}
         >
           {/* Notification Bell di Pojok Kanan Atas */}
-          <div style={{ position: 'absolute', top: '22px', right: '24px', zIndex: 30 }}>
+          <div className="welcome-banner-notif-btn" style={{ position: 'absolute', top: '22px', right: '24px', zIndex: 30 }}>
             <button
               type="button"
               onClick={() => setShowNotifPopover(!showNotifPopover)}
               title="Notifikasi Aktivitas Pemohon"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '42px',
-                height: '42px',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                backgroundColor: showNotifPopover ? '#F1F5F9' : '#FFFFFF',
-                color: '#475569',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                padding: '6px',
                 cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)',
-                transition: 'all 0.2s ease',
                 position: 'relative',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F8FAFC';
-                e.currentTarget.style.borderColor = '#CBD5E1';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = showNotifPopover ? '#F1F5F9' : '#FFFFFF';
-                e.currentTarget.style.borderColor = '#E2E8F0';
+                outline: 'none',
               }}
             >
               <span
                 className="material-symbols-outlined"
                 style={{
-                  fontSize: '22px',
-                  color: unreadNotifications.length > 0 ? '#10B981' : '#334155',
+                  fontSize: '24px',
+                  color: unreadNotifications.length > 0 ? '#10B981' : '#64748B',
                   animation: unreadNotifications.length > 0 ? 'bellRing 3s infinite ease-in-out' : 'none',
+                  display: 'block',
                 }}
               >
                 {unreadNotifications.length > 0 ? 'notifications_active' : 'notifications'}
               </span>
+
               {unreadNotifications.length > 0 && (
                 <span
                   style={{
                     position: 'absolute',
-                    top: '-4px',
-                    right: '-4px',
-                    minWidth: '20px',
-                    height: '20px',
-                    borderRadius: '10px',
+                    top: '-2px',
+                    right: '-2px',
+                    minWidth: '18px',
+                    height: '18px',
+                    borderRadius: '9px',
                     backgroundColor: '#EF4444',
                     color: '#FFFFFF',
                     fontSize: '0.68rem',
@@ -4224,8 +3985,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     justifyContent: 'center',
                     padding: '0 4px',
                     border: '2px solid #FFFFFF',
-                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                    boxShadow: '0 2px 5px rgba(239, 68, 68, 0.4)',
                     animation: 'pulseBadge 2s infinite ease-in-out',
+                    lineHeight: 1,
+                    boxSizing: 'border-box',
                   }}
                 >
                   {unreadNotifications.length > 9 ? '9+' : unreadNotifications.length}
@@ -4325,6 +4088,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         {/* Dynamic Highlight Banner saat ada Notifikasi Pemohon Masuk */}
         {unreadNotifications.length > 0 && (
           <div
+            className="portal-notif-banner"
             style={{
               backgroundColor: '#F0FDF4',
               border: '1px solid #BBF7D0',
@@ -4406,14 +4170,14 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
             <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kandidat Binaan Anda</div>
           </div>
 
-          {/* Card 2: Berkas Lengkap */}
+          {/* Card 2: Berkas Tiba & Lengkap */}
           <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Berkas Lengkap</span>
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A', flexShrink: 0 }}>verified</span>
             </div>
             <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#15803D', marginTop: '4px', lineHeight: 1.2 }}>{stats.berkasLengkap}</div>
-            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Form, KTP, COE siap</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Form &amp; Paspor siap</div>
           </div>
 
           {/* Card 3: Proses Konsulat */}
@@ -4433,26 +4197,27 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0 }}>task_alt</span>
             </div>
             <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0284C7', marginTop: '4px', lineHeight: 1.2 }}>{stats.siapTerbang}</div>
-            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Stiker terpasang &amp; siap</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Stiker terpasang</div>
           </div>
 
-          {/* Card 5: Handover Soekarno-Hatta */}
+          {/* Card 5: Handover Bandara */}
           <div style={{ backgroundColor: '#FFFFFF', padding: '14px 16px', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Handover Bandara</span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kirim / Handover</span>
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#7C3AED', flexShrink: 0 }}>flight_takeoff</span>
             </div>
             <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#7C3AED', marginTop: '4px', lineHeight: 1.2 }}>{stats.handoverSoetta}</div>
-            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Terminal 3 Soetta</div>
+            <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dikirim / Soetta T3</div>
           </div>
         </div>
 
         {/* 4. Tab Navigation: Daftar Kandidat vs Jadwal Bandara */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'inline-flex', backgroundColor: '#E2E8F0', padding: '3px', borderRadius: '12px' }}>
+        <div className="portal-tab-wrapper" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div className="portal-tab-group" style={{ display: 'inline-flex', backgroundColor: '#E2E8F0', padding: '3px', borderRadius: '12px' }}>
             <button
               type="button"
               onClick={() => setActiveTab('kandidat')}
+              className={`portal-tab-btn ${activeTab === 'kandidat' ? 'active' : ''}`}
               style={{
                 backgroundColor: activeTab === 'kandidat' ? '#FFFFFF' : 'transparent',
                 color: activeTab === 'kandidat' ? '#0F172A' : '#64748B',
@@ -4466,11 +4231,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              📋 Pemohon Binaan Saya ({filteredList.length})
+              📋 Pemohon Binaan ({filteredList.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('jadwal')}
+              className={`portal-tab-btn ${activeTab === 'jadwal' ? 'active' : ''}`}
               style={{
                 backgroundColor: activeTab === 'jadwal' ? '#FFFFFF' : 'transparent',
                 color: activeTab === 'jadwal' ? '#0F172A' : '#64748B',
@@ -4484,7 +4250,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              ✈️ Jadwal Terbang / Soetta ({flightSchedules.length})
+              ✈️ Jadwal Bandara ({flightSchedules.length})
             </button>
           </div>
 
@@ -4521,276 +4287,395 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           )}
         </div>
 
-        {/* 5. Main Table: Candidate Tracking Table */}
+        {/* 5. Main Content: Candidate Tracking Table / Cards */}
         {activeTab === 'kandidat' ? (
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
-              border: '1px solid #E2E8F0',
-              overflow: 'hidden',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
-            }}
-          >
-            <div style={{ width: '100%', overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.80rem' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
-                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '75px' }}>No. &amp; ID</th>
-                    <th style={{ padding: '10px 8px', minWidth: '130px' }}>Nama Pemohon / Kandidat</th>
-                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '95px' }}>No. Paspor</th>
-                    <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '105px' }}>Program Visa</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '380px' }}>
-                      <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.82rem' }}>
-                        Status Pengajuan (Klik Ceklis Tahapan)
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
-                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Sampai</span>
-                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Proses</span>
-                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Selesai</span>
-                        <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Kirim</span>
-                      </div>
-                    </th>
-                    <th style={{ padding: '10px 8px', minWidth: '130px' }}>Resi / Pengiriman</th>
-                    <th style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap', width: '80px' }}>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredList.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: '48px 20px', textAlign: 'center' }}>
-                        <div style={{ maxWidth: '460px', margin: '0 auto' }}>
-                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>group_add</span>
+          <div>
+            {/* Desktop Table View (Hidden on mobile) */}
+            <div
+              className="candidate-desktop-table"
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '16px',
+                border: '1px solid #E2E8F0',
+                overflow: 'hidden',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div style={{ width: '100%', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.80rem' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
+                      <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '75px' }}>No. &amp; ID</th>
+                      <th style={{ padding: '10px 8px', minWidth: '130px' }}>Nama Pemohon / Kandidat</th>
+                      <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '95px' }}>No. Paspor</th>
+                      <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '105px' }}>Program Visa</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '380px' }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <span>Status Pengajuan</span>
+                          <span style={{ fontSize: '0.68rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            🔒 Dikelola Tim Staf
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Sampai</span>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Proses</span>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Selesai</span>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Kirim</span>
+                        </div>
+                      </th>
+                      <th style={{ padding: '10px 8px', minWidth: '130px' }}>Resi / Pengiriman</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap', width: '80px' }}>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredList.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                          <div style={{ maxWidth: '460px', margin: '0 auto' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>group_add</span>
+                            </div>
+                            <h4 style={{ margin: '0 0 6px', fontSize: '0.96rem', fontWeight: 800, color: '#0F172A' }}>
+                              {searchQuery ? 'Tidak Ada Pemohon Sesuai Pencarian' : 'Belum Ada Pemohon Binaan'}
+                            </h4>
+                            <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5 }}>
+                              {searchQuery
+                                ? `Tidak ditemukan kandidat binaan Anda dengan kata kunci "${searchQuery}". Coba kata kunci lain.`
+                                : `Belum ada calon pemohon visa yang mendaftar menggunakan kode referral Anda (${activeAffiliateCode || 'MPC'}). Bagikan kode referral Anda kepada calon pemohon untuk mulai mengumpulkan komisi Rp 100.000 / visa.`}
+                            </p>
+                            {!searchQuery && activeAffiliateCode && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(activeAffiliateCode);
+                                  setCopiedCode(true);
+                                  setTimeout(() => setCopiedCode(false), 2000);
+                                }}
+                                style={{
+                                  backgroundColor: copiedCode ? '#059669' : '#0F172A',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  padding: '9px 18px',
+                                  borderRadius: '9px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                                  {copiedCode ? 'done' : 'content_copy'}
+                                </span>
+                                <span>{copiedCode ? 'Kode Tersalin!' : 'Salin Kode Referral'}</span>
+                              </button>
+                            )}
                           </div>
-                          <h4 style={{ margin: '0 0 6px', fontSize: '0.96rem', fontWeight: 800, color: '#0F172A' }}>
-                            {searchQuery ? 'Tidak Ada Pemohon Sesuai Pencarian' : 'Belum Ada Pemohon Binaan'}
-                          </h4>
-                          <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5 }}>
-                            {searchQuery
-                              ? `Tidak ditemukan kandidat binaan Anda dengan kata kunci "${searchQuery}". Coba kata kunci lain.`
-                              : `Belum ada calon pemohon visa yang mendaftar menggunakan kode referral Anda (${activeAffiliateCode || 'MPC'}). Bagikan kode referral Anda kepada calon pemohon untuk mulai mengumpulkan komisi Rp 100.000 / visa.`}
-                          </p>
-                          {!searchQuery && activeAffiliateCode && (
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredList.map((item, idx) => (
+                        <tr
+                          key={item.id}
+                          style={{
+                            borderBottom: '1px solid #F1F5F9',
+                            transition: 'background-color 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+                        >
+                          {/* ID */}
+                          <td style={{ padding: '10px 8px', color: '#64748B', fontWeight: 600, fontSize: '0.78rem' }}>
+                            <div>{item.noPengajuan}</div>
+                            <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>#{idx + 1}</div>
+                          </td>
+
+                          {/* Nama */}
+                          <td style={{ padding: '10px 8px' }}>
+                            <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.82rem' }}>{item.namaPemohon}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                              WA: {item.noTelp || '-'}
+                            </div>
+                          </td>
+
+                          {/* Paspor */}
+                          <td style={{ padding: '10px 8px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                            {item.noPaspor}
+                          </td>
+
+                          {/* Program */}
+                          <td style={{ padding: '10px 8px' }}>
+                            <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', whiteSpace: 'nowrap' }}>{item.program}</span>
+                          </td>
+
+                          {/* Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
+                          <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+                            {(() => {
+                              const st = getCandidateStages(item);
+                              const stageItems = [
+                                { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
+                                { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
+                                { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
+                                { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
+                              ];
+                              return (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', minWidth: '360px' }}>
+                                  {stageItems.map((s) => (
+                                    <div
+                                      key={s.key}
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        backgroundColor: s.ok ? s.bg : '#F8FAFC',
+                                        border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
+                                        borderRadius: '6px',
+                                        padding: '4px 3px',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      <div
+                                        title={s.ok ? `Tahap ${s.label} telah selesai (${s.date || '-'})` : `Tahap ${s.label} belum selesai (Dikelola oleh Tim Staf MapahTrip)`}
+                                        style={{
+                                          width: '100%',
+                                          cursor: 'default',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '2px',
+                                          fontSize: '0.73rem',
+                                          fontWeight: 800,
+                                          color: s.ok ? s.color : '#94A3B8',
+                                          padding: '2px 0',
+                                          userSelect: 'none',
+                                        }}
+                                      >
+                                        <span>{s.ok ? '✓' : '○'}</span>
+                                        <span>{s.label}</span>
+                                      </div>
+                                      <span
+                                        style={{
+                                          fontSize: '0.67rem',
+                                          fontFamily: 'monospace',
+                                          color: s.ok ? s.color : '#CBD5E1',
+                                          fontWeight: s.ok ? 700 : 500,
+                                          lineHeight: 1.2,
+                                          marginTop: '1px',
+                                        }}
+                                      >
+                                        {s.ok ? (s.date || getTodayFormatted()) : '-'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          {/* Resi / Pengiriman */}
+                          <td style={{ padding: '10px 8px' }}>
+                            {(() => {
+                              const st = getCandidateStages(item);
+                              if (st.isKirim && st.noResi) {
+                                return (
+                                  <div>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: '#F3E8FF', color: '#6B21A8', border: '1px solid #E9D5FF' }}>
+                                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_shipping</span>
+                                      <span>{st.noResi}</span>
+                                    </span>
+                                    <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '2px' }}>
+                                      Tgl: {st.tglKirim || '-'}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              if (item.noResi) {
+                                return (
+                                  <div>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', border: '1px solid #DBEAFE' }}>
+                                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_shipping</span>
+                                      <span>{item.noResi}</span>
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div style={{ color: '#94A3B8', fontSize: '0.74rem' }}>
+                                  <span>-</span>
+                                </div>
+                              );
+                            })()}
+                            {item.catatan && (
+                              <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '2px' }}>
+                                {item.catatan}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Action Button */}
+                          <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             <button
                               type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(activeAffiliateCode);
-                                setCopiedCode(true);
-                                setTimeout(() => setCopiedCode(false), 2000);
-                              }}
+                              onClick={() => setSelectedKandidat(item)}
                               style={{
-                                backgroundColor: copiedCode ? '#059669' : '#0F172A',
-                                color: '#FFFFFF',
-                                border: 'none',
-                                padding: '9px 18px',
-                                borderRadius: '9px',
-                                fontSize: '0.8rem',
+                                backgroundColor: '#F1F5F9',
+                                color: '#0F172A',
+                                border: '1px solid #CBD5E1',
+                                padding: '5px 12px',
+                                borderRadius: '7px',
+                                fontSize: '0.75rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                justifyContent: 'center',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#E2E8F0';
+                                e.currentTarget.style.borderColor = '#94A3B8';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#F1F5F9';
+                                e.currentTarget.style.borderColor = '#CBD5E1';
                               }}
                             >
-                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                                {copiedCode ? 'done' : 'content_copy'}
-                              </span>
-                              <span>{copiedCode ? 'Kode Tersalin!' : 'Salin Kode Referral'}</span>
+                              <span>Rincian</span>
                             </button>
-                          )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Card View (Visible only on mobile <= 768px via CSS) */}
+            <div className="candidate-mobile-cards">
+              {filteredList.length === 0 ? (
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '36px 16px', textAlign: 'center' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>group_add</span>
+                  </div>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                    Belum Ada Pemohon Binaan
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B', lineHeight: 1.5 }}>
+                    Bagikan kode referral Anda untuk mulai mengumpulkan komisi.
+                  </p>
+                </div>
+              ) : (
+                filteredList.map((item, idx) => {
+                  const st = getCandidateStages(item);
+                  const stageItems = [
+                    { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, color: '#0284C7', bg: '#E0F2FE' },
+                    { key: 'proses' as const, label: 'Proses', ok: st.isProses, color: '#D97706', bg: '#FEF3C7' },
+                    { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, color: '#16A34A', bg: '#DCFCE7' },
+                    { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, color: '#7C3AED', bg: '#F3E8FF' },
+                  ];
+
+                  return (
+                    <div
+                      key={`mob-${item.id}`}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '14px',
+                        padding: '14px 16px',
+                        boxShadow: '0 2px 6px rgba(15, 23, 42, 0.04)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                      }}
+                    >
+                      {/* Row 1: ID, Index & Program */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', backgroundColor: '#F1F5F9', padding: '2px 7px', borderRadius: '6px' }}>
+                            #{idx + 1}
+                          </span>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A' }}>
+                            {item.noPengajuan}
+                          </span>
                         </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredList.map((item, idx) => (
-                      <tr
-                        key={item.id}
-                        style={{
-                          borderBottom: '1px solid #F1F5F9',
-                          transition: 'background-color 0.15s',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
-                      >
-                        {/* ID */}
-                        <td style={{ padding: '10px 8px', color: '#64748B', fontWeight: 600, fontSize: '0.78rem' }}>
-                          <div>{item.noPengajuan}</div>
-                          <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>#{idx + 1}</div>
-                        </td>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E40AF', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                          {item.program}
+                        </span>
+                      </div>
 
-                        {/* Nama */}
-                        <td style={{ padding: '10px 8px' }}>
-                          <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.82rem' }}>{item.namaPemohon}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                            WA: {item.noTelp || '-'}
-                          </div>
-                        </td>
+                      {/* Row 2: Nama & Paspor */}
+                      <div>
+                        <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0F172A' }}>
+                          {item.namaPemohon}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '3px' }}>
+                          Paspor: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{item.noPaspor}</strong>
+                          {item.noTelp && ` • WA: ${item.noTelp}`}
+                        </div>
+                      </div>
 
-                        {/* Paspor */}
-                        <td style={{ padding: '10px 8px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                          {item.noPaspor}
-                        </td>
-
-                        {/* Program */}
-                        <td style={{ padding: '10px 8px' }}>
-                          <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', whiteSpace: 'nowrap' }}>{item.program}</span>
-                        </td>
-
-                        {/* Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
-                        <td style={{ padding: '8px 8px', textAlign: 'center' }}>
-                          {(() => {
-                            const st = getCandidateStages(item);
-                            const stageItems = [
-                              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
-                              { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
-                              { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
-                              { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
-                            ];
-                            return (
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', minWidth: '360px' }}>
-                                {stageItems.map((s) => (
-                                  <div
-                                    key={s.key}
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                      backgroundColor: s.ok ? s.bg : '#F8FAFC',
-                                      border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
-                                      borderRadius: '6px',
-                                      padding: '4px 3px',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleStage(item, s.key);
-                                      }}
-                                      title={`Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} tahap ${s.label}`}
-                                      style={{
-                                        width: '100%',
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '2px',
-                                        fontSize: '0.73rem',
-                                        fontWeight: 800,
-                                        color: s.ok ? s.color : '#94A3B8',
-                                        padding: '2px 0',
-                                      }}
-                                    >
-                                      <span>{s.ok ? '✓' : '○'}</span>
-                                      <span>{s.label}</span>
-                                    </button>
-                                    <span
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (s.ok) handleEditStageDate(item, s.key, s.date || '');
-                                      }}
-                                      title={s.ok ? 'Klik untuk ubah tanggal' : ''}
-                                      style={{
-                                        fontSize: '0.67rem',
-                                        fontFamily: 'monospace',
-                                        color: s.ok ? s.color : '#CBD5E1',
-                                        fontWeight: s.ok ? 700 : 500,
-                                        cursor: s.ok ? 'pointer' : 'default',
-                                        textDecoration: s.ok ? 'underline dotted' : 'none',
-                                        lineHeight: 1.2,
-                                        marginTop: '1px',
-                                      }}
-                                    >
-                                      {s.ok ? (s.date || getTodayFormatted()) : '-'}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </td>
-
-                        {/* Resi / Pengiriman */}
-                        <td style={{ padding: '10px 8px' }}>
-                          {(() => {
-                            const st = getCandidateStages(item);
-                            if (st.isKirim && st.noResi) {
-                              return (
-                                <div>
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: '#F3E8FF', color: '#6B21A8', border: '1px solid #E9D5FF' }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_shipping</span>
-                                    <span>{st.noResi}</span>
-                                  </span>
-                                  <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '2px' }}>
-                                    Tgl: {st.tglKirim || '-'}
-                                  </div>
-                                </div>
-                              );
-                            }
-                            if (item.noResi) {
-                              return (
-                                <div>
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', border: '1px solid #DBEAFE' }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>local_shipping</span>
-                                    <span>{item.noResi}</span>
-                                  </span>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div style={{ color: '#94A3B8', fontSize: '0.74rem' }}>
-                                <span>-</span>
-                              </div>
-                            );
-                          })()}
-                          {item.catatan && (
-                            <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '2px' }}>
-                              {item.catatan}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Action Button */}
-                        <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedKandidat(item)}
+                      {/* Row 3: 4-Tahapan Ceklis Progress */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginTop: '2px' }}>
+                        {stageItems.map((s) => (
+                          <div
+                            key={s.key}
                             style={{
-                              backgroundColor: '#F1F5F9',
-                              color: '#0F172A',
-                              border: '1px solid #CBD5E1',
-                              padding: '5px 12px',
-                              borderRadius: '7px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
+                              display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              whiteSpace: 'nowrap',
-                              transition: 'all 0.15s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#E2E8F0';
-                              e.currentTarget.style.borderColor = '#94A3B8';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#F1F5F9';
-                              e.currentTarget.style.borderColor = '#CBD5E1';
+                              backgroundColor: s.ok ? s.bg : '#F8FAFC',
+                              border: `1px solid ${s.ok ? 'transparent' : '#E2E8F0'}`,
+                              borderRadius: '6px',
+                              padding: '5px 2px',
+                              textAlign: 'center',
                             }}
                           >
-                            <span>Rincian</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: s.ok ? s.color : '#94A3B8' }}>
+                              {s.ok ? '✓' : '○'} {s.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Row 4: Resi & Tombol Rincian */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px dashed #F1F5F9' }}>
+                        <div>
+                          {item.noResi ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF' }}>
+                              🚚 {item.noResi}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Belum ada resi</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedKandidat(item)}
+                          style={{
+                            backgroundColor: '#0F172A',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            padding: '6px 14px',
+                            borderRadius: '8px',
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>Rincian</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_forward</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         ) : (
@@ -4800,45 +4685,59 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               backgroundColor: '#FFFFFF',
               borderRadius: '16px',
               border: '1px solid #E2E8F0',
-              padding: '24px',
+              padding: '24px 20px',
             }}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', fontWeight: 800, color: '#0F172A' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
               ✈️ Daftar Serah Terima Paspor di Bandara Soekarno-Hatta (Terminal 3)
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-              {flightSchedules.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    backgroundColor: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: '12px',
-                    padding: '16px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <strong style={{ fontSize: '0.95rem', color: '#0F172A' }}>{item.namaPemohon}</strong>
-                    <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 700 }}>{item.program}</span>
-                  </div>
-                  <div style={{ fontSize: '0.82rem', color: '#475569', marginBottom: '6px' }}>
-                    Paspor: <strong>{item.noPaspor}</strong> • WA: {item.noTelp}
-                  </div>
+            {flightSchedules.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 16px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>flight_takeoff</span>
+                </div>
+                <h4 style={{ margin: '0 0 6px', fontSize: '0.96rem', fontWeight: 800, color: '#0F172A' }}>
+                  Belum Ada Jadwal Serah Terima di Bandara
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B', maxWidth: '420px', marginInline: 'auto', lineHeight: 1.5 }}>
+                  Paspor pemohon yang telah terbit visa dapat diserahterimakan langsung oleh tim MapahTrip di Terminal 3 Bandara Soekarno-Hatta menjelang jam penerbangan.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
+                {flightSchedules.map((item) => (
                   <div
+                    key={item.id}
                     style={{
-                      backgroundColor: '#EFF6FF',
-                      color: '#1E40AF',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '16px',
                     }}
                   >
-                    📍 {item.catatan || 'Jadwal Terbang'}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '0.95rem', color: '#0F172A' }}>{item.namaPemohon}</strong>
+                      <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 700 }}>{item.program}</span>
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#475569', marginBottom: '6px' }}>
+                      Paspor: <strong>{item.noPaspor}</strong> • WA: {item.noTelp}
+                    </div>
+                    <div
+                      style={{
+                        backgroundColor: '#EFF6FF',
+                        color: '#1E40AF',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      📍 {item.catatan || 'Jadwal Terbang'}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -4863,45 +4762,36 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   onClick={() => setShowNotifPopover(!showNotifPopover)}
                   title="Notifikasi Aktivitas Pemohon"
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    border: '1px solid #E2E8F0',
-                    backgroundColor: showNotifPopover ? '#F1F5F9' : '#FFFFFF',
-                    color: '#475569',
+                    background: 'transparent',
+                    border: 'none',
+                    boxShadow: 'none',
+                    padding: '6px',
                     cursor: 'pointer',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                    transition: 'all 0.2s ease',
                     position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#F8FAFC';
-                    e.currentTarget.style.borderColor = '#CBD5E1';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = showNotifPopover ? '#F1F5F9' : '#FFFFFF';
-                    e.currentTarget.style.borderColor = '#E2E8F0';
+                    outline: 'none',
                   }}
                 >
                   <span
                     className="material-symbols-outlined"
                     style={{
-                      fontSize: '22px',
-                      color: unreadNotifications.length > 0 ? '#10B981' : '#475569',
+                      fontSize: '24px',
+                      color: unreadNotifications.length > 0 ? '#10B981' : '#64748B',
                       animation: unreadNotifications.length > 0 ? 'bellRing 3s infinite ease-in-out' : 'none',
+                      display: 'block',
                     }}
                   >
                     {unreadNotifications.length > 0 ? 'notifications_active' : 'notifications'}
                   </span>
+
                   {unreadNotifications.length > 0 && (
                     <span
                       style={{
                         position: 'absolute',
-                        top: '-4px',
-                        right: '-4px',
+                        top: '-2px',
+                        right: '-2px',
                         minWidth: '18px',
                         height: '18px',
                         borderRadius: '9px',
@@ -4912,10 +4802,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '0 3px',
+                        padding: '0 4px',
                         border: '2px solid #FFFFFF',
                         boxShadow: '0 2px 5px rgba(239, 68, 68, 0.4)',
                         animation: 'pulseBadge 2s infinite ease-in-out',
+                        lineHeight: 1,
+                        boxSizing: 'border-box',
                       }}
                     >
                       {unreadNotifications.length > 9 ? '9+' : unreadNotifications.length}
@@ -6967,21 +6859,19 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
                       {stageItems.map((s) => (
-                        <button
+                        <div
                           key={s.key}
-                          type="button"
-                          onClick={() => handleToggleStage(selectedKandidat, s.key)}
-                          title={`Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} ${s.label}`}
+                          title={s.ok ? `Tahap ${s.label} telah selesai (${s.date || '-'})` : `Tahap ${s.label} belum selesai (Dikelola oleh Tim Staf MapahTrip)`}
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '3px',
                             padding: '8px 10px',
                             borderRadius: '8px',
-                            backgroundColor: s.ok ? s.bg : '#FFFFFF',
+                            backgroundColor: s.ok ? s.bg : '#F8FAFC',
                             color: s.ok ? s.color : '#64748B',
                             border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
-                            cursor: 'pointer',
+                            cursor: 'default',
                             textAlign: 'left',
                             transition: 'all 0.15s ease',
                           }}
@@ -6996,7 +6886,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           <div style={{ fontSize: '0.66rem', color: '#64748B', lineHeight: 1.2 }}>
                             {s.desc}
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   );
@@ -7783,108 +7673,114 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         </div>
       )}
 
-      {/* Floating Toast Alert saat ada Notifikasi Pemohon Masuk */}
-      {showLiveCustomerToast && unreadNotifications.some((n) => n.tipe === 'new_customer') && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 9999,
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #BBF7D0',
-            borderRadius: '16px',
-            boxShadow: '0 12px 30px rgba(16, 185, 129, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)',
-            padding: '14px 16px',
-            maxWidth: '380px',
-            width: 'calc(100vw - 48px)',
-            animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'flex-start',
-          }}
-        >
+      {/* Floating Toast Alert saat ada Notifikasi Pemohon Masuk atau Update Tahap */}
+      {showLiveCustomerToast && unreadNotifications.length > 0 && (() => {
+        const latest = unreadNotifications[0];
+        const isNew = latest.tipe === 'new_customer';
+        const isFee = latest.tipe === 'fee_ready';
+        const isVisa = latest.tipe === 'visa_ready';
+        return (
           <div
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              backgroundColor: '#DCFCE7',
-              color: '#16A34A',
+              position: 'fixed',
+              bottom: '24px',
+              right: '24px',
+              zIndex: 9999,
+              backgroundColor: '#FFFFFF',
+              border: `1px solid ${isNew ? '#BBF7D0' : isFee ? '#FECACA' : '#BAE6FD'}`,
+              borderRadius: '16px',
+              boxShadow: '0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)',
+              padding: '14px 16px',
+              maxWidth: '380px',
+              width: 'calc(100vw - 48px)',
+              animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
+              gap: '12px',
+              alignItems: 'flex-start',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
-              person_add
-            </span>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
-                🎉 Ada Pemohon Baru Masuk!
-              </strong>
-              <button
-                type="button"
-                onClick={() => setShowLiveCustomerToast(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94A3B8',
-                  cursor: 'pointer',
-                  padding: '0 0 0 6px',
-                  fontSize: '16px',
-                  lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: latest.iconBg,
+                color: latest.iconColor,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                {latest.icon}
+              </span>
             </div>
-            <p style={{ margin: '4px 0 8px', fontSize: '0.76rem', color: '#475569', lineHeight: 1.4 }}>
-              Kandidat visa baru telah terdaftar menggunakan kode referral Anda (<strong>{activeAffiliateCode}</strong>).
-            </p>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNotifPopover(true);
-                  setShowLiveCustomerToast(false);
-                }}
-                style={{
-                  backgroundColor: '#16A34A',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Buka Notifikasi ({unreadNotifications.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowLiveCustomerToast(false)}
-                style={{
-                  backgroundColor: '#F1F5F9',
-                  color: '#64748B',
-                  border: 'none',
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Tutup
-              </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
+                  {isNew ? '🎉 Ada Pemohon Baru Masuk!' : isVisa ? '🎉 Visa Jepang Terbit!' : isFee ? '💰 Komisi Siap Ditransfer!' : '📦 Update Berkas Pemohon'}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => setShowLiveCustomerToast(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94A3B8',
+                    cursor: 'pointer',
+                    padding: '0 0 0 6px',
+                    fontSize: '16px',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p style={{ margin: '4px 0 8px', fontSize: '0.76rem', color: '#475569', lineHeight: 1.4 }}>
+                <strong>{latest.judul}</strong>: {latest.pesan}
+              </p>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNotifPopover(true);
+                    setShowLiveCustomerToast(false);
+                  }}
+                  style={{
+                    backgroundColor: isNew ? '#16A34A' : isFee ? '#DC2626' : '#0284C7',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Buka Notifikasi ({unreadNotifications.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLiveCustomerToast(false)}
+                  style={{
+                    backgroundColor: '#F1F5F9',
+                    color: '#64748B',
+                    border: 'none',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     
         {renderSuccessReferralModal()}
       </div>

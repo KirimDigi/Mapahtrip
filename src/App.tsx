@@ -17,7 +17,7 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { OwnerLoginModal } from './components/OwnerLoginModal';
 import { mockPengajuan, mockStaff } from './data/mockData';
 import type { Pengajuan, StatusPengajuan, StaffMaster } from './types';
-import { fetchAllPengajuanFromDB, supabase } from './lib/supabase';
+import { fetchAllPengajuanFromDB, fetchAllMitraFromDB, supabase } from './lib/supabase';
 
 export type AppMode = 'customer' | 'affiliate' | 'staff' | 'owner';
 
@@ -147,6 +147,37 @@ export function App() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<NavItemKey>('dashboard');
+  const [pengajuanInitialTab, setPengajuanInitialTab] = useState<string>('Semua');
+
+  // Helper deduplikasi anti data ganda (berdasarkan ID, noPengajuan, dan paspor+nama)
+  const deduplicatePengajuanList = (list: Pengajuan[]): Pengajuan[] => {
+    const seenIds = new Set<string>();
+    const seenNoPengajuan = new Set<string>();
+    const seenPaspor = new Set<string>();
+    const result: Pengajuan[] = [];
+
+    for (const item of list) {
+      const idKey = String(item.id);
+      const noKey = item.noPengajuan ? item.noPengajuan.trim() : '';
+      const pasporKey =
+        item.noPaspor && item.noPaspor !== '-'
+          ? `${item.noPaspor.trim().toUpperCase()}_${item.namaPemohon.trim().toLowerCase()}`
+          : '';
+
+      if (seenIds.has(idKey)) continue;
+      if (noKey && seenNoPengajuan.has(noKey)) continue;
+      if (pasporKey && seenPaspor.has(pasporKey)) continue;
+
+      seenIds.add(idKey);
+      if (noKey) seenNoPengajuan.add(noKey);
+      if (pasporKey) seenPaspor.add(pasporKey);
+
+      result.push(item);
+    }
+
+    return result;
+  };
+
   // Helper memuat pendaftaran lokal yang tersimpan dan menggabungkannya dengan data awal
   const getInitialPengajuanList = (): Pengajuan[] => {
     let localList: Pengajuan[] = [];
@@ -157,22 +188,21 @@ export function App() {
       }
     } catch {}
 
-    const map = new Map<string, Pengajuan>();
-    // Prioritaskan pemohon pendaftar baru agar langsung muncul paling atas
-    localList.forEach((p) => map.set(p.id, p));
-    mockPengajuan.forEach((p) => {
-      if (!map.has(p.id)) {
-        map.set(p.id, p);
-      }
-    });
+    const combined = [...localList, ...mockPengajuan];
+    const unique = deduplicatePengajuanList(combined);
 
-    return Array.from(map.values());
+    return unique.sort((a, b) => {
+      const numA = parseInt(a.noPengajuan.replace(/[^0-9]/g, '') || a.id.replace(/[^0-9]/g, '') || '0', 10);
+      const numB = parseInt(b.noPengajuan.replace(/[^0-9]/g, '') || b.id.replace(/[^0-9]/g, '') || '0', 10);
+      return numB - numA;
+    });
   };
 
   const [selectedPengajuanId, setSelectedPengajuanId] = useState<string | null>(null);
   const [pengajuanList, setPengajuanList] = useState<Pengajuan[]>(() => getInitialPengajuanList());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [affiliateCount, setAffiliateCount] = useState<number>(63);
 
   // Dengarkan event storage agar saat pemohon mendaftar di tab pelanggan, tab staf & mitra langsung terupdate otomatis
   useEffect(() => {
@@ -181,14 +211,7 @@ export function App() {
         const raw = localStorage.getItem('mapahtrip_local_registrations');
         if (raw) {
           const locals: Pengajuan[] = JSON.parse(raw);
-          setPengajuanList((prev) => {
-            const map = new Map<string, Pengajuan>();
-            locals.forEach((p) => map.set(p.id, p));
-            prev.forEach((p) => {
-              if (!map.has(p.id)) map.set(p.id, p);
-            });
-            return Array.from(map.values());
-          });
+          setPengajuanList((prev) => deduplicatePengajuanList([...locals, ...prev]));
         }
       } catch {}
     };
@@ -203,15 +226,63 @@ export function App() {
       try {
         const liveData = await fetchAllPengajuanFromDB();
         if (liveData && liveData.length > 0) {
-          setPengajuanList(liveData);
-          console.log(`[Supabase] Loaded ${liveData.length} records into MapahTrip.`);
+          const uniqueData = deduplicatePengajuanList(liveData);
+          setPengajuanList(uniqueData);
+          console.log(`[Supabase] Loaded ${uniqueData.length} records into MapahTrip.`);
+
+          // Sinkronisasi pembersihan cache localStorage: jika data sudah dihapus di Supabase, hapus juga dari cache lokal
+          try {
+            const raw = localStorage.getItem('mapahtrip_local_registrations');
+            if (raw) {
+              const localList: Pengajuan[] = JSON.parse(raw);
+              const liveIds = new Set(uniqueData.map((d) => String(d.id)));
+              const liveNos = new Set(uniqueData.map((d) => d.noPengajuan).filter(Boolean));
+
+              const cleaned = localList.filter((item) => {
+                const hasOfficialId = !isNaN(Number(item.id)) || (item.noPengajuan && item.noPengajuan.startsWith('MT-'));
+                if (hasOfficialId) {
+                  return liveIds.has(String(item.id)) || (item.noPengajuan && liveNos.has(item.noPengajuan));
+                }
+                return true;
+              });
+
+              localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(deduplicatePengajuanList(cleaned)));
+            }
+          } catch {}
         }
       } catch (err) {
         console.warn('Fallback to local mock data:', err);
       }
+
+      // Hitung total mitra aktif nyata (abaikan data dummy awal template)
+      try {
+        const DUMMY_CODES = new Set([
+          'TOKUTEI-INDONESIA',
+          'SUB-NIPPON-ACADEMY',
+          'BALI-HIKARI-CARE',
+          'LPK-JAPANCENTER',
+          'MEDAN-SAKURA-TRIP',
+          'MAKASSAR-NIPPON',
+          'MAPAHTRIP', // Kode staff internal, bukan mitra eksternal
+        ]);
+        const dbMitra = await fetchAllMitraFromDB();
+        const mSet = new Set<string>();
+        dbMitra.forEach((m: any) => {
+          const k = (m.affiliateCode || '').trim().toUpperCase();
+          const nama = (m.nama || '').toLowerCase();
+          if (k && !DUMMY_CODES.has(k) && !nama.includes('owner')) {
+            mSet.add(k);
+          }
+        });
+        if (mSet.size > 0) {
+          setAffiliateCount(mSet.size);
+        }
+      } catch {}
     }
     loadData();
   }, []);
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   const handleSelectTab = (tab: NavItemKey) => {
     // If selecting financial tab and not authenticated as owner, block it
@@ -221,6 +292,7 @@ export function App() {
     }
     setActiveTab(tab);
     setSelectedPengajuanId(null);
+    setIsMobileMenuOpen(false);
   };
 
   const handleSelectPengajuan = (id: string) => {
@@ -247,26 +319,79 @@ export function App() {
     }
   };
 
+  const handleUpdatePengajuan = (updatedItem: Pengajuan) => {
+    setPengajuanList((prev) =>
+      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+    );
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      let list: Pengajuan[] = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex((p) => p.id === updatedItem.id);
+      if (idx !== -1) {
+        list[idx] = updatedItem;
+      } else {
+        list.unshift(updatedItem);
+      }
+      localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(list));
+    } catch {}
+  };
+
+  // Handler pendaftaran mandiri dari Halaman Customer
+  // (Data SUDAH tersimpan di Supabase oleh CustomerHome via createPengajuanInDB, jadi TIDAK boleh insert ulang!)
+  const handleCustomerRegistration = (newItem: Pengajuan) => {
+    setPengajuanList((prev) => deduplicatePengajuanList([newItem, ...prev]));
+
+    // Simpan ke localStorage hanya untuk sinkronisasi seketika antar-tab tanpa re-insert ke Supabase
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      const list: Pengajuan[] = raw ? JSON.parse(raw) : [];
+      const updated = deduplicatePengajuanList([newItem, ...list]);
+      localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updated));
+    } catch {}
+  };
+
+  // Handler input berkas pemohon baru secara manual dari Portal Staf / Owner via Modal
   const handleAddNewPengajuan = async (newItem: Pengajuan) => {
-    setPengajuanList((prev) => {
-      const exists = prev.some((p) => p.id === newItem.id);
-      if (exists) return prev;
-      return [newItem, ...prev];
-    });
+    // Validasi anti-duplikasi: tolak jika pemohon dengan paspor & nama yang sama sudah ada di sistem
+    if (newItem.noPaspor && newItem.noPaspor !== '-') {
+      const isDuplicate = pengajuanList.some(
+        (p) =>
+          p.noPaspor?.trim().toUpperCase() === newItem.noPaspor?.trim().toUpperCase() &&
+          p.namaPemohon.trim().toLowerCase() === newItem.namaPemohon.trim().toLowerCase()
+      );
+      if (isDuplicate) {
+        alert(
+          `Perhatian: Pemohon "${newItem.namaPemohon}" dengan nomor paspor "${newItem.noPaspor}" sudah terdaftar di sistem! Pendaftaran ganda dicegah.`
+        );
+        return;
+      }
+    }
+
+    setPengajuanList((prev) => deduplicatePengajuanList([newItem, ...prev]));
 
     // Simpan ke localStorage agar data tidak hilang saat navigasi/reload
     try {
       const raw = localStorage.getItem('mapahtrip_local_registrations');
       const list: Pengajuan[] = raw ? JSON.parse(raw) : [];
-      if (!list.some((p) => p.id === newItem.id)) {
-        list.unshift(newItem);
-        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(list));
-      }
+      const updated = deduplicatePengajuanList([newItem, ...list]);
+      localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updated));
     } catch {}
 
-    // Sync insert to Supabase
+    // Sync insert to Supabase untuk modal staf
     try {
-      await supabase.from('pengajuan_visa').insert({
+      let ketString = 'Input Pemohon Baru via Portal Staf';
+      if (newItem.fotoBase64 || newItem.uploadedDocs) {
+        ketString = JSON.stringify({
+          note: 'Input Pemohon Baru via Portal Staf',
+          fotoBase64: newItem.fotoBase64,
+          originalSizeKB: newItem.fotoSizeKB,
+          compressedSizeKB: newItem.fotoSizeKB,
+          uploadedDocs: newItem.uploadedDocs || {},
+          uploadedAt: new Date().toISOString(),
+        });
+      }
+
+      const { data, error } = await supabase.from('pengajuan_visa').insert({
         nama: newItem.namaPemohon,
         no_paspor: newItem.noPaspor,
         no_wa: newItem.noTelp,
@@ -280,7 +405,21 @@ export function App() {
         cashback: newItem.cashback,
         fee_bersih: newItem.feeBersih,
         code_referral: newItem.affiliateCode || 'MAPAHTRIP',
-      });
+        form_visa: !!newItem.berkas.formVisa,
+        ktp: !!newItem.berkas.ktp,
+        ektln: !!newItem.berkas.ektln,
+        coe: !!newItem.berkas.coe,
+        foto: !!newItem.berkas.foto,
+        keterangan: ketString,
+      }).select().single();
+
+      if (data && !error) {
+        const realId = String(data.id);
+        const realNo = `MT-${String(data.no_urut || data.id).padStart(4, '0')}`;
+        setPengajuanList((prev) =>
+          prev.map((p) => (p.id === newItem.id ? { ...p, id: realId, noPengajuan: realNo } : p))
+        );
+      }
     } catch (err) {
       console.error('Failed to insert new applicant to Supabase:', err);
     }
@@ -292,15 +431,6 @@ export function App() {
     window.location.hash = '#owner';
   };
 
-    const handleLogoutOwner = () => {
-    setIsOwnerAuth(false);
-    localStorage.removeItem('mapahtrip_owner_auth');
-    setCurrentMode('staff');
-    window.location.hash = '#staff';
-    if (activeTab === 'keuangan' || activeTab === 'rekap') {
-      setActiveTab('dashboard');
-    }
-  };
 
   // Fungsi Keluar / Logout Sesi Internal (Staf maupun Owner)
   const handleLogout = () => {
@@ -327,7 +457,7 @@ export function App() {
     );
   };
 
-  const handleUpdateStage = (
+  const handleUpdateStage = async (
     id: string,
     stageData: {
       tglBerkasMasuk?: string;
@@ -336,6 +466,7 @@ export function App() {
       tglKirim?: string;
       status?: StatusPengajuan;
       noResi?: string;
+      alasanPenolakan?: string;
     }
   ) => {
     setPengajuanList((prev) =>
@@ -348,12 +479,34 @@ export function App() {
             tglSelesai: stageData.tglSelesai !== undefined ? stageData.tglSelesai : item.tglSelesai,
             tglKirim: stageData.tglKirim !== undefined ? stageData.tglKirim : item.tglKirim,
             noResi: stageData.noResi !== undefined ? stageData.noResi : item.noResi,
+            alasanPenolakan: stageData.alasanPenolakan !== undefined ? stageData.alasanPenolakan : item.alasanPenolakan,
             status: stageData.status || item.status,
           };
         }
         return item;
       })
     );
+
+    // Simpan permanen ke Supabase Cloud
+    const numId = Number(id);
+    if (!isNaN(numId)) {
+      try {
+        await supabase
+          .from('pengajuan_visa')
+          .update({
+            tgl_sampai: stageData.tglBerkasMasuk || null,
+            tgl_proses: stageData.tglApply || null,
+            tgl_selesai: stageData.tglSelesai || null,
+            tgl_kirim: stageData.tglKirim || null,
+            resi_pengiriman: stageData.noResi || null,
+            status: stageData.status || undefined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', numId);
+      } catch (err) {
+        console.error('Failed to update stage in Supabase:', err);
+      }
+    }
   };
 
   const selectedPengajuan = pengajuanList.find((p) => p.id === selectedPengajuanId);
@@ -366,7 +519,7 @@ export function App() {
         <SplashScreen />
         <CustomerHome
           pengajuanList={pengajuanList}
-          onAddNewPengajuan={handleAddNewPengajuan}
+          onAddNewPengajuan={handleCustomerRegistration}
         />
       </>
     );
@@ -427,179 +580,49 @@ export function App() {
 
   return (
     <div className="app-layout">
+      {/* Mobile Backdrop Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="mobile-backdrop"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-label="Tutup menu navigasi"
+        />
+      )}
+
       {/* Sidebar Navigation */}
-            {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
-        totalPengajuanCount={pengajuanList.length}
-        totalAffiliateCount={62}
+        totalPengajuanCount={
+          isOwnerMode || !currentStaff?.konsjenTugas
+            ? pengajuanList.length
+            : pengajuanList.filter((p) => currentStaff.konsjenTugas.includes(p.konsjen)).length
+        }
+        totalAffiliateCount={affiliateCount}
         isOwner={isOwnerMode}
         currentStaff={currentStaff}
         onRequestOwnerLogin={() => setIsAdminLoginOpen(true)}
         onLogout={handleLogout}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Workspace */}
       <div className="main-content">
-        {/* Top bar */}
-        <div
-          style={{
-            backgroundColor: isOwnerMode ? '#0B0F19' : '#0F172A',
-            color: '#ffffff',
-            padding: '8px 24px',
-            fontSize: '0.8rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '10px',
-            borderBottom: isOwnerMode ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #1E293B',
-          }}
-        >
-          {/* Mode Indicator Tag */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: isOwnerMode ? '#F59E0B' : '#38BDF8',
-                boxShadow: isOwnerMode ? '0 0 8px #F59E0B' : 'none',
-              }}
-            />
-            {isOwnerMode ? (
-              <span style={{ fontWeight: 700, color: '#FCD34D' }}>
-                👑 Mode: Portal Owner (Akses Penuh Keuangan &amp; Kelola Akun Staf)
-              </span>
-            ) : (
-              <span style={{ fontWeight: 600, color: '#E2E8F0' }}>
-                📋 Portal Staf Konsuler: <strong>{currentStaff?.nama || 'Rizky Muhammad'}</strong> ({currentStaff?.role || 'Staf PIC Lapangan'})
-              </span>
-            )}
-          </div>
-
-          {/* Quick Switcher Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {/* If in Owner Mode: Show button to exit/lock back to staff */}
-            {isOwnerMode && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleLogoutOwner}
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.2)',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
-                    color: '#FCA5A5',
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                  }}
-                  title="Kunci data keuangan dan kembali ke mode staf"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                    lock
-                  </span>
-                  <span>Kunci / Keluar Sesi Owner</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentMode('staff');
-                    window.location.hash = '#staff';
-                  }}
-                  style={{
-                    background: 'rgba(148, 163, 184, 0.15)',
-                    border: '1px solid rgba(148, 163, 184, 0.3)',
-                    color: '#E2E8F0',
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                  }}
-                  title="Buka tampilan Staf Operasional"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                    assignment
-                  </span>
-                  <span>Tampilan Staf Ops</span>
-                </button>
-              </>
-            )}
-
-            {/* Switch to Affiliate Portal */}
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentMode('affiliate');
-                window.location.hash = '#affiliate';
-              }}
-              style={{
-                background: 'rgba(56, 189, 248, 0.15)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                color: '#38BDF8',
-                padding: '4px 12px',
-                borderRadius: '9999px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-              title="Lihat tampilan dari sisi Mitra / Affiliate"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                handshake
-              </span>
-              <span>Portal Mitra (MPC)</span>
-            </button>
-
-                        {/* Switch to Customer Home */}
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentMode('customer');
-                window.location.hash = '';
-              }}
-              style={{
-                background: '#2B68E0',
-                border: 'none',
-                color: '#ffffff',
-                padding: '4px 12px',
-                borderRadius: '9999px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-              title="Buka Beranda Pelanggan Umum"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                public
-              </span>
-              <span>Halaman Pelanggan</span>
-            </button>
-
-            </div>
-        </div>
-
         <Header
+          activeTab={activeTab}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onOpenNewPengajuan={() => setIsModalOpen(true)}
+          pengajuanList={pengajuanList}
+          onSelectPengajuan={handleSelectPengajuan}
+          onNavigateToPengajuan={(statusTab) => {
+            setPengajuanInitialTab(statusTab || 'Semua');
+            handleSelectTab('pengajuan');
+          }}
+          isOwner={isOwnerMode}
+          currentStaff={currentStaff}
+          onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
         />
 
         <main className="page-body">
@@ -607,8 +630,13 @@ export function App() {
             <DashboardView
               pengajuanList={pengajuanList}
               onSelectPengajuan={handleSelectPengajuan}
-              onNavigateToPengajuan={() => handleSelectTab('pengajuan')}
+              onNavigateToPengajuan={(statusTab) => {
+                setPengajuanInitialTab(statusTab || 'Semua');
+                handleSelectTab('pengajuan');
+              }}
               isOwner={isOwnerMode}
+              currentStaff={currentStaff}
+              staffName={currentStaff?.nama}
             />
           )}
 
@@ -621,6 +649,8 @@ export function App() {
                   onUpdateStatus={(newStatus) =>
                     handleUpdateStatus(selectedPengajuan.id, newStatus)
                   }
+                  onUpdateStage={handleUpdateStage}
+                  onUpdatePengajuan={handleUpdatePengajuan}
                   isOwner={isOwnerMode}
                 />
               ) : (
@@ -629,7 +659,10 @@ export function App() {
                   onSelectPengajuan={handleSelectPengajuan}
                   onOpenNewPengajuan={() => setIsModalOpen(true)}
                   searchFilter={searchQuery}
+                  onSearchChange={setSearchQuery}
                   isOwner={isOwnerMode}
+                  currentStaff={currentStaff}
+                  initialStatusTab={pengajuanInitialTab}
                   onUpdateStage={handleUpdateStage}
                 />
               )}
@@ -641,10 +674,21 @@ export function App() {
           )}
 
           {activeTab === 'rekap' && isOwnerMode && (
-            <RekapView />
+            <RekapView pengajuanList={pengajuanList} />
           )}
 
-          {activeTab === 'affiliate' && <AffiliateView />}
+          {activeTab === 'affiliate' && (
+            <AffiliateView
+              pengajuanList={pengajuanList}
+              onNavigateToPengajuan={(refCode) => {
+                setSearchQuery(refCode);
+                setPengajuanInitialTab('Semua');
+                setActiveTab('pengajuan');
+              }}
+              isOwner={isOwnerMode}
+              onAffiliatesCountChange={setAffiliateCount}
+            />
+          )}
 
           {activeTab === 'pengaturan' && (
             <PengaturanView

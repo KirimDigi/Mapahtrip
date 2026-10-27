@@ -384,22 +384,26 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
   // Form Fields Sesuai Kolom Spreadsheet "Kelengkapan Berkas" (Upload File Berkas)
   const [formFiles, setFormFiles] = useState<{
     formVisa: File | null;
+    pasporFisik: File | null;
     ktp: File | null;
     ektln: File | null;
     coe: File | null;
     foto: File | null;
   }>({
     formVisa: null,
+    pasporFisik: null,
     ktp: null,
     ektln: null,
     coe: null,
     foto: null,
   });
 
-  // State Pasfoto Terkompresi Otomatis Di Bawah 100KB untuk Supabase Cloud
+  // State Pasfoto & Berkas Terkompresi Otomatis Di Bawah 100KB untuk Supabase Cloud
   const [formFotoBase64, setFormFotoBase64] = useState<string | null>(null);
   const [formUploadedDocs, setFormUploadedDocs] = useState<Record<string, { name: string; base64: string; sizeKB?: number }>>({});
   const [formFotoSizeKB, setFormFotoSizeKB] = useState<{ original: number; compressed: number } | null>(null);
+  const [formDocsSizeKB, setFormDocsSizeKB] = useState<Record<string, { original: number; compressed: number }>>({});
+  const [compressingDocKey, setCompressingDocKey] = useState<string | null>(null);
   const [isCompressingFoto, setIsCompressingFoto] = useState(false);
 
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -549,8 +553,18 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
       };
     };
 
-    // Cari di pendaftaran lokal dan pengajuanList
-    const all = [...localList, ...pengajuanList];
+    // Cari di data resmi pengajuanList dan pendaftaran lokal valid
+    const liveIds = new Set(pengajuanList.map((p) => String(p.id)));
+    const liveNos = new Set(pengajuanList.map((p) => p.noPengajuan).filter(Boolean));
+    const validLocalList = localList.filter((p) => {
+      const hasOfficialId = !isNaN(Number(p.id)) || (p.noPengajuan && p.noPengajuan.startsWith('MT-'));
+      if (hasOfficialId && pengajuanList.length > 0) {
+        return liveIds.has(String(p.id)) || (p.noPengajuan && liveNos.has(p.noPengajuan));
+      }
+      return true;
+    });
+
+    const all = [...pengajuanList, ...validLocalList];
     const found = all.find((p) => {
       const pPaspor = (p.noPaspor || '').toLowerCase();
       const pPengajuan = (p.noPengajuan || '').toLowerCase();
@@ -590,6 +604,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
 
   const handleKirimPendaftaran = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (formSubmitting) return;
     if (!formNama.trim()) {
       setFormError('Nama Lengkap wajib diisi.');
       return;
@@ -715,10 +730,19 @@ _Layanan Pengajuan Visa Jepang_`;
       maskedPaspor: masked,
       noTelp: formNoWa.trim(),
       konsjen: formKonsjen,
-      staffPic: 'Rizky Muhammad',
+      staffPic:
+        formKonsjen === 'Surabaya'
+          ? 'Nanami Kay'
+          : formKonsjen === 'Denpasar'
+          ? 'Yulia'
+          : formKonsjen === 'Medan'
+          ? 'Heru'
+          : formKonsjen === 'Makassar'
+          ? 'Latifah'
+          : 'Rizky',
       program: selectedVisaModal?.title || 'Visa Jepang',
       paket: formPaket,
-      tglBerkasMasuk: new Date().toLocaleDateString('id-ID'),
+      tglBerkasMasuk: '-',
       tglApply: '-',
       tglEstimasiSelesai: 'Menunggu Verifikasi Berkas',
       status: 'Menunggu Verifikasi',
@@ -729,12 +753,12 @@ _Layanan Pengajuan Visa Jepang_`;
       feeBersih: 415000,
       referralFee: 100000,
       berkas: {
-        formVisa: true,
-        ktp: true,
+        formVisa: !!formFiles.formVisa,
+        pasporFisik: !!formFiles.pasporFisik,
+        ktp: !!formFiles.ktp,
         ektln: !!formFiles.ektln,
         coe: !!formFiles.coe,
         foto: !!formFiles.foto,
-        pasporFisik: false,
       },
       catatan: `Pendaftaran mandiri via Website. Domisili: ${finalDomisili}`,
       fotoBase64: formFotoBase64 || formUploadedDocs['foto']?.base64 || undefined,
@@ -1124,9 +1148,10 @@ _Layanan Pengajuan Visa Jepang_`;
 
             <h1
               style={{
-                fontSize: 'clamp(2.3rem, 3.8vw, 3.5rem)',
-                lineHeight: 1.12,
-                letterSpacing: '-0.03em',
+                fontSize: 'clamp(1.85rem, 5vw, 3.5rem)',
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                wordBreak: 'break-word',
               }}
             >
               <span
@@ -1146,18 +1171,19 @@ _Layanan Pengajuan Visa Jepang_`;
                   fontWeight: 800,
                   color: '#0090FF',
                   letterSpacing: '-0.03em',
+                  wordBreak: 'break-word',
                 }}
               >
                 Simpel, Mudah &amp; Cepat
               </span>
             </h1>
 
-            <p style={{ fontSize: '1.05rem', color: '#475569', lineHeight: 1.6, maxWidth: '600px' }}>
+            <p style={{ fontSize: '1.02rem', color: '#475569', lineHeight: 1.6, maxWidth: '600px', wordBreak: 'break-word' }}>
               Fokus <strong style={{ color: isDarkMode ? '#60A5FA' : '#0F172A' }}>100% Visa Jepang</strong>. Semua jenis visa kami urus — dari tourist, visa waiver, bisnis, sampai student, <strong style={{ color: '#0077F6' }}>Tokutei Ginou (SSW)</strong> &amp; <strong style={{ color: '#0077F6' }}>Magang</strong>. Dokumen &amp; itinerary Jepang kami siapkan, kamu tinggal tunggu jadi.
             </p>
 
             {/* CTAs */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', marginTop: '6px' }}>
+            <div className="hero-cta-buttons" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', marginTop: '6px' }}>
               <a
                 href="#jenis-visa"
                 onClick={(e) => handleNavScroll(e, 'jenis-visa')}
@@ -1209,7 +1235,7 @@ _Layanan Pengajuan Visa Jepang_`;
             </div>
 
             {/* 3 Metric Badges: Samakan Font Serif & Data Riil Pemohon */}
-            <div className="hero-metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', width: '100%' }}>
+            <div className="hero-metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px', width: '100%' }}>
               <div className="metric-card" style={{ padding: '16px 18px', borderRadius: '18px', background: '#ffffff', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <div className="font-serif" style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '2rem', fontWeight: 700, color: '#0B1220', lineHeight: 1.1 }}>
                   99%
@@ -1316,6 +1342,9 @@ _Layanan Pengajuan Visa Jepang_`;
                   fontSize: '0.8rem',
                   color: isDarkMode ? '#94A3B8' : '#64748B',
                   lineHeight: 1.4,
+                  minWidth: 0,
+                  flex: 1,
+                  wordBreak: 'break-word',
                 }}
               >
                 Dipercaya pekerja, mahasiswa &amp; keluarga di{' '}
@@ -1875,6 +1904,14 @@ _Layanan Pengajuan Visa Jepang_`;
                 {tab.label}
               </button>
             ))}
+          </div>
+
+          {/* Mobile Swipe Indicator (Geser Kesamping) */}
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <div className="mobile-swipe-hint">
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>swipe_left</span>
+              <span>Geser ke samping untuk pilihan visa lainnya &rarr;</span>
+            </div>
           </div>
         </div>
 
@@ -3042,7 +3079,7 @@ _Layanan Pengajuan Visa Jepang_`;
                           <span>Konsulat Pengajuan: <strong>{formKonsjen}</strong></span>
                         </span>
                         <span style={{ fontWeight: 600, color: '#0369A1' }}>
-                          PIC Konsuler: <strong>{formKonsjen === 'Surabaya' ? 'Nanami Kay' : formKonsjen === 'Denpasar' ? 'Yulia' : formKonsjen === 'Makassar' ? 'Ulla' : 'Rizky Muhammad'}</strong>
+                          PIC Konsuler: <strong>{formKonsjen === 'Surabaya' ? 'Nanami Kay' : formKonsjen === 'Denpasar' ? 'Yulia' : formKonsjen === 'Medan' ? 'Heru' : formKonsjen === 'Makassar' ? 'Latifah' : 'Rizky'}</strong>
                         </span>
                       </div>
 
@@ -3192,132 +3229,206 @@ _Layanan Pengajuan Visa Jepang_`;
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {[
-                        { key: 'formVisa' as const, label: 'Form Visa', sub: 'Formulir permohonan visa', accept: '.pdf,image/*' },
-                        { key: 'ktp' as const, label: 'KTP', sub: 'Fotokopi / scan e-KTP', accept: 'image/*,.pdf' },
-                        { key: 'ektln' as const, label: 'E-KTLN', sub: 'Elektronik Kartu Tenaga Kerja Luar Negeri', accept: '.pdf,image/*' },
-                        { key: 'coe' as const, label: 'COE', sub: 'Certificate of Eligibility', accept: '.pdf,image/*' },
-                        { key: 'foto' as const, label: 'Foto', sub: 'Pasfoto 4.5 × 3.5 cm latar putih', accept: 'image/*' },
+                        { key: 'formVisa' as const, label: 'Form Visa', sub: 'Wajib Format Dokumen PDF (2 Halaman)', accept: '.pdf,application/pdf' },
+                        { key: 'pasporFisik' as const, label: 'Paspor Fisik Asli', sub: 'Scan / foto halaman biodata paspor asli', accept: 'image/*,.pdf' },
+                        { key: 'ktp' as const, label: 'KTP & KK', sub: 'Fotokopi / scan e-KTP & KK', accept: 'image/*,.pdf' },
+                        { key: 'ektln' as const, label: 'E-KTLN', sub: 'Elektronik Kartu Tenaga Kerja Luar Negeri BP2MI', accept: '.pdf,image/*' },
+                        { key: 'coe' as const, label: 'COE', sub: 'Certificate of Eligibility resmi MOJ Jepang', accept: '.pdf,image/*' },
+                        { key: 'foto' as const, label: 'Pas Foto', sub: 'Pasfoto 4.5 × 3.5 cm latar putih polos (< 100KB)', accept: 'image/*' },
                       ].map((item) => {
                         const file = formFiles[item.key];
+                        const docUploaded = formUploadedDocs[item.key];
+                        const isImageDoc = docUploaded?.base64 && docUploaded.base64.startsWith('data:image/');
+
                         return (
                           <div
                             key={item.key}
                             style={{
                               display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '10px 14px',
+                              flexDirection: 'column',
+                              gap: '10px',
+                              padding: '12px 14px',
                               borderRadius: '12px',
                               border: file ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
                               backgroundColor: file ? '#F0FDF4' : '#F8FAFC',
                               transition: 'all 0.15s ease',
-                              gap: '10px',
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                              <span
-                                className="material-symbols-outlined"
-                                style={{
-                                  fontSize: '20px',
-                                  color: file ? '#16A34A' : '#005BB5',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {file ? 'check_circle' : 'attach_file'}
-                              </span>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  <strong style={{ fontSize: '0.85rem', color: '#0F172A' }}>
-                                    {item.label}
-                                  </strong>
-                                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                                    &bull; {item.sub}
-                                  </span>
-                                </div>
-                                {item.key === 'foto' && isCompressingFoto && (
-                                  <div style={{ fontSize: '0.72rem', color: '#005BB5', fontWeight: 600, marginTop: '2px' }}>
-                                    ⏳ Sedang mengompresi otomatis di bawah 100 KB...
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '10px',
+                                width: '100%',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                <span
+                                  className="material-symbols-outlined"
+                                  style={{
+                                    fontSize: '20px',
+                                    color: file ? '#16A34A' : '#005BB5',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {file ? 'check_circle' : 'attach_file'}
+                                </span>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                    <strong style={{ fontSize: '0.85rem', color: '#0F172A' }}>
+                                      {item.label}
+                                    </strong>
+                                    <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                                      &bull; {item.sub}
+                                    </span>
                                   </div>
-                                )}
-                                {file && (
-                                  <div>
-                                    <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      📄 {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                                  {/* Loading state saat kompresi */}
+                                  {(compressingDocKey === item.key || (item.key === 'foto' && isCompressingFoto)) && (
+                                    <div style={{ fontSize: '0.72rem', color: '#005BB5', fontWeight: 600, marginTop: '2px' }}>
+                                      ⏳ Sedang mengompresi otomatis di bawah 100 KB...
                                     </div>
-                                    {item.key === 'foto' && formFotoSizeKB && (
-                                      <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        {formFotoBase64 && (
+                                  )}
+                                  {file && (
+                                    <div>
+                                      <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        📄 {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                                      </div>
+                                      {/* Preview Thumbnail Berkas Terunggah */}
+                                      {isImageDoc && (
+                                        <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                           <img
-                                            src={formFotoBase64}
-                                            alt="Preview Foto"
+                                            src={docUploaded.base64}
+                                            alt={`Preview ${item.label}`}
                                             style={{
-                                              width: '32px',
-                                              height: '40px',
+                                              width: item.key === 'foto' ? '32px' : '44px',
+                                              height: item.key === 'foto' ? '40px' : '32px',
                                               objectFit: 'cover',
                                               borderRadius: '4px',
                                               border: '1.5px solid #16A34A',
                                             }}
                                           />
-                                        )}
-                                        <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>
-                                          <span style={{ textDecoration: 'line-through', color: '#94A3B8' }}>{formFotoSizeKB.original} KB</span>
-                                          <span style={{ fontWeight: 800, color: '#16A34A', marginLeft: '4px' }}>➔ {formFotoSizeKB.compressed} KB</span>
-                                          <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', marginLeft: '4px', fontWeight: 700 }}>
-                                            ⚡ Di bawah 100 KB
-                                          </span>
+                                          {/* Badge Hasil Kompresi Gambar (< 100 KB) */}
+                                          {(formDocsSizeKB[item.key] || (item.key === 'foto' && formFotoSizeKB)) && (() => {
+                                            const stat = formDocsSizeKB[item.key] || formFotoSizeKB!;
+                                            return (
+                                              <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                                <span style={{ textDecoration: 'line-through', color: '#94A3B8' }}>{stat.original} KB</span>
+                                                <span style={{ fontWeight: 800, color: '#16A34A' }}>➔ {stat.compressed} KB</span>
+                                                <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                  ⚡ Auto-Compressed (&lt; 100 KB)
+                                                </span>
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
+                                      )}
+                                      {/* Badge Dokumen PDF & Validasi Ukuran Ideal */}
+                                      {(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && (
+                                        <div style={{ fontSize: '0.7rem', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                          <span style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                            📄 Dokumen PDF ({(file.size / 1024).toFixed(0)} KB)
+                                          </span>
+                                          {file.size <= 2 * 1024 * 1024 ? (
+                                            <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                              ✅ Ukuran Sangat Pas (&lt; 2 MB)
+                                            </span>
+                                          ) : (
+                                            <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                              ⚠️ Disarankan &lt; 2 MB
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
 
-                            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <input
-                                type="file"
-                                id={`upload-${item.key}`}
-                                accept={item.accept}
-                                style={{ display: 'none' }}
-                                onChange={async (e) => {
-                                  const f = e.target.files?.[0] || null;
-                                  if (!f) {
-                                    setFormFiles((prev) => ({ ...prev, [item.key]: null }));
-                                    setFormUploadedDocs((prev) => {
-                                      const next = { ...prev };
-                                      delete next[item.key];
-                                      return next;
-                                    });
-                                    if (item.key === 'foto') {
-                                      setFormFotoBase64(null);
-                                      setFormFotoSizeKB(null);
-                                    }
-                                    return;
-                                  }
-
-                                  // Konversi & kompresi gambar agar langsung tersimpan di Supabase
-                                  if (item.key === 'foto' || f.type.startsWith('image/')) {
-                                    try {
-                                      if (item.key === 'foto') setIsCompressingFoto(true);
-                                      const res = await compressImageUnder100KB(f);
-                                      setFormFiles((prev) => ({ ...prev, [item.key]: res.file }));
-                                      setFormUploadedDocs((prev) => ({
-                                        ...prev,
-                                        [item.key]: {
-                                          name: f.name,
-                                          base64: res.base64,
-                                          sizeKB: res.compressedSizeKB,
-                                        },
-                                      }));
+                              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                  type="file"
+                                  id={`upload-${item.key}`}
+                                  accept={item.accept}
+                                  style={{ display: 'none' }}
+                                  onChange={async (e) => {
+                                    const f = e.target.files?.[0] || null;
+                                    if (!f) {
+                                      setFormFiles((prev) => ({ ...prev, [item.key]: null }));
+                                      setFormUploadedDocs((prev) => {
+                                        const next = { ...prev };
+                                        delete next[item.key];
+                                        return next;
+                                      });
+                                      setFormDocsSizeKB((prev) => {
+                                        const next = { ...prev };
+                                        delete next[item.key];
+                                        return next;
+                                      });
                                       if (item.key === 'foto') {
-                                        setFormFotoBase64(res.base64);
-                                        setFormFotoSizeKB({
-                                          original: res.originalSizeKB,
-                                          compressed: res.compressedSizeKB,
-                                        });
+                                        setFormFotoBase64(null);
+                                        setFormFotoSizeKB(null);
                                       }
-                                    } catch (err) {
-                                      console.warn('Gagal kompresi foto:', err);
+                                      return;
+                                    }
+
+                                    // Validasi khusus Form Visa: Wajib PDF
+                                    if (item.key === 'formVisa' && !f.name.toLowerCase().endsWith('.pdf') && f.type !== 'application/pdf') {
+                                      alert('Dokumen Form Visa wajib diunggah dalam format PDF (2 halaman). Silakan simpan hasil scan Anda sebagai berkas PDF.');
+                                      return;
+                                    }
+
+                                    // Konversi & kompresi gambar agar langsung tersimpan di Supabase
+                                    if (item.key === 'foto' || f.type.startsWith('image/')) {
+                                      try {
+                                        setCompressingDocKey(item.key);
+                                        if (item.key === 'foto') setIsCompressingFoto(true);
+                                        const res = await compressImageUnder100KB(f);
+                                        setFormFiles((prev) => ({ ...prev, [item.key]: res.file }));
+                                        setFormUploadedDocs((prev) => ({
+                                          ...prev,
+                                          [item.key]: {
+                                            name: f.name,
+                                            base64: res.base64,
+                                            sizeKB: res.compressedSizeKB,
+                                          },
+                                        }));
+                                        setFormDocsSizeKB((prev) => ({
+                                          ...prev,
+                                          [item.key]: {
+                                            original: res.originalSizeKB,
+                                            compressed: res.compressedSizeKB,
+                                          },
+                                        }));
+                                        if (item.key === 'foto') {
+                                          setFormFotoBase64(res.base64);
+                                          setFormFotoSizeKB({
+                                            original: res.originalSizeKB,
+                                            compressed: res.compressedSizeKB,
+                                          });
+                                        }
+                                      } catch (err) {
+                                        console.warn('Gagal kompresi dokumen:', err);
+                                        const reader = new FileReader();
+                                        reader.onload = (re) => {
+                                          const b64 = re.target?.result as string;
+                                          if (b64) {
+                                            setFormUploadedDocs((prev) => ({
+                                              ...prev,
+                                              [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
+                                            }));
+                                            if (item.key === 'foto') setFormFotoBase64(b64);
+                                          }
+                                        };
+                                        reader.readAsDataURL(f);
+                                        setFormFiles((prev) => ({ ...prev, [item.key]: f }));
+                                      } finally {
+                                        setCompressingDocKey(null);
+                                        if (item.key === 'foto') setIsCompressingFoto(false);
+                                      }
+                                    } else {
+                                      // File non-gambar (misal PDF)
+                                      setFormFiles((prev) => ({ ...prev, [item.key]: f }));
                                       const reader = new FileReader();
                                       reader.onload = (re) => {
                                         const b64 = re.target?.result as string;
@@ -3326,92 +3437,174 @@ _Layanan Pengajuan Visa Jepang_`;
                                             ...prev,
                                             [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
                                           }));
-                                          if (item.key === 'foto') setFormFotoBase64(b64);
                                         }
                                       };
                                       reader.readAsDataURL(f);
-                                      setFormFiles((prev) => ({ ...prev, [item.key]: f }));
-                                    } finally {
-                                      if (item.key === 'foto') setIsCompressingFoto(false);
                                     }
-                                  } else {
-                                    // File non-gambar (misal PDF)
-                                    setFormFiles((prev) => ({ ...prev, [item.key]: f }));
-                                    const reader = new FileReader();
-                                    reader.onload = (re) => {
-                                      const b64 = re.target?.result as string;
-                                      if (b64) {
-                                        setFormUploadedDocs((prev) => ({
-                                          ...prev,
-                                          [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
-                                        }));
-                                      }
-                                    };
-                                    reader.readAsDataURL(f);
-                                  }
-                                }}
-                              />
-                              {file ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span
-                                    style={{
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      color: '#15803D',
-                                      backgroundColor: '#DCFCE7',
-                                      padding: '3px 8px',
-                                      borderRadius: '6px',
-                                    }}
-                                  >
-                                    Terunggah
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setFormFiles((prev) => ({ ...prev, [item.key]: null }))}
-                                    style={{
-                                      border: 'none',
-                                      background: '#FEE2E2',
-                                      color: '#EF4444',
-                                      borderRadius: '50%',
-                                      width: '24px',
-                                      height: '24px',
-                                      cursor: 'pointer',
-                                      fontSize: '12px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                    }}
-                                    title="Hapus file"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <label
-                                  htmlFor={`upload-${item.key}`}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    backgroundColor: '#FFFFFF',
-                                    border: '1.5px solid #005BB5',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 700,
-                                    color: '#005BB5',
-                                    cursor: 'pointer',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                                    transition: 'all 0.15s ease',
                                   }}
-                                >
-                                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                                    upload
-                                  </span>
-                                  <span>Pilih File</span>
-                                </label>
-                              )}
+                                />
+                                {file ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        color: '#15803D',
+                                        backgroundColor: '#DCFCE7',
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                      }}
+                                    >
+                                      Terunggah
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFormFiles((prev) => ({ ...prev, [item.key]: null }));
+                                        setFormUploadedDocs((prev) => {
+                                          const next = { ...prev };
+                                          delete next[item.key];
+                                          return next;
+                                        });
+                                        setFormDocsSizeKB((prev) => {
+                                          const next = { ...prev };
+                                          delete next[item.key];
+                                          return next;
+                                        });
+                                        if (item.key === 'foto') {
+                                          setFormFotoBase64(null);
+                                          setFormFotoSizeKB(null);
+                                        }
+                                      }}
+                                      style={{
+                                        border: 'none',
+                                        background: '#FEE2E2',
+                                        color: '#EF4444',
+                                        borderRadius: '50%',
+                                        width: '24px',
+                                        height: '24px',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}
+                                      title="Hapus file"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label
+                                    htmlFor={`upload-${item.key}`}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      backgroundColor: '#FFFFFF',
+                                      border: '1.5px solid #005BB5',
+                                      fontSize: '0.76rem',
+                                      fontWeight: 700,
+                                      color: '#005BB5',
+                                      cursor: 'pointer',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                                      upload
+                                    </span>
+                                    <span>Pilih File</span>
+                                  </label>
+                                )}
+                              </div>
                             </div>
+
+                            {/* Khusus Form Visa: Box Unduh Formulir & Tatacara Pengisian */}
+                            {item.key === 'formVisa' && (
+                              <div
+                                style={{
+                                  marginTop: '4px',
+                                  padding: '12px 14px',
+                                  borderRadius: '10px',
+                                  backgroundColor: '#F0F7FF',
+                                  border: '1px solid #BAE6FD',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '10px',
+                                  width: '100%',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                  <span
+                                    className="material-symbols-outlined"
+                                    style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0, marginTop: '1px' }}
+                                  >
+                                    assignment_turned_in
+                                  </span>
+                                  <div style={{ fontSize: '0.75rem', color: '#0369A1', lineHeight: 1.45 }}>
+                                    <strong>Wajib Menggunakan Formulir Resmi Kedutaan Jepang (Format PDF):</strong> Silakan unduh form kosong &amp; ikuti panduan pengisian di bawah. Cetak, isi lengkap, tempel pasfoto 4.5 × 3.5 cm, tanda tangani, lalu unggah kembali dalam format dokumen PDF (2 halaman).
+                                    <div style={{ marginTop: '5px', fontSize: '0.72rem', color: '#1E40AF', backgroundColor: '#E0F2FE', padding: '4px 8px', borderRadius: '6px' }}>
+                                      💡 <strong>Ketentuan Berkas:</strong> Wajib format <strong>PDF (2 Halaman)</strong>. Ukuran ideal <strong>300 KB – 800 KB</strong> (maksimal 2 MB agar teks formulir dan pasfoto tetap tajam &amp; jelas).
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                                  <a
+                                    href={`${import.meta.env.BASE_URL}documents/Formulir_Aplikasi_Visa_Jepang_MapahTrip.pdf`}
+                                    download="Formulir_Aplikasi_Visa_Jepang_MapahTrip.pdf"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '7px 12px',
+                                      borderRadius: '8px',
+                                      backgroundColor: '#FFFFFF',
+                                      color: '#0284C7',
+                                      border: '1.5px solid #0284C7',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      textDecoration: 'none',
+                                      boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
+                                    <span>Unduh Form Kosong (PDF)</span>
+                                  </a>
+
+                                  <a
+                                    href={`${import.meta.env.BASE_URL}documents/Panduan_Tatacara_Pengisian_Formulir_Visa_Jepang.pdf`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '7px 12px',
+                                      borderRadius: '8px',
+                                      backgroundColor: '#FEF3C7',
+                                      color: '#92400E',
+                                      border: '1.5px solid #F59E0B',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      textDecoration: 'none',
+                                      boxShadow: '0 1px 3px rgba(245, 158, 11, 0.1)',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>menu_book</span>
+                                    <span>Lihat Tatacara Pengisian (PDF)</span>
+                                  </a>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -4406,245 +4599,138 @@ _Layanan Pengajuan Visa Jepang_`;
             </p>
           </div>
 
-          {/* 2-Column Responsive Layout */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-              gap: '16px',
-              alignItems: 'start',
-            }}
-          >
-            {/* Kolom Kiri: Pertanyaan 01, 02, 03 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[
-                {
-                  idx: 0,
-                  q: 'Apa bedanya e-Paspor dan paspor biasa untuk visa Jepang?',
-                  a: 'e-Paspor bisa daftar Visa Waiver (bebas visa 15 hari, registrasi online 2-3 hari) atau e-Visa. Paspor biasa wajib apply stiker visa single/multiple via JVAC. Kami cekkan gratis paspor kamu termasuk yang mana.',
-                },
-                {
-                  idx: 1,
-                  q: 'Berapa lama proses visa Jepang di MAPAHTRIP?',
-                  a: 'Setelah dokumen lengkap, proses di JVAC 5-7 hari kerja (single), 7-10 hari (multiple/bisnis). Plus 1-2 hari pengecekan dokumen oleh kami sebelum submit.',
-                },
-                {
-                  idx: 2,
-                  q: 'Apakah harus datang ke JVAC?',
-                  a: 'Tidak perlu. Kecuali diminta interview khusus (sangat jarang). Kami yang wakili submit & pengambilan. Untuk yang di luar Jakarta, kirim paspor via kurir aman.',
-                },
-              ].map((item) => {
-                const isOpen = openFaqIndex === item.idx;
-                return (
-                  <div
-                    key={item.idx}
-                    className="faq-accordion-item"
+          {/* Mobile Swipe Indicator (Geser Kesamping) */}
+          <div style={{ textAlign: 'center', marginTop: '16px', marginBottom: '8px' }}>
+            <div className="mobile-swipe-hint">
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>swipe_left</span>
+              <span>Geser ke samping untuk pertanyaan lainnya &rarr;</span>
+            </div>
+          </div>
+
+          {/* FAQ Cards Grid (Desktop: 2 Columns, Mobile: Horizontal Swipeable Snap Carousel) */}
+          <div className="faq-cards-grid">
+            {[
+              {
+                idx: 0,
+                q: 'Apa bedanya e-Paspor dan paspor biasa untuk visa Jepang?',
+                a: 'e-Paspor bisa daftar Visa Waiver (bebas visa 15 hari, registrasi online 2-3 hari) atau e-Visa. Paspor biasa wajib apply stiker visa single/multiple via JVAC. Kami cekkan gratis paspor kamu termasuk yang mana.',
+              },
+              {
+                idx: 1,
+                q: 'Berapa lama proses visa Jepang di MAPAHTRIP?',
+                a: 'Setelah dokumen lengkap, proses di JVAC 5-7 hari kerja (single), 7-10 hari (multiple/bisnis). Plus 1-2 hari pengecekan dokumen oleh kami sebelum submit.',
+              },
+              {
+                idx: 2,
+                q: 'Apakah harus datang ke JVAC?',
+                a: 'Tidak perlu. Kecuali diminta interview khusus (sangat jarang). Kami yang wakili submit & pengambilan. Untuk yang di luar Jakarta, kirim paspor via kurir aman.',
+              },
+              {
+                idx: 3,
+                q: 'Apakah MAPAHTRIP menyediakan reservasi tiket pesawat & hotel sementara?',
+                a: 'Ya, 100% sudah termasuk. Kami siapkan bukti reservasi tiket pesawat PP Jepang dan pemesanan hotel sementara + itinerary harian dalam bahasa Inggris/Jepang sesuai standar Kedutaan. Anda tidak perlu beli tiket pesawat lunas sebelum visa disetujui.',
+              },
+              {
+                idx: 4,
+                q: 'Bagaimana jika visa ditolak?',
+                a: 'Approval rate kami 99% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
+              },
+            ].map((item) => {
+              const isOpen = openFaqIndex === item.idx;
+              return (
+                <div
+                  key={item.idx}
+                  className={`faq-accordion-item faq-card-item ${isOpen ? 'is-open' : ''}`}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                    borderRadius: '16px',
+                    border: isOpen ? '1.5px solid #005bb5' : (isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid #E2E8F0'),
+                    boxShadow: isOpen
+                      ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
+                      : '0 2px 6px rgba(0, 0, 0, 0.02)',
+                    transition: 'all 0.2s ease',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
                     style={{
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: '16px',
-                      border: isOpen ? '1.5px solid #005bb5' : '1px solid #E2E8F0',
-                      boxShadow: isOpen
-                        ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
-                        : '0 2px 6px rgba(0, 0, 0, 0.02)',
-                      transition: 'all 0.2s ease',
-                      overflow: 'hidden',
+                      width: '100%',
+                      padding: '18px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '14px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      textAlign: 'left',
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span
+                        className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '8px',
+                          backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#0F172A' : '#F1F5F9'),
+                          color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        0{item.idx + 1}
+                      </span>
+                      <span
+                        className="faq-question-text"
+                        style={{
+                          fontSize: '0.95rem',
+                          fontWeight: 700,
+                          color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {item.q}
+                      </span>
+                    </div>
+
+                    <span
+                      className="material-symbols-outlined faq-chevron-icon"
                       style={{
-                        width: '100%',
-                        padding: '18px 20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '14px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
+                        fontSize: '22px',
+                        color: isOpen ? '#005bb5' : '#94A3B8',
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.25s ease, color 0.2s ease',
+                        flexShrink: 0,
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span
-                          className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '8px',
-                            backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
-                            color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          0{item.idx + 1}
-                        </span>
-                        <span
-                          className="faq-question-text"
-                          style={{
-                            fontSize: '0.95rem',
-                            fontWeight: 700,
-                            color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {item.q}
-                        </span>
-                      </div>
+                      expand_more
+                    </span>
+                  </button>
 
-                      <span
-                        className="material-symbols-outlined"
-                        style={{
-                          fontSize: '22px',
-                          color: isOpen ? '#005bb5' : '#94A3B8',
-                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.25s ease, color 0.2s ease',
-                          flexShrink: 0,
-                        }}
-                      >
-                        expand_more
-                      </span>
-                    </button>
-
-                    {isOpen && (
-                      <div
-                        className="faq-answer-content"
-                        style={{
-                          padding: '0 20px 18px 60px',
-                          color: isDarkMode ? '#CBD5E1' : '#475569',
-                          fontSize: '0.9rem',
-                          lineHeight: 1.6,
-                          borderTop: isDarkMode ? '1px dashed #1E293B' : '1px dashed #F1F5F9',
-                          paddingTop: '12px',
-                        }}
-                      >
-                        {item.a}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Kolom Kanan: Pertanyaan 04, 05 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[
-                {
-                  idx: 3,
-                  q: 'Apakah MAPAHTRIP menyediakan reservasi tiket pesawat & hotel sementara?',
-                  a: 'Ya, 100% sudah termasuk. Kami siapkan bukti reservasi tiket pesawat PP Jepang dan pemesanan hotel sementara + itinerary harian dalam bahasa Inggris/Jepang sesuai standar Kedutaan. Anda tidak perlu beli tiket pesawat lunas sebelum visa disetujui.',
-                },
-                {
-                  idx: 4,
-                  q: 'Bagaimana jika visa ditolak?',
-                  a: 'Approval rate kami 99% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
-                },
-              ].map((item) => {
-                const isOpen = openFaqIndex === item.idx;
-                return (
                   <div
-                    key={item.idx}
-                    className="faq-accordion-item"
+                    className={`faq-answer-content ${isOpen ? 'is-open' : ''}`}
                     style={{
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: '16px',
-                      border: isOpen ? '1.5px solid #005bb5' : '1px solid #E2E8F0',
-                      boxShadow: isOpen
-                        ? '0 10px 25px -5px rgba(0, 91, 181, 0.1), 0 4px 10px rgba(0, 0, 0, 0.03)'
-                        : '0 2px 6px rgba(0, 0, 0, 0.02)',
-                      transition: 'all 0.2s ease',
-                      overflow: 'hidden',
+                      padding: '0 20px 18px 60px',
+                      color: isDarkMode ? '#CBD5E1' : '#475569',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.6,
+                      borderTop: isDarkMode ? '1px dashed #334155' : '1px dashed #F1F5F9',
+                      paddingTop: '12px',
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setOpenFaqIndex(isOpen ? null : item.idx)}
-                      style={{
-                        width: '100%',
-                        padding: '18px 20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '14px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span
-                          className={isOpen ? "faq-num-badge is-open" : "faq-num-badge"}
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '8px',
-                            backgroundColor: isOpen ? '#005bb5' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
-                            color: isOpen ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          0{item.idx + 1}
-                        </span>
-                        <span
-                          className="faq-question-text"
-                          style={{
-                            fontSize: '0.95rem',
-                            fontWeight: 700,
-                            color: isOpen ? (isDarkMode ? '#60A5FA' : '#005bb5') : (isDarkMode ? '#F8FAFC' : '#0F172A'),
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {item.q}
-                        </span>
-                      </div>
-
-                      <span
-                        className="material-symbols-outlined"
-                        style={{
-                          fontSize: '22px',
-                          color: isOpen ? '#005bb5' : '#94A3B8',
-                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.25s ease, color 0.2s ease',
-                          flexShrink: 0,
-                        }}
-                      >
-                        expand_more
-                      </span>
-                    </button>
-
-                    {isOpen && (
-                      <div
-                        className="faq-answer-content"
-                        style={{
-                          padding: '0 20px 18px 60px',
-                          color: isDarkMode ? '#CBD5E1' : '#475569',
-                          fontSize: '0.9rem',
-                          lineHeight: 1.6,
-                          borderTop: isDarkMode ? '1px dashed #1E293B' : '1px dashed #F1F5F9',
-                          paddingTop: '12px',
-                        }}
-                      >
-                        {item.a}
-                      </div>
-                    )}
+                    {item.a}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* ======================================================== */}
@@ -4993,7 +5079,7 @@ _Layanan Pengajuan Visa Jepang_`;
       </section>
 
       {/* 5. Footer Utama Sebelumnya (Dark) */}
-      <footer style={{ backgroundColor: '#0B1220', color: '#ffffff', padding: '60px 24px 30px' }}>
+      <footer className="customer-main-footer" style={{ backgroundColor: '#0B1220', color: '#ffffff', padding: '60px 24px 30px' }}>
         <div
           style={{
             maxWidth: '1240px',
@@ -5006,7 +5092,7 @@ _Layanan Pengajuan Visa Jepang_`;
           }}
         >
           {/* Column 1: Brand & WhatsApp */}
-          <div style={{ flex: '1 1 360px', maxWidth: '480px' }}>
+          <div className="footer-brand-col" style={{ flex: '1 1 360px', maxWidth: '480px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
               <img
                 src={logoPutih}
@@ -5076,6 +5162,7 @@ _Layanan Pengajuan Visa Jepang_`;
                 href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20konsultasi%20pengajuan%20Visa%20Jepang"
                 target="_blank"
                 rel="noopener noreferrer"
+                className="footer-wa-link"
                 style={{
                   color: '#ffffff',
                   textDecoration: 'none',
@@ -5097,9 +5184,9 @@ _Layanan Pengajuan Visa Jepang_`;
           {/* Right Columns Group: Jenis Visa, Sosial Media, Bantuan, Kantor & JVAC */}
           <div className="footer-columns-group" style={{ display: 'flex', gap: '36px', flexWrap: 'wrap', flex: '0 1 auto' }}>
             {/* Column 2: Jenis Visa */}
-            <div style={{ flex: '0 0 auto', minWidth: '140px' }}>
+            <div className="footer-col-visa" style={{ flex: '0 0 auto', minWidth: '140px' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Jenis Visa</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+              <div className="footer-visa-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
                 {VISA_OPTIONS.map((item) => (
                   <button
                     key={item.id}
@@ -5142,9 +5229,9 @@ _Layanan Pengajuan Visa Jepang_`;
             </div>
 
             {/* Column 3: Sosial Media */}
-            <div style={{ flex: '0 0 auto', minWidth: '150px' }}>
+            <div className="footer-col-social" style={{ flex: '0 0 auto', minWidth: '150px' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Sosial Media</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
+              <div className="footer-social-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
                 <a
                   href="https://www.instagram.com/mapahtrip.id/"
                   target="_blank"
@@ -5210,9 +5297,9 @@ _Layanan Pengajuan Visa Jepang_`;
             </div>
 
             {/* Column 4: Bantuan */}
-            <div style={{ flex: '0 0 auto', minWidth: '120px' }}>
+            <div className="footer-col-bantuan" style={{ flex: '0 0 auto', minWidth: '120px' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Bantuan</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+              <div className="footer-bantuan-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
                 <a
                   href="#kenapa-kami"
                   style={{ color: '#cbd5e1', textDecoration: 'none', transition: 'color 0.15s ease' }}
@@ -5265,7 +5352,7 @@ _Layanan Pengajuan Visa Jepang_`;
             </div>
 
             {/* Column 5: Kantor & JVAC */}
-            <div style={{ flex: '0 0 auto', minWidth: '190px', maxWidth: '240px' }}>
+            <div className="footer-col-kantor" style={{ flex: '0 0 auto', minWidth: '190px', maxWidth: '240px' }}>
               <a
                 href="https://maps.app.goo.gl/7vuLeQV1Km1PzGu68"
                 target="_blank"
@@ -5292,7 +5379,7 @@ _Layanan Pengajuan Visa Jepang_`;
                 </svg>
                 <span>Kantor Mapahtrip &amp; JVAC</span>
               </a>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+              <div className="footer-kantor-details" style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.5 }}>
                 <a
                   href="https://maps.app.goo.gl/7vuLeQV1Km1PzGu68"
                   target="_blank"
@@ -5335,6 +5422,7 @@ _Layanan Pengajuan Visa Jepang_`;
         </div>
 
         <div
+          className="footer-bottom-bar"
           style={{
             maxWidth: '1240px',
             margin: '40px auto 0',
@@ -5360,6 +5448,7 @@ _Layanan Pengajuan Visa Jepang_`;
         href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20ingin%20konsultasi%20pengajuan%20Visa%20Jepang"
         target="_blank"
         rel="noopener noreferrer"
+        className="floating-cs-button"
         style={{
           position: 'fixed',
           bottom: '24px',

@@ -1,27 +1,56 @@
 import { samplePasfotoBase64, sampleKtpBase64, sampleCoeBase64, sampleFormVisaBase64 } from '../data/mockData';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Pengajuan } from '../types';
 import { kirimPesanWA } from '../whatsapp';
-import { updatePengajuanDocumentInDB } from '../lib/supabase';
+import { updatePengajuanDocumentInDB, updatePengajuanPaymentInDB } from '../lib/supabase';
 
 interface DetailPengajuanViewProps {
   pengajuan: Pengajuan;
   onBack: () => void;
-  onUpdateStatus: (newStatus: Pengajuan['status']) => void;
+  onUpdateStatus?: (newStatus: Pengajuan['status']) => void;
+  onUpdateStage?: (id: string, stageData: any) => void;
+  onUpdatePengajuan?: (updatedPengajuan: Pengajuan) => void;
   isOwner?: boolean;
 }
 
 export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
   pengajuan,
   onBack,
-  onUpdateStatus,
+  onUpdatePengajuan,
   isOwner = false,
 }) => {
   const [showRealPassport, setShowRealPassport] = useState(false);
   const [isSendingWA, setIsSendingWA] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState<{ title: string; base64: string; fileName?: string } | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ title: string; base64: string; fileName?: string; isSample?: boolean } | null>(null);
   const [currentPengajuan, setCurrentPengajuan] = useState<Pengajuan>(pengajuan);
   const [isUploadingDoc, setIsUploadingDoc] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentPengajuan(pengajuan);
+  }, [pengajuan]);
+
+  const handleDownloadDoc = (docTitle: string, base64Data?: string, fileName?: string) => {
+    if (!base64Data) {
+      alert(`Pemohon belum mengunggah dokumen "${docTitle}". Silakan unggah foto/scan fisik dokumen pemohon terlebih dahulu via tombol "Upload Fisik".`);
+      return;
+    }
+
+    let ext = '.jpg';
+    if (base64Data.startsWith('data:application/pdf')) ext = '.pdf';
+    else if (base64Data.startsWith('data:image/png')) ext = '.png';
+    else if (base64Data.startsWith('data:image/jpeg') || base64Data.startsWith('data:image/jpg')) ext = '.jpg';
+
+    const safeApplicant = currentPengajuan.namaPemohon.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeDoc = docTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const finalName = fileName || `${safeDoc}_${safeApplicant}${ext}`;
+
+    const link = document.createElement('a');
+    link.href = base64Data;
+    link.download = finalName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleUploadDoc = async (docKey: string, file: File) => {
     setIsUploadingDoc(docKey);
@@ -44,25 +73,80 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
 
       await updatePengajuanDocumentInDB(currentPengajuan.id, docKey, b64, file.name, size);
 
-      setCurrentPengajuan((prev) => ({
-        ...prev,
-        fotoBase64: docKey === 'foto' ? b64 : prev.fotoBase64,
-        fotoSizeKB: docKey === 'foto' ? size : prev.fotoSizeKB,
+      const updatedPengajuanItem: Pengajuan = {
+        ...currentPengajuan,
+        fotoBase64: docKey === 'foto' ? b64 : currentPengajuan.fotoBase64,
+        fotoSizeKB: docKey === 'foto' ? size : currentPengajuan.fotoSizeKB,
         berkas: {
-          ...prev.berkas,
+          ...currentPengajuan.berkas,
           [docKey]: true,
         },
         uploadedDocs: {
-          ...(prev.uploadedDocs || {}),
+          ...(currentPengajuan.uploadedDocs || {}),
           [docKey]: { name: file.name, base64: b64, sizeKB: size },
         },
-      }));
-      alert(`✅ Berkas "${file.name}" berhasil diunggah dan disimpan ke Supabase!`);
+      };
+
+      setCurrentPengajuan(updatedPengajuanItem);
+      if (onUpdatePengajuan) {
+        onUpdatePengajuan(updatedPengajuanItem);
+      }
+      alert(`✅ Berkas "${file.name}" berhasil diunggah dan tersimpan ke sistem untuk pemohon ${currentPengajuan.namaPemohon}!`);
     } catch (err: any) {
       alert(`Gagal mengunggah berkas: ${err.message}`);
     } finally {
       setIsUploadingDoc(null);
     }
+  };
+
+  const handleUploadBuktiBayar = async (file: File) => {
+    setIsUploadingDoc('bukti_bayar');
+    try {
+      let b64 = '';
+      if (file.type.startsWith('image/')) {
+        const { compressImageUnder100KB } = await import('../utils/imageCompressor');
+        const comp = await compressImageUnder100KB(file);
+        b64 = comp.base64;
+      } else {
+        b64 = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = reject;
+          r.readAsDataURL(file);
+        });
+      }
+
+      await updatePengajuanPaymentInDB(currentPengajuan.id, {
+        buktiBayarPemohon: b64,
+        buktiBayarNama: file.name,
+      });
+
+      const updated: Pengajuan = {
+        ...currentPengajuan,
+        buktiBayarPemohon: b64,
+        buktiBayarNama: file.name,
+      };
+      setCurrentPengajuan(updated);
+      if (onUpdatePengajuan) onUpdatePengajuan(updated);
+      alert(`✅ Bukti transfer "${file.name}" berhasil diunggah untuk pemohon ${currentPengajuan.namaPemohon}!`);
+    } catch (err: any) {
+      alert(`Gagal mengunggah bukti transfer: ${err.message}`);
+    } finally {
+      setIsUploadingDoc(null);
+    }
+  };
+
+  const handleToggleStatusBayar = async () => {
+    const nextStatus = currentPengajuan.statusPembayaran === 'Menunggu Pembayaran' ? 'Lunas' : 'Menunggu Pembayaran';
+    await updatePengajuanPaymentInDB(currentPengajuan.id, {
+      statusPembayaran: nextStatus,
+    });
+    const updated: Pengajuan = {
+      ...currentPengajuan,
+      statusPembayaran: nextStatus,
+    };
+    setCurrentPengajuan(updated);
+    if (onUpdatePengajuan) onUpdatePengajuan(updated);
   };
 
   const handleKirimNotifWA = async () => {
@@ -282,7 +366,23 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                   </button>
                 </div>
 
-                <span className="badge badge-info">{pengajuan.status}</span>
+                {pengajuan.status === 'Ditolak' ? (
+                  <span
+                    className="badge badge-error"
+                    style={{
+                      background: '#FEE2E2',
+                      color: '#B91C1C',
+                      border: '1px solid #FECACA',
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    ⛔ Ditolak: {pengajuan.alasanPenolakan || 'Di Awal'}
+                  </span>
+                ) : (
+                  <span className="badge badge-info">{pengajuan.status}</span>
+                )}
               </div>
 
               <div
@@ -375,21 +475,47 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
             <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700 }}>
               Kelengkapan Dokumen Fisik
             </h3>
-            <span className="badge badge-info">Verifikasi 6/6</span>
+            {(() => {
+              const docList = [
+                { key: 'formVisa', isOk: !!currentPengajuan.uploadedDocs?.formVisa?.base64 },
+                { key: 'pasporFisik', isOk: !!currentPengajuan.uploadedDocs?.pasporFisik?.base64 },
+                { key: 'ektln', isOk: !!currentPengajuan.uploadedDocs?.ektln?.base64 },
+                { key: 'coe', isOk: !!currentPengajuan.uploadedDocs?.coe?.base64 },
+                { key: 'foto', isOk: !!(currentPengajuan.fotoBase64 || currentPengajuan.uploadedDocs?.foto?.base64) },
+                { key: 'ktp', isOk: !!currentPengajuan.uploadedDocs?.ktp?.base64 },
+              ];
+              const totalUploaded = docList.filter((d) => d.isOk).length;
+              return (
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                    backgroundColor: totalUploaded === 6 ? '#DCFCE7' : '#E0F2FE',
+                    color: totalUploaded === 6 ? '#15803D' : '#0369A1',
+                  }}
+                >
+                  {totalUploaded === 6 ? '✓ Lengkap 6/6 Berkas' : `Terunggah ${totalUploaded}/6 Berkas`}
+                </span>
+              );
+            })()}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {[
-              { key: 'formVisa', title: 'Formulir Aplikasi Visa Jepang', ok: currentPengajuan.berkas.formVisa, note: 'Tanda tangan asli pemohon', sample: sampleFormVisaBase64 },
-              { key: 'pasporFisik', title: 'Paspor Fisik Asli', ok: currentPengajuan.berkas.pasporFisik, note: 'Masa berlaku > 12 bulan', sample: samplePasfotoBase64 },
-              { key: 'ektln', title: 'E-KTLN (Tenaga Kerja Luar Negeri)', ok: currentPengajuan.berkas.ektln, note: 'Terdaftar BP2MI aktif', sample: sampleCoeBase64 },
-              { key: 'coe', title: 'Certificate of Eligibility (COE)', ok: currentPengajuan.berkas.coe, note: 'Asli & legalisir dari MOJ Jepang', sample: sampleCoeBase64 },
-              { key: 'foto', title: 'Pas Foto 4.5 × 3.5 cm (Background Putih)', ok: currentPengajuan.berkas.foto || !!currentPengajuan.fotoBase64, note: 'Standar konsulat (< 100KB)', sample: samplePasfotoBase64 },
-              { key: 'ktp', title: 'Fotokopi KTP & Kartu Keluarga', ok: currentPengajuan.berkas.ktp, note: 'Tervalidasi Dukcapil', sample: sampleKtpBase64 },
+              { key: 'formVisa', title: 'Formulir Aplikasi Visa Jepang', note: 'Tanda tangan asli pemohon', sample: sampleFormVisaBase64 },
+              { key: 'pasporFisik', title: 'Paspor Fisik Asli', note: 'Masa berlaku > 12 bulan', sample: samplePasfotoBase64 },
+              { key: 'ektln', title: 'E-KTLN (Tenaga Kerja Luar Negeri)', note: 'Terdaftar BP2MI aktif', sample: sampleCoeBase64 },
+              { key: 'coe', title: 'Certificate of Eligibility (COE)', note: 'Asli & legalisir dari MOJ Jepang', sample: sampleCoeBase64 },
+              { key: 'foto', title: 'Pas Foto 4.5 × 3.5 cm (Background Putih)', note: 'Standar konsulat (< 100KB)', sample: samplePasfotoBase64 },
+              { key: 'ktp', title: 'Fotokopi KTP & Kartu Keluarga', note: 'Tervalidasi Dukcapil', sample: sampleKtpBase64 },
             ].map((doc) => {
               const docFile = currentPengajuan.uploadedDocs?.[doc.key];
-              const docBase64 = doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64 || doc.sample) : (docFile?.base64 || doc.sample);
-              const isRealUploaded = Boolean(doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64) : docFile?.base64);
+              const realBase64 = doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64) : docFile?.base64;
+              const isRealUploaded = Boolean(realBase64);
+              const activeBase64 = realBase64 || doc.sample;
+              const isPdf = Boolean((docFile?.name && docFile.name.toLowerCase().endsWith('.pdf')) || (realBase64 && realBase64.startsWith('data:application/pdf')));
 
               return (
                 <div
@@ -409,48 +535,85 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px', flex: 1 }}>
                     {/* Thumbnail Preview Icon / Image */}
-                    {docBase64 && (
+                    {isRealUploaded ? (
                       <div
                         onClick={() =>
                           setPreviewDoc({
                             title: `${doc.title} - ${currentPengajuan.namaPemohon}`,
-                            base64: docBase64,
-                            fileName: docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`,
+                            base64: realBase64!,
+                            fileName: docFile?.name || `${doc.key}_${currentPengajuan.namaPemohon}.jpg`,
+                            isSample: false,
                           })
                         }
                         style={{
-                          width: '42px',
+                          width: '44px',
                           height: '52px',
                           borderRadius: '8px',
-                          border: isRealUploaded ? '2px solid #16A34A' : '1.5px dashed #0284C7',
+                          border: '2px solid #16A34A',
                           overflow: 'hidden',
                           cursor: 'pointer',
                           flexShrink: 0,
                           backgroundColor: '#FFFFFF',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                          boxShadow: '0 2px 6px rgba(22, 163, 74, 0.15)',
                           position: 'relative',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
-                        title="Klik untuk membuka pratinjau dokumen"
+                        title="Klik untuk membuka dokumen asli pemohon"
                       >
-                        <img
-                          src={docBase64}
-                          alt={doc.title}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        <div
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            background: 'rgba(0,0,0,0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#FFFFFF',
-                            fontSize: '12px',
-                          }}
-                        >
-                          👁️
-                        </div>
+                        {isPdf ? (
+                          <div style={{ textAlign: 'center', color: '#DC2626' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>picture_as_pdf</span>
+                            <div style={{ fontSize: '0.6rem', fontWeight: 800 }}>PDF</div>
+                          </div>
+                        ) : (
+                          <>
+                            <img
+                              src={realBase64!}
+                              alt={doc.title}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.25)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#FFFFFF',
+                                fontSize: '13px',
+                              }}
+                            >
+                              👁️
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          width: '44px',
+                          height: '52px',
+                          borderRadius: '8px',
+                          border: '1.5px dashed #CBD5E1',
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                          backgroundColor: '#F1F5F9',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#94A3B8',
+                          gap: '2px',
+                        }}
+                        title="Dokumen belum diunggah oleh pemohon"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                          note_add
+                        </span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Kosong</span>
                       </div>
                     )}
 
@@ -458,37 +621,46 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                       <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span>{doc.title}</span>
                         {isRealUploaded ? (
-                          <span style={{ fontSize: '0.68rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          <span style={{ fontSize: '0.68rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 8px', borderRadius: '4px', fontWeight: 700 }}>
                             ✓ Diunggah Pemohon
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.68rem', backgroundColor: '#E0F2FE', color: '#0369A1', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                            Contoh Template Tersedia
+                          <span style={{ fontSize: '0.68rem', backgroundColor: '#FEF3C7', color: '#B45309', padding: '1px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                            Belum Diunggah
                           </span>
                         )}
                       </div>
                       <div style={{ fontSize: '0.74rem', color: isRealUploaded ? '#166534' : '#64748B', marginTop: '2px' }}>
-                        {docFile?.name ? `📄 ${docFile.name} (${docFile.sizeKB || '?'} KB)` : doc.note}
+                        {isRealUploaded ? (
+                          <span>
+                            📄 {docFile?.name || 'Dokumen Asli'} ({docFile?.sizeKB || Math.round((realBase64!.length * 0.75) / 1024)} KB)
+                          </span>
+                        ) : (
+                          <span>{doc.note}</span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Action Buttons: LIHAT GAMBAR & UNDUH */}
+                  {/* Action Buttons: LIHAT DOKUMEN, UNDUH & UPLOAD FISIK */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-                    {/* Tombol Utama: LIHAT GAMBAR */}
+                    {/* Tombol Utama: LIHAT DOKUMEN */}
                     <button
                       type="button"
                       onClick={() =>
                         setPreviewDoc({
-                          title: `${doc.title} - ${currentPengajuan.namaPemohon}`,
-                          base64: docBase64,
-                          fileName: docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`,
+                          title: isRealUploaded
+                            ? `${doc.title} - ${currentPengajuan.namaPemohon}`
+                            : `[Contoh Template] ${doc.title}`,
+                          base64: activeBase64,
+                          fileName: docFile?.name || `${doc.key}_${currentPengajuan.namaPemohon}.jpg`,
+                          isSample: !isRealUploaded,
                         })
                       }
                       style={{
-                        background: '#005BB5',
-                        color: '#FFFFFF',
-                        border: 'none',
+                        background: isRealUploaded ? '#005BB5' : '#FFFFFF',
+                        color: isRealUploaded ? '#FFFFFF' : '#005BB5',
+                        border: isRealUploaded ? 'none' : '1px solid #005BB5',
                         borderRadius: '8px',
                         padding: '7px 14px',
                         fontSize: '0.76rem',
@@ -497,60 +669,69 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '5px',
-                        boxShadow: '0 2px 6px rgba(0, 91, 181, 0.25)',
+                        boxShadow: isRealUploaded ? '0 2px 6px rgba(0, 91, 181, 0.25)' : 'none',
                       }}
-                      title="Lihat dokumen ukuran penuh"
+                      title={isRealUploaded ? "Lihat dokumen asli yang diunggah pemohon" : "Lihat contoh template format acuan"}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                        visibility
+                        {isRealUploaded ? 'visibility' : 'description'}
                       </span>
-                      <span>Lihat Dokumen</span>
+                      <span>{isRealUploaded ? 'Lihat Dokumen' : 'Contoh Template'}</span>
                     </button>
 
                     {/* Tombol Unduh */}
-                    <a
-                      href={docBase64}
-                      download={docFile?.name || `${doc.key}_${currentPengajuan.noPengajuan}.jpg`}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isRealUploaded && realBase64) {
+                          handleDownloadDoc(doc.title, realBase64, docFile?.name);
+                        } else {
+                          // Jika belum ada, tawarkan unduh contoh template
+                          if (confirm(`Pemohon belum mengunggah dokumen "${doc.title}". Apakah Anda ingin mengunduh lembar contoh template resmi untuk diberikan kepada pemohon?`)) {
+                            handleDownloadDoc(`Contoh_Template_${doc.title}`, doc.sample, `Contoh_Template_${doc.key}.jpg`);
+                          }
+                        }
+                      }}
                       style={{
                         background: '#FFFFFF',
-                        color: '#0F172A',
+                        color: isRealUploaded ? '#0F172A' : '#64748B',
                         border: '1px solid #CBD5E1',
                         borderRadius: '8px',
                         padding: '6px 12px',
                         fontSize: '0.74rem',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        textDecoration: 'none',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px',
                       }}
-                      title="Unduh Berkas ke Laptop"
+                      title={isRealUploaded ? "Unduh dokumen asli pemohon ke laptop" : "Unduh lembar template resmi"}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
                         download
                       </span>
                       <span>Unduh</span>
-                    </a>
+                    </button>
 
-                    {/* Tombol Upload / Ganti Berkas untuk Staf */}
+                    {/* Tombol Upload Fisik / Ganti Berkas untuk Staf */}
                     <label
                       style={{
-                        background: '#FFFFFF',
-                        color: '#475569',
-                        border: '1px dashed #94A3B8',
+                        background: isRealUploaded ? '#FFFFFF' : '#EFF6FF',
+                        color: isRealUploaded ? '#475569' : '#005BB5',
+                        border: isRealUploaded ? '1px dashed #94A3B8' : '1.5px solid #005BB5',
                         borderRadius: '8px',
-                        padding: '6px 10px',
+                        padding: '6px 12px',
                         fontSize: '0.74rem',
-                        fontWeight: 600,
+                        fontWeight: 700,
                         cursor: isUploadingDoc === doc.key ? 'wait' : 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px',
+                        gap: '5px',
+                        boxShadow: !isRealUploaded ? '0 1px 4px rgba(0, 91, 181, 0.15)' : 'none',
                       }}
-                      title="Unggah berkas baru atau ganti dokumen pemohon"
+                      title="Unggah scan/foto berkas fisik pemohon langsung ke database MapahTrip"
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                         upload_file
                       </span>
                       <span>{isUploadingDoc === doc.key ? 'Mengunggah...' : (isRealUploaded ? 'Ganti' : 'Upload Fisik')}</span>
@@ -589,81 +770,202 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
           )}
         </div>
 
-        {/* Column 2: OWNER ONLY (Keuangan Pengajuan) vs STAFF (Penugasan & Jadwal Konsuler) */}
+        {/* Column 2: OWNER ONLY (Keuangan Pengajuan & Verifikasi Pembayaran) vs STAFF (Penugasan & Jadwal Konsuler) */}
         {isOwner ? (
           <div className="card" style={{ background: 'linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 100%)', border: '1px solid #FDE68A' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700, color: '#78350F' }}>
-                👑 Rincian Keuangan Pengajuan
-              </h3>
-              <span className="badge badge-success">Lunas</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#B45309' }}>
+                  payments
+                </span>
+                <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700, color: '#78350F', margin: 0 }}>
+                  Verifikasi Pembayaran &amp; Keuangan
+                </h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span
+                  className={`badge ${currentPengajuan.statusPembayaran === 'Menunggu Pembayaran' ? 'badge-warning' : 'badge-success'}`}
+                  style={{ cursor: 'pointer', fontWeight: 700 }}
+                  onClick={handleToggleStatusBayar}
+                  title="Klik untuk ubah status pembayaran"
+                >
+                  {currentPengajuan.statusPembayaran === 'Menunggu Pembayaran' ? '⏳ Menunggu Bayar' : '✓ Lunas (100%)'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleStatusBayar}
+                  style={{
+                    background: '#FEF3C7',
+                    border: '1px solid #FDE68A',
+                    color: '#92400E',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  title="Ubah status bayar"
+                >
+                  Ubah
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                <span style={{ color: 'var(--on-surface-variant)' }}>Dibayar Pemohon:</span>
-                <strong style={{ fontFamily: 'monospace' }}>{formatRupiah(pengajuan.dibayarPemohon)}</strong>
+              {/* Uang Masuk Pemohon */}
+              <div style={{ background: '#FFFFFF', padding: '12px', borderRadius: '10px', border: '1px solid #FDE68A', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
+                  <span style={{ color: 'var(--on-surface-variant)', fontWeight: 600 }}>Nominal Dibayar Pemohon:</span>
+                  <strong style={{ fontFamily: 'monospace', fontSize: '1.05rem', color: '#0F172A' }}>
+                    {formatRupiah(currentPengajuan.dibayarPemohon)}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748B' }}>
+                  <span>Rekening / Metode:</span>
+                  <span style={{ fontWeight: 600, color: '#1E293B' }}>
+                    {currentPengajuan.metodePembayaran || 'Transfer BCA (5780868611)'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748B' }}>
+                  <span>Tgl Pembayaran:</span>
+                  <span style={{ fontWeight: 600, color: '#1E293B' }}>
+                    {currentPengajuan.tglBayarPemohon || currentPengajuan.tglBerkasMasuk || 'Hari Ini'}
+                  </span>
+                </div>
+
+                {/* Struk Bukti Transfer Pemohon */}
+                <div style={{ marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>Bukti Struk Transfer:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {currentPengajuan.buktiBayarPemohon ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewDoc({
+                            title: `Struk Transfer - ${currentPengajuan.namaPemohon}`,
+                            base64: currentPengajuan.buktiBayarPemohon!,
+                            fileName: currentPengajuan.buktiBayarNama || 'Struk_Pembayaran.jpg',
+                          })
+                        }
+                        style={{
+                          background: '#ECFDF5',
+                          border: '1px solid #A7F3D0',
+                          color: '#065F46',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                          visibility
+                        </span>
+                        <span>Lihat Struk</span>
+                      </button>
+                    ) : null}
+
+                    <label
+                      style={{
+                        background: currentPengajuan.buktiBayarPemohon ? '#F8FAFC' : '#EFF6FF',
+                        border: currentPengajuan.buktiBayarPemohon ? '1px solid #CBD5E1' : '1px solid #BFDBFE',
+                        color: currentPengajuan.buktiBayarPemohon ? '#475569' : '#1D4ED8',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                        upload_file
+                      </span>
+                      <span>{currentPengajuan.buktiBayarPemohon ? 'Ganti' : '+ Upload Struk'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadBuktiBayar(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+              {/* Rincian Biaya Modal & Cashback */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--on-surface-variant)' }}>Biaya Konsulat &amp; Nominal Keluar:</span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--error)' }}>
-                  - {formatRupiah(pengajuan.nominalKeluar)}
+                <span style={{ fontFamily: 'monospace', color: 'var(--error)', fontWeight: 600 }}>
+                  - {formatRupiah(currentPengajuan.nominalKeluar)}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--on-surface-variant)' }}>Cashback Mitra:</span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--success)' }}>
-                  + {formatRupiah(pengajuan.cashback)}
+                <span style={{ fontFamily: 'monospace', color: 'var(--success)', fontWeight: 600 }}>
+                  + {formatRupiah(currentPengajuan.cashback)}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--on-surface-variant)' }}>Referral / Affiliate Fee:</span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--warning)' }}>
-                  - {formatRupiah(pengajuan.referralFee)}
+                <span style={{ fontFamily: 'monospace', color: currentPengajuan.referralFee > 0 ? 'var(--warning)' : '#94A3B8', fontWeight: 600 }}>
+                  {currentPengajuan.referralFee > 0 ? `- ${formatRupiah(currentPengajuan.referralFee)}` : 'Rp 0'}
                 </span>
               </div>
 
+              {/* Fee Bersih & Margin Riil */}
               <div
                 style={{
                   borderTop: '2px dashed rgba(245, 158, 11, 0.4)',
                   paddingTop: '12px',
-                  marginTop: '6px',
+                  marginTop: '4px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: '#92400E', textTransform: 'uppercase', fontWeight: 700 }}>
+                  <div style={{ fontSize: '0.74rem', color: '#92400E', textTransform: 'uppercase', fontWeight: 700 }}>
                     Fee Bersih MapahTrip
                   </div>
-                  <div style={{ fontSize: '0.725rem', color: '#15803D', fontWeight: 600 }}>
-                    Margin Laba: 38.8%
+                  <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 700 }}>
+                    Margin Laba: {((currentPengajuan.feeBersih / (currentPengajuan.dibayarPemohon || 1)) * 100).toFixed(1)}%
                   </div>
                 </div>
                 <span
-                  className="font-serif"
-                  style={{ fontSize: '1.45rem', fontWeight: 700, color: '#B45309', fontFamily: 'monospace' }}
+                  className="font-serif font-mono-tabular"
+                  style={{ fontSize: '1.45rem', fontWeight: 800, color: '#B45309' }}
                 >
-                  {formatRupiah(pengajuan.feeBersih)}
+                  {formatRupiah(currentPengajuan.feeBersih)}
                 </span>
               </div>
 
-              {pengajuan.affiliateCode && (
+              {currentPengajuan.affiliateCode && (
                 <div
                   style={{
-                    marginTop: '10px',
-                    padding: '10px',
-                    borderRadius: '10px',
+                    marginTop: '4px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
                     background: '#FEF3C7',
-                    fontSize: '0.8rem',
+                    fontSize: '0.78rem',
                     color: '#78350F',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   }}
                 >
-                  Kode Mitra Terdaftar: <strong>{pengajuan.affiliateCode}</strong>
+                  <span>Kode Mitra Terdaftar:</span>
+                  <strong>{currentPengajuan.affiliateCode}</strong>
                 </div>
               )}
             </div>
@@ -717,170 +1019,6 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
             </div>
           </div>
         )}
-
-        {/* Column 3: Log Tahapan Operasional & Ubah Status */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 className="font-serif" style={{ fontSize: '1.15rem', fontWeight: 700 }}>
-              Tahapan &amp; Status
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-              Update Terakhir Hari Ini
-            </span>
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase' }}>
-              Ubah Status Tahap:
-            </label>
-            <select
-              value={pengajuan.status}
-              onChange={(e) => {
-                const nextStatus = e.target.value as Pengajuan['status'];
-                if (nextStatus === 'Sedang Diproses' && pengajuan.status !== 'Sedang Diproses') {
-                  const noWa = pengajuan.noTelp && pengajuan.noTelp.trim() ? pengajuan.noTelp.trim() : 'Nomor belum tersedia';
-                  const konfirmasi = window.confirm(
-                    `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
-                    `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
-                    `• Nama Pemohon : ${pengajuan.namaPemohon}\n` +
-                    `• No. Paspor   : ${pengajuan.noPaspor}\n` +
-                    `• No. WhatsApp : ${noWa}\n\n` +
-                    `⚠️ PENTING:\n` +
-                    `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
-                    `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
-                  );
-                  if (!konfirmasi) return;
-
-                  if (pengajuan.noTelp && pengajuan.noTelp.trim()) {
-                    const today = new Date().toLocaleDateString('id-ID');
-                    const pesanWAProses =
-                      `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
-                      `Halo Sdr/i *${pengajuan.namaPemohon}*,\n\n` +
-                      `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
-                      `📋 *Rincian Pengajuan:*\n` +
-                      `• No. Pengajuan: ${pengajuan.noPengajuan || '-'}\n` +
-                      `• Nama Pemohon: ${pengajuan.namaPemohon}\n` +
-                      `• No. Paspor: ${pengajuan.noPaspor}\n` +
-                      `• Program: ${pengajuan.program || 'Visa Jepang'}\n` +
-                      `• Tanggal Apply: ${today}\n` +
-                      `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
-                      `Estimasi waktu pemrosesan kedutaan sekitar 3 - 5 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
-                      `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
-                      `Salam hangat,\n` +
-                      `*Tim Operasional MapahTrip*\n` +
-                      `Website: https://mapahtrip.com`;
-
-                    kirimPesanWA(pengajuan.noTelp, pesanWAProses)
-                      .then(() => {
-                        alert(
-                          `✅ STATUS VISA DIPROSES!\n\nStatus pengajuan "${pengajuan.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\nNotifikasi WhatsApp resmi telah dikirimkan ke ${pengajuan.noTelp}.`
-                        );
-                      })
-                      .catch((err) => {
-                        console.warn('[WA Gateway] Gagal kirim notif proses:', err);
-                      });
-                  }
-                } else if (nextStatus === 'Selesai' && pengajuan.status !== 'Selesai') {
-                  const noWa = pengajuan.noTelp && pengajuan.noTelp.trim() ? pengajuan.noTelp.trim() : 'Nomor belum tersedia';
-                  const konfirmasi = window.confirm(
-                    `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI?\n\n` +
-                    `Anda akan menandai pengajuan visa ini sebagai SELESAI:\n` +
-                    `• Nama Pemohon : ${pengajuan.namaPemohon}\n` +
-                    `• No. Paspor   : ${pengajuan.noPaspor}\n` +
-                    `• No. WhatsApp : ${noWa}\n\n` +
-                    `⚠️ PENTING:\n` +
-                    `Setelah dikonfirmasi, informasi update bahwa visa telah selesai dan terbit akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
-                    `Apakah Anda yakin sudah selesai dan ingin melanjutkan?`
-                  );
-                  if (!konfirmasi) return;
-
-                  if (pengajuan.noTelp && pengajuan.noTelp.trim()) {
-                    const today = new Date().toLocaleDateString('id-ID');
-                    const pesanWASelesai =
-                      `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
-                      `Halo Sdr/i *${pengajuan.namaPemohon}*,\n\n` +
-                      `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
-                      `📋 *Rincian Pengajuan:*\n` +
-                      `• No. Pengajuan: ${pengajuan.noPengajuan || '-'}\n` +
-                      `• Nama Pemohon: ${pengajuan.namaPemohon}\n` +
-                      `• No. Paspor: ${pengajuan.noPaspor}\n` +
-                      `• Program: ${pengajuan.program || 'Visa Jepang'}\n` +
-                      `• Tanggal Selesai: ${today}\n` +
-                      `• Status: *SELESAI (Visa Terbit)*\n\n` +
-                      `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi pengambilan atau nomor resi pengiriman akan kami perbarui segera.\n\n` +
-                      `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
-                      `Salam hangat,\n` +
-                      `*Tim Operasional MapahTrip*\n` +
-                      `Website: https://mapahtrip.com`;
-
-                    kirimPesanWA(pengajuan.noTelp, pesanWASelesai)
-                      .then(() => {
-                        alert(
-                          `✅ STATUS VISA SELESAI!\n\nStatus pengajuan "${pengajuan.namaPemohon}" telah diubah menjadi SELESAI.\nNotifikasi WhatsApp resmi telah dikirimkan ke ${pengajuan.noTelp}.`
-                        );
-                      })
-                      .catch((err) => {
-                        console.warn('[WA Gateway] Gagal kirim notif selesai:', err);
-                      });
-                  }
-                }
-                onUpdateStatus(nextStatus);
-              }}
-              style={{
-                width: '100%',
-                marginTop: '6px',
-                padding: '9px 12px',
-                borderRadius: '8px',
-                border: '1px solid rgba(195, 198, 214, 0.5)',
-                background: '#ffffff',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                color: 'var(--on-surface)',
-              }}
-            >
-              <option value="Menunggu Verifikasi">Menunggu Verifikasi Berkas</option>
-              <option value="Apply Hari Ini">Apply Hari Ini ke Konsulat</option>
-              <option value="Sedang Diproses">Sedang Diproses Konsjen</option>
-              <option value="Siap Ambil">Paspor Siap Ambil</option>
-              <option value="Selesai">Selesai (Visa Terbit &amp; Dikirim)</option>
-              <option value="Ditolak">Ditolak Konsulat</option>
-            </select>
-          </div>
-
-          {/* Timeline */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-            {[
-              { title: 'Berkas Masuk ke MapahTrip', date: pengajuan.tglBerkasMasuk, done: true },
-              { title: 'Diajukan ke Konsulat Jepang', date: pengajuan.tglApply, done: true },
-              { title: 'Verifikasi & Stamping Konsuler', date: 'Dalam 5 Hari Kerja', done: pengajuan.status === 'Selesai' || pengajuan.status === 'Siap Ambil' },
-              { title: 'Paspor Diterima & Pengiriman', date: pengajuan.tglSelesai || pengajuan.tglEstimasiSelesai, done: pengajuan.status === 'Selesai' },
-            ].map((step, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    background: step.done ? 'var(--primary)' : 'var(--surface-container-high)',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  {step.done ? '✓' : idx + 1}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{step.title}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>{step.date}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
       {/* Lightbox Pratinjau Dokumen / Foto */}
       {previewDoc && (
@@ -922,16 +1060,28 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 justifyContent: 'space-between',
                 padding: '16px 24px',
                 borderBottom: '1px solid #E2E8F0',
-                background: '#F8FAFC',
+                background: previewDoc.isSample ? '#FFFBEB' : '#F8FAFC',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-symbols-outlined" style={{ color: '#2B68E0', fontSize: '24px' }}>
-                  description
+                <span
+                  className="material-symbols-outlined"
+                  style={{ color: previewDoc.isSample ? '#D97706' : '#2B68E0', fontSize: '24px' }}
+                >
+                  {previewDoc.isSample ? 'help_outline' : 'verified'}
                 </span>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0F172A' }}>
-                    {previewDoc.title}
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{previewDoc.title}</span>
+                    {previewDoc.isSample ? (
+                      <span style={{ fontSize: '0.68rem', backgroundColor: '#FEF3C7', color: '#92400E', padding: '1px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                        Contoh Template Konsulat
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.68rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                        ✓ Dokumen Asli Pemohon
+                      </span>
+                    )}
                   </div>
                   {previewDoc.fileName && (
                     <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
@@ -1003,28 +1153,30 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
               }}
             >
               <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                MapahTrip Dokumen Arsip Konsulat
+                {previewDoc.isSample
+                  ? 'Format acuan standar Konsulat Jenderal Jepang'
+                  : `Dokumen Arsip: ${currentPengajuan.namaPemohon} (${currentPengajuan.noPengajuan})`}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <a
-                  href={previewDoc.base64}
-                  download={previewDoc.fileName || (previewDoc.title.replace(/[^a-zA-Z0-9_-]/g, '_') + '.jpg')}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadDoc(previewDoc.title, previewDoc.base64, previewDoc.fileName)}
                   className="btn btn-primary"
                   style={{
                     padding: '8px 18px',
                     fontSize: '0.82rem',
                     fontWeight: 700,
-                    textDecoration: 'none',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
+                    cursor: 'pointer',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                     download
                   </span>
                   <span>Unduh Dokumen</span>
-                </a>
+                </button>
                 <button
                   onClick={() => setPreviewDoc(null)}
                   className="btn btn-secondary"

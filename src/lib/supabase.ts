@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Pengajuan, StatusPengajuan, KonsjenKota, StaffName, PaketVisa, AffiliateUser } from '../types';
+import { REAL_SPREADSHEET_PENGAJUAN } from '../data/spreadsheetData';
 
 const SUPABASE_URL = 'https://vswmndovcmchqhyzlawo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzd21uZG92Y21jaHFoeXpsYXdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwODg0MDksImV4cCI6MjEwNzY2NDQwOX0.79-tEuh-1M3MeJaBnIIbVtrFwUfKK_I-VmC-zm_fQhQ';
@@ -64,13 +65,21 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   else if (k.includes('medan')) kons = 'Medan';
   else if (k.includes('makassar')) kons = 'Makassar';
 
-  let staff: StaffName = 'Rizky Muhammad';
+  let staff: StaffName = 'Rizky';
   const s = (db.staff_pic || '').toLowerCase();
   if (s.includes('nanami')) staff = 'Nanami Kay';
   else if (s.includes('yulia')) staff = 'Yulia';
   else if (s.includes('heru')) staff = 'Heru';
   else if (s.includes('latifah')) staff = 'Latifah';
   else if (s.includes('ulla')) staff = 'Ulla';
+  else if (s.includes('rizky')) staff = 'Rizky';
+  else {
+    if (kons === 'Surabaya') staff = 'Nanami Kay';
+    else if (kons === 'Denpasar') staff = 'Yulia';
+    else if (kons === 'Medan') staff = 'Heru';
+    else if (kons === 'Makassar') staff = 'Latifah';
+    else staff = 'Rizky';
+  }
 
   const paspor = db.no_paspor || `E${6000000 + db.id}`;
   const masked = paspor.length > 4 ? `${paspor.slice(0, 3)}***${paspor.slice(-2)}` : paspor;
@@ -91,30 +100,66 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     }
   } catch {}
 
+  const found = REAL_SPREADSHEET_PENGAJUAN.find(
+    (p) => p.id === String(db.id) || p.noPengajuan === `MT-${String(db.no_urut || db.id).padStart(4, '0')}`
+  );
+
+  const normalizeDate = (d?: string): string => {
+    if (!d) return '';
+    const trimmed = d.trim();
+    if (/^\d{4}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(trimmed)) {
+      const parts = trimmed.split('/');
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    if (/^\d{1,2}-\d{1,2}-\d{4}/.test(trimmed)) {
+      const parts = trimmed.split('-');
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    return trimmed;
+  };
+
+  const rawTglMasuk = normalizeDate(db.tgl_sampai) || (found ? normalizeDate(found.tglBerkasMasuk) : '');
+  const rawTglApply = normalizeDate(db.tgl_proses) || (found ? normalizeDate(found.tglApply) : rawTglMasuk);
+  const rawTglSelesai = normalizeDate(db.tgl_selesai) || (found ? normalizeDate(found.tglSelesai || found.tglEstimasiSelesai) : '');
+  const rawTglKirim = normalizeDate(db.tgl_kirim) || (found ? normalizeDate(found.tglKirim) : '');
+
+  const dibayar = Number(db.nominal_dibayar) || found?.dibayarPemohon || 1650000;
+  const keluar = Number(db.nominal_keluar) || found?.nominalKeluar || 1135000;
+  const cb = Number(db.cashback) !== undefined && !isNaN(Number(db.cashback)) && Number(db.cashback) > 0 ? Number(db.cashback) : (found?.cashback ?? 100000);
+  const ref = found ? (found.referralFee ?? 0) : 0;
+  const fee = Number(db.fee_bersih) || found?.feeBersih || (dibayar - keluar - cb - ref);
+
   return {
     id: String(db.id),
     noPengajuan: `MT-${String(db.no_urut || db.id).padStart(4, '0')}`,
     namaPemohon: db.nama,
     noPaspor: paspor,
     maskedPaspor: masked,
-    noTelp: db.no_wa || '',
+    noTelp: db.no_wa || found?.noTelp || '',
     konsjen: kons,
     staffPic: staff,
-    program: db.program || 'Tokutei Ginou',
-    paket: (db.paket as PaketVisa) || 'Reguler',
-    tglBerkasMasuk: db.tgl_sampai || '',
-    tglApply: db.tgl_proses || '',
-    tglEstimasiSelesai: db.tgl_selesai || '',
-    tglSelesai: db.tgl_selesai || undefined,
-    tglKirim: db.tgl_kirim || undefined,
+    program: db.program || found?.program || 'Tokutei Ginou',
+    paket: (db.paket as PaketVisa) || found?.paket || 'Reguler',
+    tglBerkasMasuk: rawTglMasuk,
+    tglApply: rawTglApply,
+    tglEstimasiSelesai: rawTglSelesai,
+    tglSelesai: rawTglSelesai || undefined,
+    tglKirim: rawTglKirim || undefined,
     status: mappedStatus,
-    noResi: db.resi_pengiriman || undefined,
-    affiliateCode: db.code_referral || 'MAPAHTRIP',
-    dibayarPemohon: Number(db.nominal_dibayar) || 1650000,
-    nominalKeluar: Number(db.nominal_keluar) || 1135000,
-    cashback: Number(db.cashback) || 100000,
-    feeBersih: Number(db.fee_bersih) || 415000,
-    referralFee: Number(db.cashback) || 100000,
+    noResi: db.resi_pengiriman || found?.noResi || undefined,
+    affiliateCode: (() => {
+      const c = (db.code_referral || '').trim();
+      if (!c || /^\d+$/.test(c)) {
+        return found?.affiliateCode || 'MAPAHTRIP';
+      }
+      return c;
+    })(),
+    dibayarPemohon: dibayar,
+    nominalKeluar: keluar,
+    cashback: cb,
+    feeBersih: fee,
+    referralFee: ref,
     berkas: {
       formVisa: db.form_visa ?? true,
       ktp: db.ktp ?? true,
@@ -127,6 +172,11 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     fotoBase64: fotoData,
     fotoSizeKB: fotoSize,
     uploadedDocs: uploadedDocsData,
+    statusPembayaran: (db as any).status_pembayaran || 'Lunas',
+    metodePembayaran: (db as any).metode_pembayaran || 'Transfer BCA',
+    tglBayarPemohon: (db as any).tgl_bayar_pemohon || rawTglMasuk || '',
+    buktiBayarPemohon: (db as any).bukti_bayar_pemohon || (found as any)?.buktiBayarPemohon || undefined,
+    buktiBayarNama: (db as any).bukti_bayar_nama || undefined,
   };
 }
 
@@ -134,7 +184,7 @@ export async function fetchAllPengajuanFromDB(): Promise<Pengajuan[]> {
   const { data, error } = await supabase
     .from('pengajuan_visa')
     .select('*')
-    .order('id', { ascending: true });
+    .order('id', { ascending: false });
 
   if (error || !data) {
     console.error('Error fetching pengajuan:', error);
@@ -213,9 +263,19 @@ export async function createPengajuanInDB(payload: {
           program: payload.program,
           paket: payload.paket,
           konsjen: payload.konsjen || 'Jakarta',
+          staff_pic:
+            payload.konsjen === 'Surabaya'
+              ? 'Nanami Kay'
+              : payload.konsjen === 'Denpasar'
+              ? 'Yulia'
+              : payload.konsjen === 'Medan'
+              ? 'Heru'
+              : payload.konsjen === 'Makassar'
+              ? 'Latifah'
+              : 'Rizky',
           status: 'Menunggu Verifikasi',
           keterangan: ketString,
-          tgl_sampai: new Date().toLocaleDateString('id-ID'),
+          tgl_sampai: null,
         },
       ])
       .select()
@@ -233,6 +293,25 @@ export async function createPengajuanInDB(payload: {
 }
 
 /**
+ * Hapus data pengajuan dari Supabase Cloud (misal jika terjadi duplikasi atau pembatalan)
+ */
+export async function deletePengajuanInDB(id: string | number): Promise<boolean> {
+  try {
+    const numId = Number(id);
+    const filter = !isNaN(numId) ? { id: numId } : { id: String(id) };
+    const { error } = await supabase.from('pengajuan_visa').delete().match(filter);
+    if (error) {
+      console.warn('Gagal menghapus pengajuan dari Supabase:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Error deletePengajuanInDB:', err);
+    return false;
+  }
+}
+
+/**
  * Update atau upload dokumen pemohon langsung dari antarmuka Staf / Owner
  */
 export async function updatePengajuanDocumentInDB(
@@ -243,10 +322,41 @@ export async function updatePengajuanDocumentInDB(
   sizeKB?: number
 ) {
   try {
-    const numId = Number(id);
-    if (isNaN(numId)) return false;
+    const finalSizeKB = sizeKB || Math.round((base64Data.length * 0.75) / 1024);
 
-    // Ambil keterangan saat ini
+    // 1. Selalu sinkronkan ke local cache agar antarmuka staf & pendaftar selalu sinkron tanpa jeda
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((item: any) => String(item.id) === String(id));
+        if (idx !== -1) {
+          if (!list[idx].uploadedDocs) list[idx].uploadedDocs = {};
+          list[idx].uploadedDocs[docKey] = {
+            name: docName,
+            base64: base64Data,
+            sizeKB: finalSizeKB,
+          };
+          if (docKey === 'foto') {
+            list[idx].fotoBase64 = base64Data;
+            list[idx].fotoSizeKB = finalSizeKB;
+          }
+          if (list[idx].berkas) {
+            list[idx].berkas[docKey] = true;
+          }
+          localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(list));
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
+    } catch {}
+
+    const numId = Number(id);
+    if (isNaN(numId)) {
+      // Jika id non-numerik (misal ID lokal / mock), penyimpanan lokal sudah berhasil
+      return true;
+    }
+
+    // 2. Ambil keterangan saat ini dari Supabase Cloud
     const { data: row } = await supabase
       .from('pengajuan_visa')
       .select('keterangan')
@@ -266,27 +376,96 @@ export async function updatePengajuanDocumentInDB(
     parsed.uploadedDocs[docKey] = {
       name: docName,
       base64: base64Data,
-      sizeKB: sizeKB || Math.round((base64Data.length * 0.75) / 1024),
+      sizeKB: finalSizeKB,
     };
 
     if (docKey === 'foto') {
       parsed.fotoBase64 = base64Data;
-      parsed.compressedSizeKB = sizeKB || Math.round((base64Data.length * 0.75) / 1024);
+      parsed.compressedSizeKB = finalSizeKB;
     }
 
     const updatedKet = JSON.stringify(parsed);
-    await supabase
+
+    // Pemetaan kolom database yang valid di tabel pengajuan_visa (snake_case)
+    const validDbColumns: Record<string, string> = {
+      formVisa: 'form_visa',
+      ktp: 'ktp',
+      ektln: 'ektln',
+      coe: 'coe',
+      foto: 'foto',
+    };
+
+    const updatePayload: Record<string, any> = {
+      keterangan: updatedKet,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (validDbColumns[docKey]) {
+      updatePayload[validDbColumns[docKey]] = true;
+    }
+
+    const { error: updateError } = await supabase
       .from('pengajuan_visa')
-      .update({
-        keterangan: updatedKet,
-        [docKey === 'foto' ? 'foto' : docKey]: true,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', numId);
+
+    if (updateError) {
+      console.warn('Supabase update note warning:', updateError);
+    }
 
     return true;
   } catch (err) {
-    console.warn('updatePengajuanDocumentInDB failed:', err);
+    console.warn('updatePengajuanDocumentInDB error:', err);
+    return false;
+  }
+}
+
+/**
+ * Update data pembayaran pemohon (Status Lunas/Menunggu, Metode Transfer, Tgl Bayar, Bukti Bayar)
+ */
+export async function updatePengajuanPaymentInDB(
+  id: string | number,
+  paymentData: {
+    statusPembayaran?: 'Lunas' | 'Menunggu Pembayaran';
+    metodePembayaran?: string;
+    tglBayarPemohon?: string;
+    buktiBayarPemohon?: string;
+    buktiBayarNama?: string;
+    dibayarPemohon?: number;
+  }
+) {
+  try {
+    // 1. Simpan ke local cache
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((item: any) => String(item.id) === String(id));
+        if (idx !== -1) {
+          list[idx] = {
+            ...list[idx],
+            ...paymentData,
+          };
+          localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(list));
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
+    } catch {}
+
+    const numId = Number(id);
+    if (isNaN(numId)) return true;
+
+    // 2. Simpan ke Supabase jika numeric id
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (paymentData.dibayarPemohon !== undefined) {
+      payload.nominal_dibayar = paymentData.dibayarPemohon;
+    }
+    await supabase.from('pengajuan_visa').update(payload).eq('id', numId);
+    return true;
+  } catch (err) {
+    console.warn('updatePengajuanPaymentInDB error:', err);
     return false;
   }
 }

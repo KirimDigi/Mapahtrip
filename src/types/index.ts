@@ -9,6 +9,7 @@ export type StatusPengajuan =
 export type KonsjenKota = 'Jakarta' | 'Surabaya' | 'Denpasar' | 'Medan' | 'Makassar';
 
 export type StaffName =
+  | 'Rizky'
   | 'Rizky Muhammad'
   | 'Nanami Kay'
   | 'Yulia'
@@ -53,9 +54,15 @@ export interface Pengajuan {
   referralFee: number;
   berkas: BerkasChecklist;
   catatan?: string;
+  alasanPenolakan?: string;
   fotoBase64?: string;
   fotoSizeKB?: number;
   uploadedDocs?: Record<string, { name: string; base64: string; sizeKB?: number }>;
+  statusPembayaran?: 'Lunas' | 'Menunggu Pembayaran';
+  metodePembayaran?: string;
+  tglBayarPemohon?: string;
+  buktiBayarPemohon?: string;
+  buktiBayarNama?: string;
 }
 
 export interface KonsjenMaster {
@@ -66,6 +73,8 @@ export interface KonsjenMaster {
   biayaKonsulat: number;
   estimasiHariKerja: number;
   statusOnline: boolean;
+  totalApply?: number;
+  totalSelesai?: number;
 }
 
 export interface StaffMaster {
@@ -111,4 +120,5 @@ export interface AffiliateUser {
   atasNamaRekening?: string;
   fotoDiri?: string;
   isProfileComplete?: boolean;
+  totalBonus?: number;
 }

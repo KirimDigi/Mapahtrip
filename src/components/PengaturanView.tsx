@@ -36,10 +36,6 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 
   const availableKonsjen: KonsjenKota[] = ['Jakarta', 'Surabaya', 'Denpasar', 'Medan', 'Makassar'];
 
-  const formatRupiah = (val: number) => {
-    return 'Rp ' + val.toLocaleString('id-ID');
-  };
-
   const handleOpenAddModal = () => {
     setEditingStaffId(null);
     setFormData({
@@ -166,11 +162,11 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: isOwner ? '#D97706' : 'var(--primary)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>
               settings
             </span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: isOwner ? '#D97706' : 'var(--primary)' }}>
-              {isOwner ? '👑 Otoritas Owner & Master Data' : 'Konfigurasi & Master Data'}
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--primary)' }}>
+              {isOwner ? 'Manajemen Akun Staf & Master Data' : 'Konfigurasi & Master Data'}
             </span>
           </div>
           <h1 className="font-serif" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#0F172A', margin: '0 0 6px' }}>
@@ -530,14 +526,14 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 fontWeight: 800,
               }}
             >
-              {currentStaff?.inisial || 'RM'}
+              {currentStaff?.inisial || 'RZ'}
             </div>
             <div>
               <h3 style={{ margin: '0 0 2px', fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>
-                {currentStaff?.nama || 'Rizky Muhammad'}
+                {currentStaff?.nama || 'Rizky'}
               </h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B' }}>
-                {currentStaff?.role || 'Staff PIC Lapangan'} &bull; <span style={{ color: '#16A34A', fontWeight: 700 }}>● Akun Aktif</span>
+                {currentStaff?.role || 'Staff PIC Jakarta'} &bull; <span style={{ color: '#16A34A', fontWeight: 700 }}>● Akun Aktif</span>
               </p>
             </div>
           </div>
@@ -587,48 +583,127 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 
       {/* TAB 2: MASTER DATA KONSULAT */}
       {activeTab === 'konsjen' && (
-        <div className="card" style={{ padding: '20px', borderRadius: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div>
-              <h3 style={{ margin: '0 0 4px', fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
-                Master Data Konsulat Jenderal (Konsjen)
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
-                Daftar kantor konsuler resmi perwakilan Jepang dan estimasi proses visa.
-              </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Banner Motivasi & Rekap Pencapaian Staf PIC */}
+          <div
+            style={{
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              borderRadius: '16px',
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              boxShadow: '0 2px 8px rgba(22, 101, 52, 0.05)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#DCFCE7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#16A34A',
+                  flexShrink: 0,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>workspace_premium</span>
+              </div>
+            {(() => {
+              const staffTugasCity = currentStaff?.konsjenTugas?.[0] || 'Jakarta';
+              const staffKonsjenData = mockKonsjen.find((k) => k.kota === staffTugasCity) || mockKonsjen[0];
+              const staffTotalSelesai = staffKonsjenData?.totalSelesai || 184;
+              return (
+                <div>
+                  <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>Pencapaian Kinerja PIC: {currentStaff?.nama || 'Rizky'} (Wilayah {staffTugasCity})</span>
+                    <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '3px 10px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 800 }}>
+                      {staffTotalSelesai} Paspor Selesai • 100% Sukses 🏆
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#15803D', marginTop: '3px' }}>
+                    Luar biasa! Seluruh <strong>{staffTotalSelesai} berkas visa</strong> di wilayah tugas Anda berhasil terbit 100% tanpa ada penolakan (Zero Rejection).
+                  </div>
+                </div>
+              );
+            })()}
             </div>
-            <span className="badge badge-success">5 Konsulat Terhubung</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ textAlign: 'right', borderLeft: '2px solid #BBF7D0', paddingLeft: '14px' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Predikat Staf
+                </div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>
+                  🌟 Staff PIC Teladan
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="data-table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Kota Konsulat</th>
-                  <th>Lokasi Kantor Konsuler</th>
-                  <th>Staff PIC Default</th>
-                  <th style={{ textAlign: 'right' }}>Biaya Konsulat</th>
-                  <th style={{ textAlign: 'center' }}>SLA / Estimasi</th>
-                  <th style={{ textAlign: 'center' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockKonsjen.map((k) => (
-                  <tr key={k.id}>
-                    <td style={{ fontWeight: 700, color: '#0F172A' }}>{k.kota}</td>
-                    <td>{k.lokasi}</td>
-                    <td style={{ fontWeight: 600 }}>{k.staffPicDefault}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
-                      {formatRupiah(k.biayaKonsulat)}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>{k.estimasiHariKerja} Hari Kerja</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className="badge badge-success">Aktif</span>
-                    </td>
+          <div className="card" style={{ padding: '20px', borderRadius: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                  Master Data Konsulat Jenderal (Konsjen)
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                  Daftar kantor konsuler resmi perwakilan Jepang, staf PIC, dan performa penanganan visa.
+                </p>
+              </div>
+              <span className="badge badge-success">5 Konsulat Terhubung</span>
+            </div>
+
+            <div className="data-table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Kota Konsulat</th>
+                    <th>Lokasi Kantor Konsuler</th>
+                    <th>Staff PIC Default</th>
+                    <th style={{ textAlign: 'center' }}>Pencapaian Handle</th>
+                    <th style={{ textAlign: 'center' }}>SLA / Estimasi</th>
+                    <th style={{ textAlign: 'center' }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {mockKonsjen.map((k) => (
+                    <tr key={k.id}>
+                      <td style={{ fontWeight: 700, color: '#0F172A' }}>{k.kota}</td>
+                      <td>{k.lokasi}</td>
+                      <td style={{ fontWeight: 600 }}>{k.staffPicDefault}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span
+                          style={{
+                            backgroundColor: k.kota === 'Jakarta' ? '#DCFCE7' : '#EFF6FF',
+                            color: k.kota === 'Jakarta' ? '#15803D' : '#1D4ED8',
+                            fontWeight: 800,
+                            fontSize: '0.76rem',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>{k.totalSelesai || 0} Paspor Selesai</span>
+                          {k.kota === 'Jakarta' && <span>🏆</span>}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{k.estimasiHariKerja} Hari Kerja</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge badge-success">Aktif</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

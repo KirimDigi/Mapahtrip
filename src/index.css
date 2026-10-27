@@ -1,23 +1,23 @@
 :root {
-  --primary: #004fc0;
-  --primary-container: #2b68e0;
-  --primary-hover: #1d4ed8;
+  --primary: #1d4ed8;
+  --primary-container: #2563eb;
+  --primary-hover: #1e40af;
   --on-primary: #ffffff;
-  --secondary: #00658d;
-  --secondary-container: #0cb9ff;
+  --secondary: #0284c7;
+  --secondary-container: #0ea5e9;
   --on-secondary: #ffffff;
-  --background: #f8f9ff;
-  --surface: #f8f9ff;
-  --surface-dim: #cbdbf5;
+  --background: #f8fafc;
+  --surface: #f8fafc;
+  --surface-dim: #cbd5e1;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #eff4ff;
-  --surface-container: #e5eeff;
-  --surface-container-high: #dce9ff;
-  --surface-container-highest: #d3e4fe;
-  --on-surface: #0b1c30;
-  --on-surface-variant: #424654;
-  --outline: #737785;
-  --outline-variant: #c3c6d6;
+  --surface-container-low: #f1f5f9;
+  --surface-container: #e2e8f0;
+  --surface-container-high: #cbd5e1;
+  --surface-container-highest: #94a3b8;
+  --on-surface: #0f172a;
+  --on-surface-variant: #475569;
+  --outline: #94a3b8;
+  --outline-variant: #e2e8f0;
   --error: #ba1a1a;
   --error-bg: #fef2f2;
   --error-border: #fecaca;
@@ -63,7 +63,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .font-serif {
@@ -100,6 +100,11 @@ body {
   grid-template-columns: 1.12fr 1fr;
   gap: 48px;
   align-items: center;
+  width: 100%;
+}
+
+.hero-grid > * {
+  min-width: 0 !important;
 }
 
 @media (max-width: 992px) {
@@ -254,11 +259,11 @@ body {
 .btn-primary {
   background: var(--primary-container);
   color: var(--on-primary);
-  box-shadow: 0 2px 8px rgba(43, 104, 224, 0.25);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
 }
 
 .btn-primary:hover {
-  background: var(--primary);
+  background: var(--primary-hover);
   transform: translateY(-1px);
 }
 
@@ -318,8 +323,42 @@ body {
   background: #f8fbff;
 }
 
+.data-table tr:hover td.sticky-action-col {
+  background: #f8fbff;
+}
+
 .data-table tr:last-child td {
   border-bottom: none;
+}
+
+/* Compact Table Variant */
+.table-compact th {
+  padding: 10px 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.table-compact td {
+  padding: 8px 10px;
+  font-size: 0.80rem;
+}
+
+.data-table-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.data-table-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.data-table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.data-table-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Search input */
@@ -857,7 +896,7 @@ a.banner-wa-btn,
 html, body, #root {
   width: 100%;
   max-width: 100vw;
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
   box-sizing: border-box;
 }
 
@@ -988,7 +1027,7 @@ html, body, #root {
 /* Hero Section Styles (Both Desktop and Mobile Kesamping / Horizontal) */
 .hero-metric-grid {
   display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 14px !important;
   width: 100% !important;
 }
@@ -1004,22 +1043,39 @@ html, body, #root {
 
 @media (max-width: 768px) {
   #beranda {
-    padding: 32px 16px 48px !important;
+    padding: 24px 16px 40px !important;
+  }
+  .hero-cta-buttons {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+  .hero-cta-buttons > * {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
   }
   .hero-metric-grid {
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 8px !important;
-    margin-top: 12px !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin-top: 10px !important;
   }
   .hero-metric-grid .metric-card {
-    padding: 10px 8px !important;
+    padding: 10px 4px !important;
     border-radius: 12px !important;
+    text-align: center !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
   }
   .hero-metric-grid .metric-card .font-serif {
-    font-size: 1.35rem !important;
+    font-size: 1.25rem !important;
+    line-height: 1.1 !important;
   }
   .hero-metric-grid .metric-card div {
     font-size: 0.65rem !important;
+    line-height: 1.2 !important;
+    word-break: break-word !important;
   }
   .hero-trust-bar {
     display: flex !important;
@@ -1038,21 +1094,152 @@ html, body, #root {
   }
 }
 
-/* Visa Cards Grid Responsive */
+/* Visa Cards Grid Responsive (Horizontal Carousel on Mobile) */
 .visa-cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 22px;
   width: 100%;
 }
-@media (max-width: 680px) {
-  .visa-cards-grid {
-    grid-template-columns: 1fr !important;
-    gap: 16px !important;
+
+/* FAQ Cards Grid (Desktop 2-Col, Mobile Snap Carousel) */
+.faq-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 769px) {
+  .faq-answer-content {
+    display: none;
   }
+  .faq-answer-content.is-open {
+    display: block;
+  }
+}
+
+.mobile-swipe-hint {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
   #jenis-visa {
-    padding: 48px 16px !important;
+    padding: 36px 16px !important;
   }
+
+  .mobile-swipe-hint {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #0284C7;
+    font-size: 0.74rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    background: #F0F9FF;
+    border: 1px solid #E0F2FE;
+    padding: 6px 14px;
+    border-radius: 9999px;
+  }
+
+  .visa-cards-grid {
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory !important;
+    scroll-behavior: smooth !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 14px !important;
+    padding: 8px 16px 20px 16px !important;
+    margin: 0 -16px !important;
+    width: calc(100% + 32px) !important;
+    scrollbar-width: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .visa-cards-grid::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .visa-card-item {
+    flex: 0 0 84% !important;
+    max-width: 320px !important;
+    scroll-snap-align: start !important;
+    box-sizing: border-box !important;
+  }
+
+  /* FAQ Horizontal Snap Carousel on Mobile */
+  .faq-cards-grid {
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory !important;
+    scroll-behavior: smooth !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 14px !important;
+    padding: 8px 16px 20px 16px !important;
+    margin: 0 -16px !important;
+    width: calc(100% + 32px) !important;
+    scrollbar-width: none !important;
+    box-sizing: border-box !important;
+    align-items: stretch !important;
+  }
+
+  .faq-cards-grid::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .faq-card-item {
+    flex: 0 0 85% !important;
+    max-width: 320px !important;
+    scroll-snap-align: start !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justifyContent: flex-start !important;
+    border-radius: 18px !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04) !important;
+    background-color: #FFFFFF !important;
+  }
+
+  .faq-card-item button {
+    padding: 16px 16px 10px !important;
+    cursor: default !important;
+  }
+
+  .faq-card-item .faq-question-text {
+    font-size: 0.88rem !important;
+    line-height: 1.35 !important;
+    font-weight: 700 !important;
+  }
+
+  .faq-card-item .faq-chevron-icon {
+    display: none !important;
+  }
+
+  .faq-card-item .faq-answer-content {
+    display: block !important;
+    padding: 10px 16px 16px 16px !important;
+    font-size: 0.83rem !important;
+    line-height: 1.55 !important;
+    color: #475569 !important;
+    border-top: 1px dashed #E2E8F0 !important;
+    margin-top: auto !important;
+  }
+}
+
+.dark-theme .faq-card-item {
+  background-color: #1E293B !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark-theme .faq-card-item .faq-question-text {
+  color: #F8FAFC !important;
+}
+.dark-theme .faq-card-item .faq-answer-content {
+  color: #CBD5E1 !important;
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Alur Pengajuan Responsive */
@@ -1176,21 +1363,162 @@ html, body, #root {
   .duo-bento-grid > div {
     padding: 24px 18px !important;
   }
+  /* Compact Sleek Customer Footer for Mobile */
+  .customer-main-footer {
+    padding: 30px 16px 20px !important;
+  }
+  .customer-main-footer > div:first-child {
+    flex-direction: column !important;
+    gap: 18px !important;
+  }
+  .footer-brand-col {
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+  .footer-brand-col p {
+    font-size: 0.8rem !important;
+    line-height: 1.5 !important;
+    margin-top: 6px !important;
+    color: #94a3b8 !important;
+  }
+  .footer-wa-link {
+    background: rgba(37, 211, 102, 0.12) !important;
+    border: 1px solid rgba(37, 211, 102, 0.3) !important;
+    padding: 7px 14px !important;
+    border-radius: 9999px !important;
+    font-size: 0.84rem !important;
+  }
   .footer-columns-group {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 24px 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
     width: 100% !important;
   }
-  .footer-columns-group > div {
+
+  /* 1. Sosial Media: Sleek horizontal pill badges */
+  .footer-col-social {
+    order: 1 !important;
+    width: 100% !important;
     min-width: 0 !important;
   }
-}
-@media (max-width: 480px) {
-  .footer-columns-group {
-    grid-template-columns: 1fr !important;
+  .footer-col-social > div:first-child {
+    font-size: 0.78rem !important;
+    margin-bottom: 8px !important;
+    color: #94a3b8 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    font-weight: 700 !important;
+  }
+  .footer-social-list {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .footer-social-list a {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    padding: 5px 11px !important;
+    border-radius: 9999px !important;
+    font-size: 0.76rem !important;
+  }
+
+  /* 2. Jenis Visa: Compact 2-column card (cuts vertical height by 50%!) */
+  .footer-col-visa {
+    order: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+  }
+  .footer-col-visa > div:first-child {
+    font-size: 0.8rem !important;
+    margin-bottom: 8px !important;
+    color: #f1f5f9 !important;
+    font-weight: 700 !important;
+  }
+  .footer-visa-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px 10px !important;
+  }
+  .footer-visa-list button {
+    font-size: 0.75rem !important;
+    line-height: 1.35 !important;
+    padding: 2px 0 !important;
+    color: #cbd5e1 !important;
+    text-align: left !important;
+  }
+
+  /* 3. Bantuan: Horizontal wrap tags */
+  .footer-col-bantuan {
+    order: 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .footer-col-bantuan > div:first-child {
+    font-size: 0.78rem !important;
+    margin-bottom: 8px !important;
+    color: #94a3b8 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    font-weight: 700 !important;
+  }
+  .footer-bantuan-list {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 8px 14px !important;
+  }
+  .footer-bantuan-list a,
+  .footer-bantuan-list span {
+    font-size: 0.76rem !important;
+    color: #94a3b8 !important;
+  }
+
+  /* 4. Kantor & JVAC: Compact info badge */
+  .footer-col-kantor {
+    order: 4 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    background: rgba(14, 165, 233, 0.05) !important;
+    border: 1px solid rgba(14, 165, 233, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+  }
+  .footer-col-kantor > a:first-child {
+    margin-bottom: 6px !important;
+    font-size: 0.82rem !important;
+  }
+  .footer-kantor-details {
+    gap: 6px !important;
+  }
+  .footer-kantor-details div {
+    font-size: 0.74rem !important;
+    line-height: 1.4 !important;
+  }
+
+  /* 5. Bottom bar */
+  .footer-bottom-bar {
+    margin-top: 22px !important;
+    padding-top: 14px !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    align-items: flex-start !important;
+  }
+  .footer-bottom-bar > div {
+    text-align: left !important;
+    font-size: 0.7rem !important;
+    line-height: 1.5 !important;
   }
 }
+
 
 /* Partner Metrics Grid: 5 Cards in 1 Neat Row */
 .partner-metrics-grid {
@@ -1237,4 +1565,414 @@ html, body, #root {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================================================
+   MOBILE GLOBAL NAVIGATION SHELL (Drawer, Hamburger, Header, Main Content)
+   Desktop (min-width: 901px) remains 100% UNTOUCHED
+   ========================================================================== */
+.mobile-menu-btn {
+  display: none !important;
+}
+
+.mobile-header-brand {
+  display: none !important;
+}
+
+.mobile-sidebar-close {
+  display: none !important;
+}
+
+.mobile-backdrop {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  /* Backdrop overlay when mobile drawer is open */
+  .mobile-backdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 998;
+    animation: fadeInBackdrop 0.22s ease forwards;
+  }
+
+  /* Sidebar becomes off-canvas drawer */
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 280px !important;
+    max-width: 86vw !important;
+    z-index: 999 !important;
+    transform: translateX(-105%) !important;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: none !important;
+    background: #FFFFFF !important;
+  }
+
+  .sidebar.is-mobile-open {
+    transform: translateX(0) !important;
+    box-shadow: 10px 0 32px rgba(15, 23, 42, 0.2) !important;
+  }
+
+  /* Close button inside mobile drawer */
+  .mobile-sidebar-close {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #F1F5F9;
+    color: #475569;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .mobile-sidebar-close:hover {
+    background: #E2E8F0;
+    color: #0F172A;
+  }
+
+  /* Main content takes full screen width */
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Top header responsive padding & height */
+  .top-header {
+    padding: 0 14px !important;
+    height: 60px !important;
+  }
+
+  /* Page body padding for mobile thumb friendly scrolling */
+  .page-body {
+    padding: 16px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Hamburger button on top-header */
+  .mobile-menu-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #0F172A;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease;
+  }
+
+  .mobile-menu-btn:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+  }
+
+  /* Small brand logo on header mobile */
+  .mobile-header-brand {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* On very small screens, shorten/hide verbose button text */
+  .header-new-btn-text {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   AFFILIATE VIEW RESPONSIVE STYLING (Cards on Mobile, Table on Desktop)
+   ========================================================================== */
+.affiliate-mobile-cards {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  /* Hide heavy horizontal table on mobile */
+  .affiliate-desktop-table {
+    display: none !important;
+  }
+
+  /* Show sleek vertical cards on mobile */
+  .affiliate-mobile-cards {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* 2x2 grid for KPI metrics on mobile */
+  .affiliate-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* Full-width filter & search controls */
+  .affiliate-filter-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .affiliate-search-wrapper {
+    min-width: 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 440px) {
+  /* Single column KPI on small mobile */
+  .affiliate-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Floating Customer Support Button Responsive */
+@media (max-width: 640px) {
+  .floating-cs-button {
+    bottom: 16px !important;
+    right: 14px !important;
+    width: 46px !important;
+    height: 46px !important;
+  }
+  .floating-cs-button span.material-symbols-outlined {
+    font-size: 24px !important;
+  }
+}
+
+/* General Customer Page Sections Mobile Padding */
+@media (max-width: 768px) {
+  #tracking {
+    padding: 44px 16px !important;
+  }
+  #jenis-visa {
+    padding: 44px 16px !important;
+  }
+  #kenapa-kami {
+    padding: 44px 16px !important;
+  }
+}
+
+/* ======================================================== */
+/* Affiliate Partner Portal Mobile Responsive Shell         */
+/* ======================================================== */
+
+.portal-mobile-topbar {
+  display: none !important;
+}
+
+.portal-mobile-backdrop {
+  display: none !important;
+}
+
+.portal-sidebar-close-btn {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .affiliate-portal-root {
+    flex-direction: column !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    overflow-x: hidden !important;
+    position: relative !important;
+  }
+
+  .portal-mobile-topbar {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 12px 16px !important;
+    background-color: #FFFFFF !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 900 !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-mobile-menu-btn {
+    background: none !important;
+    border: none !important;
+    padding: 6px !important;
+    margin: -6px 0 -6px -6px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #0F172A !important;
+    border-radius: 8px !important;
+  }
+
+  .portal-mobile-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.5) !important;
+    backdrop-filter: blur(2px) !important;
+    z-index: 1040 !important;
+    animation: fadeInBackdrop 0.2s ease forwards !important;
+  }
+
+  .affiliate-portal-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 280px !important;
+    max-width: 85vw !important;
+    z-index: 1050 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18) !important;
+    background-color: #FFFFFF !important;
+  }
+
+  .affiliate-portal-sidebar.is-open {
+    transform: translateX(0) !important;
+  }
+
+  .portal-sidebar-close-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #F1F5F9 !important;
+    border: none !important;
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    color: #64748B !important;
+  }
+
+  .affiliate-portal-main {
+    width: 100% !important;
+    padding: 16px 14px 40px !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-welcome-banner {
+    padding: 18px 16px !important;
+    border-radius: 16px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .portal-welcome-banner h1 {
+    font-size: 1.25rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .portal-welcome-banner > div:first-of-type {
+    padding-right: 0 !important;
+  }
+
+  .welcome-banner-notif-btn {
+    display: none !important;
+  }
+
+  /* Notification Banner Mobile Stacking */
+  .portal-notif-banner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 14px 14px !important;
+    gap: 12px !important;
+  }
+
+  .portal-notif-banner > button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Partner Metrics 2-Column Grid on Mobile (No horizontal scrollbar, no text cutoff) */
+  .partner-metrics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 18px !important;
+    overflow-x: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .partner-metrics-grid > div {
+    flex: unset !important;
+    min-width: 0 !important;
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .partner-metrics-grid > div:last-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  .partner-metrics-grid span {
+    white-space: normal !important;
+  }
+
+  /* Portal Segmented Tab Buttons Mobile 50/50 */
+  .portal-tab-wrapper {
+    width: 100% !important;
+  }
+
+  .portal-tab-group {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    box-sizing: border-box !important;
+    padding: 4px !important;
+  }
+
+  .portal-tab-btn {
+    width: 100% !important;
+    padding: 8px 4px !important;
+    font-size: 0.76rem !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+  }
+
+  /* Candidate Table vs Mobile Cards */
+  .candidate-desktop-table {
+    display: none !important;
+  }
+
+  .candidate-mobile-cards {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+}
+
+/* Candidate Table vs Mobile Cards Base Styles */
+.candidate-mobile-cards {
+  display: none;
+}
+
+.candidate-desktop-table {
+  display: block;
 }

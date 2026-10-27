@@ -54,10 +54,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       idClean === 'mapahtrip';
 
     const isOwnerPass =
-      passClean === 'owner123' ||
-      passClean === 'admin123' ||
-      passClean === '889988' ||
-      passClean === '123456';
+      passClean === 'MapahTrip#2026' ||
+      passClean === 'MapahOwner2026!' ||
+      passClean === 'owner@2026';
 
     if (isOwnerUser && isOwnerPass) {
       if (rememberMe) {
