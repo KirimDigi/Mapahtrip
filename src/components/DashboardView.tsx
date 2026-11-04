@@ -90,6 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* 1. Header Salam & Informasi Ringkas */}
       <div
+        className="staff-header-row"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -134,6 +135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <h1
+            className="staff-header-title"
             style={{
               fontSize: '1.85rem',
               fontWeight: 800,
@@ -152,9 +154,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Tombol Navigasi Cepat */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="staff-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
+            className="staff-header-btn"
             onClick={() => onNavigateToPengajuan()}
             style={{
               backgroundColor: '#2563EB',
@@ -189,6 +192,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* 1b. Kartu Motivasi & Pencapaian Kerja Staf (Khusus Staf PIC) */}
       {!isOwner && (
         <div
+          className="staff-achievement-card"
           style={{
             backgroundColor: '#F0FDF4',
             border: '1px solid #BBF7D0',
@@ -202,7 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             boxShadow: '0 2px 6px rgba(22, 101, 52, 0.05)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="staff-achievement-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
             <div
               style={{
                 width: '42px',
@@ -218,7 +222,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             >
               <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>workspace_premium</span>
             </div>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span>Pencapaian Wilayah Anda: {countVisaTerbit + countSudahKirim} Paspor Selesai</span>
                 <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '12px', fontSize: '0.70rem', fontWeight: 700 }}>
@@ -226,12 +230,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: '2px' }}>
-                Luar biasa! Seluruh pengajuan visa siswa di wilayah konsulat Anda tertangani dengan cepat, rapi, dan tepat waktu.
+                Luar biasa! Seluruh pengajuan visa pemohon di wilayah konsulat Anda tertangani dengan cepat, rapi, dan tepat waktu.
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ textAlign: 'right' }}>
+          <div className="staff-achievement-eval" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="staff-achievement-eval-text" style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.66rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status Evaluasi</div>
               <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A' }}>🌟 Staff PIC Teladan</div>
             </div>
@@ -239,16 +243,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* 2. Kartu Pipeline Operasional 6 Tahap Sebaris Rapi (Sinkron dengan Pengajuan) */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-          gap: '10px',
-        }}
-      >
+      {/* 2. Kartu Pipeline Operasional 6 Tahap (Clean SaaS Minimalist) */}
+      <div className="staff-pipeline-grid">
         {/* Card 1: Total Pemohon */}
         <div
+          className="staff-pipeline-card"
           onClick={() => onNavigateToPengajuan('Semua')}
           style={{
             backgroundColor: '#FFFFFF',
@@ -271,23 +270,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           title="Klik untuk membuka semua pengajuan"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Total Pemohon
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563EB', flexShrink: 0 }}>
-              groups
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#2563EB' }}>
+                groups
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {totalPengajuan}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {isOwner ? 'Nasional terdaftar' : 'Wilayah tugas Anda'}
           </div>
         </div>
 
         {/* Card 2: Belum Verifikasi */}
         <div
+          className="staff-pipeline-card"
           onClick={() => onNavigateToPengajuan('Belum Diverifikasi')}
           style={{
             backgroundColor: '#FFFFFF',
@@ -310,102 +312,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           title="Klik untuk melihat pemohon yang belum diverifikasi"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#C2410C', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Belum Verif
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EA580C', flexShrink: 0 }}>
-              hourglass_top
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#EA580C' }}>
+                hourglass_top
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#C2410C', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {countBelum}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Pendaftaran baru
           </div>
         </div>
 
         {/* Card 3: Berkas Tiba & Lengkap */}
         <div
+          className="staff-pipeline-card"
           onClick={() => onNavigateToPengajuan('Baru Sampai')}
-          style={{
-            backgroundColor: '#FFFFFF',
-            padding: '12px 14px',
-            borderRadius: '14px',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            minWidth: 0,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.08)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
-          }}
-          title="Klik untuk membuka pemohon yang berkas fisiknya tiba & lengkap di kantor"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Berkas Tiba & Lengkap
-            </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A', flexShrink: 0 }}>
-              verified
-            </span>
-          </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#15803D', marginTop: '4px', lineHeight: 1.2 }}>
-            {countBaruSampai}
-          </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Fisik tiba di kantor & siap
-          </div>
-        </div>
-
-        {/* Card 4: Proses JVAC (Proses) */}
-        <div
-          onClick={() => onNavigateToPengajuan('Sedang Diproses')}
-          style={{
-            backgroundColor: '#FFFFFF',
-            padding: '12px 14px',
-            borderRadius: '14px',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-            minWidth: 0,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(234, 88, 12, 0.08)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
-          }}
-          title="Klik untuk membuka pengajuan sedang diproses di JVAC / Kedutaan"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#9A3412', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Proses JVAC
-            </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EA580C', flexShrink: 0 }}>
-              pending
-            </span>
-          </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#C2410C', marginTop: '4px', lineHeight: 1.2 }}>
-            {countSedangProses}
-          </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Verifikasi konsulat
-          </div>
-        </div>
-
-        {/* Card 5: Visa Terbit (Selesai) */}
-        <div
-          onClick={() => onNavigateToPengajuan('Selesai')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
@@ -424,26 +351,113 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             e.currentTarget.style.transform = 'translateY(0)';
             e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
           }}
+          title="Klik untuk membuka pemohon yang berkas fisiknya tiba & lengkap di kantor"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Berkas Tiba
+            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#0284C7' }}>
+                inventory_2
+              </span>
+            </div>
+          </div>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
+            {countBaruSampai}
+          </div>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Fisik tiba di kantor
+          </div>
+        </div>
+
+        {/* Card 4: Proses JVAC (Proses) */}
+        <div
+          className="staff-pipeline-card"
+          onClick={() => onNavigateToPengajuan('Sedang Diproses')}
+          style={{
+            backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(217, 119, 6, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
+          title="Klik untuk membuka pengajuan sedang diproses di JVAC / Kedutaan"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Proses JVAC
+            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#D97706' }}>
+                pending
+              </span>
+            </div>
+          </div>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
+            {countSedangProses}
+          </div>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Verifikasi konsulat
+          </div>
+        </div>
+
+        {/* Card 5: Visa Terbit (Selesai) */}
+        <div
+          className="staff-pipeline-card"
+          onClick={() => onNavigateToPengajuan('Selesai')}
+          style={{
+            backgroundColor: '#FFFFFF',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+            minWidth: 0,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+          }}
           title="Klik untuk membuka pengajuan visa terbit (siap dikirim)"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Visa Terbit
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0 }}>
-              task_alt
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#16A34A' }}>
+                task_alt
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0284C7', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {countVisaTerbit}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Stiker siap dikirim
           </div>
         </div>
 
         {/* Card 6: Sudah Kirim (Handover) */}
         <div
+          className="staff-pipeline-card"
           onClick={() => onNavigateToPengajuan('Kirim')}
           style={{
             backgroundColor: '#FFFFFF',
@@ -466,27 +480,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           title="Klik untuk membuka pengajuan yang paspornya sudah dikirim"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Kirim / Handover
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#7C3AED', flexShrink: 0 }}>
-              flight_takeoff
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#F3E8FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#7C3AED' }}>
+                flight_takeoff
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#7C3AED', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {countSudahKirim}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Paspor terkirim / resi
           </div>
         </div>
       </div>
 
       {/* 3. Dua Bagian Utama yang Seimbang & Rapi (Tanpa Scroll Panjang) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+      <div className="staff-sections-grid">
         {/* Kolom Kiri: Agenda / Tugas yang Butuh Tindakan Segera (Top 5 Prioritas) */}
         <div
-          className="card"
+          className="staff-section-card card"
           style={{
             padding: '22px',
             borderRadius: '18px',
@@ -499,7 +515,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
+            <div className="staff-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <div
                   style={{
@@ -576,6 +592,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   return (
                     <div
                       key={item.id}
+                      className="staff-task-item"
                       onClick={() => onSelectPengajuan(item.id)}
                       style={{
                         padding: '12px 14px',
@@ -598,27 +615,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                        <div
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '50%',
-                            backgroundColor: '#F1F5F9',
-                            color: '#475569',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 700,
-                            fontSize: '0.78rem',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {item.namaPemohon
-                            .split(' ')
-                            .map((n) => n[0])
-                            .slice(0, 2)
-                            .join('')}
-                        </div>
+                        {item.fotoBase64 ? (
+                          <img
+                            src={item.fotoBase64}
+                            alt={item.namaPemohon}
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: '1.5px solid #CBD5E1',
+                              flexShrink: 0,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              backgroundColor: '#EFF6FF',
+                              color: '#2563EB',
+                              border: '1px solid #DBEAFE',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.namaPemohon
+                              .split(' ')
+                              .map((n) => n[0])
+                              .slice(0, 2)
+                              .join('')}
+                          </div>
+                        )}
                         <div style={{ minWidth: 0, overflow: 'hidden' }}>
                           <div
                             style={{
@@ -702,7 +735,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Kolom Kanan: Riwayat & Log Pendaftaran Terbaru (Option B) */}
         <div
-          className="card"
+          className="staff-section-card card"
           style={{
             padding: '22px',
             borderRadius: '18px',
@@ -715,7 +748,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
+            <div className="staff-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <div
                   style={{
@@ -771,6 +804,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 return (
                   <div
                     key={item.id}
+                    className="staff-task-item"
                     onClick={() => onSelectPengajuan(item.id)}
                     style={{
                       padding: '12px 14px',
@@ -793,27 +827,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                      <div
-                        style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          backgroundColor: '#F1F5F9',
-                          color: '#0F172A',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {item.namaPemohon
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')}
-                      </div>
+                      {item.fotoBase64 ? (
+                        <img
+                          src={item.fotoBase64}
+                          alt={item.namaPemohon}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '1.5px solid #CBD5E1',
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            backgroundColor: '#EFF6FF',
+                            color: '#2563EB',
+                            border: '1px solid #DBEAFE',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '0.76rem',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {item.namaPemohon
+                            .split(' ')
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join('')}
+                        </div>
+                      )}
                       <div style={{ minWidth: 0, overflow: 'hidden' }}>
                         <div
                           style={{
@@ -834,6 +884,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      {isOwner && (
+                        <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#15803D', whiteSpace: 'nowrap', backgroundColor: '#F0FDF4', padding: '3px 8px', borderRadius: '6px', border: '1px solid #BBF7D0' }}>
+                          Rp {(item.feeBersih || 0).toLocaleString('id-ID')}
+                        </span>
+                      )}
                       <span
                         style={{
                           backgroundColor: badge.bg,
@@ -843,6 +898,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           borderRadius: '6px',
                           fontSize: '0.72rem',
                           fontWeight: 700,
+                          whiteSpace: 'nowrap',
                         }}
                       >
                         {badge.label}

@@ -106,9 +106,9 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
   }, [rekapStaff]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="rekap-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="rekap-top-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>
@@ -118,16 +118,16 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
               Analitik &amp; Performa
             </span>
           </div>
-          <h1 className="font-serif" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--on-surface)', margin: '0 0 6px' }}>
+          <h1 className="rekap-page-title font-serif" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--on-surface)', margin: '0 0 6px' }}>
             Rekap Operasional
           </h1>
-          <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem', margin: 0 }}>
+          <p className="rekap-page-subtitle" style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem', margin: 0 }}>
             Performa volume, status berkas berjalan, dan keberhasilan per wilayah Konsulat Jenderal dan Staff PIC.
           </p>
         </div>
 
         {/* Toggle subtab */}
-        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface-container-low)', padding: '4px', borderRadius: '9999px' }}>
+        <div className="rekap-subtab-toggle" style={{ display: 'flex', gap: '8px', background: 'var(--surface-container-low)', padding: '4px', borderRadius: '9999px' }}>
           <button
             onClick={() => setActiveSubTab('konsjen')}
             style={{
@@ -166,17 +166,18 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
       </div>
 
       {activeSubTab === 'konsjen' ? (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 className="font-serif" style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
+        <div className="card rekap-main-card">
+          <div className="rekap-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+            <h3 className="rekap-section-title font-serif" style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
               Rekapitulasi 5 Konsulat Jenderal Jepang
             </h3>
-            <span style={{ fontSize: '0.78rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, border: '1px solid #DBEAFE' }}>
+            <span className="rekap-section-badge" style={{ fontSize: '0.78rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, border: '1px solid #DBEAFE' }}>
               Data Real-Time ({totalKonsjenStats.total} Pengajuan)
             </span>
           </div>
 
-          <div className="data-table-container">
+          {/* Tabel Lengkap (Khusus Layar Komputer / Desktop) */}
+          <div className="data-table-container rekap-desktop-table">
             <table className="data-table">
               <thead>
                 <tr>
@@ -246,19 +247,213 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
               </tfoot>
             </table>
           </div>
+
+          {/* Kartu Khusus Layar HP / Mobile (Tanpa Scroll Horisontal & Terpotong) */}
+          <div className="rekap-mobile-cards">
+            {rekapKonsjen.map((k) => {
+              const denom = k.selesai + k.ditolak;
+              const rate = denom > 0 ? ((k.selesai / denom) * 100).toFixed(1) : '100.0';
+              return (
+                <div
+                  key={k.kota}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '14px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  {/* Header: Nama Kota & Success Rate */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#2563EB',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                          location_city
+                        </span>
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>Konsjen {k.kota}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Wilayah Operasional Resmi</div>
+                      </div>
+                    </div>
+                    <span className="badge badge-success" style={{ fontSize: '0.74rem', padding: '3px 8px' }}>
+                      {rate}% Sukses
+                    </span>
+                  </div>
+
+                  {/* 4-Box Metrics Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{k.totalPengajuan}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Selesai</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{k.selesai}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Proses</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: k.proses > 0 ? '#D97706' : '#94A3B8', marginTop: '2px' }}>{k.proses}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Tolak</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: k.ditolak > 0 ? '#DC2626' : '#94A3B8', marginTop: '2px' }}>{k.ditolak}</div>
+                    </div>
+                  </div>
+
+                  {/* Footer: Fee Bersih */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
+                      Fee Bersih Wilayah
+                    </span>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
+                      {formatRupiah(k.feeBersih)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Card Total Seluruh Konsulat (Summary Ringkasan Bersih & Rapi) */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+                marginTop: '4px',
+              }}
+            >
+              {/* Header Ringkasan */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#F8FAFC',
+                  borderBottom: '1px solid #E2E8F0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>
+                    account_balance
+                  </span>
+                  <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Total Seluruh Konsulat
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#DCFCE7',
+                    color: '#15803D',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    border: '1px solid #BBF7D0',
+                  }}
+                >
+                  {totalKonsjenStats.selesai + totalKonsjenStats.ditolak > 0
+                    ? ((totalKonsjenStats.selesai / (totalKonsjenStats.selesai + totalKonsjenStats.ditolak)) * 100).toFixed(1)
+                    : '100.0'}% Selesai
+                </span>
+              </div>
+
+              {/* Rincian Angka Konsulat (List Sejajar Tanpa Kotak Sempit) */}
+              <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Total Pengajuan Nasional</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
+                    {totalKonsjenStats.total} Pemohon
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Paspor Selesai / Terbit</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
+                    {totalKonsjenStats.selesai} Pemohon
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Sedang Diproses</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: totalKonsjenStats.proses > 0 ? '#D97706' : '#64748B' }}>
+                    {totalKonsjenStats.proses} Pemohon
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Pengajuan Ditolak</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: totalKonsjenStats.ditolak > 0 ? '#DC2626' : '#64748B' }}>
+                    {totalKonsjenStats.ditolak} Pemohon
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer Total Bersih */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#EFF6FF',
+                  borderTop: '1px solid #BFDBFE',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase' }}>
+                    Total Fee Bersih (Nasional)
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#3B82F6' }}>Akumulasi laba konsulat</div>
+                </div>
+                <span style={{ fontSize: '1.10rem', fontWeight: 800, color: '#1D4ED8', fontFamily: 'monospace' }}>
+                  {formatRupiah(totalKonsjenStats.feeBersih)}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 className="font-serif" style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
+        <div className="card rekap-main-card">
+          <div className="rekap-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+            <h3 className="rekap-section-title font-serif" style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
               Rekapitulasi Kinerja Staff PIC
             </h3>
-            <span style={{ fontSize: '0.78rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '4px 12px', borderRadius: '20px', fontWeight: 700 }}>
+            <span className="rekap-section-badge" style={{ fontSize: '0.78rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '4px 12px', borderRadius: '20px', fontWeight: 700 }}>
               5 Personel Staf Operasional
             </span>
           </div>
 
-          <div className="data-table-container">
+          {/* Tabel Lengkap (Khusus Layar Komputer / Desktop) */}
+          <div className="data-table-container rekap-desktop-table">
             <table className="data-table">
               <thead>
                 <tr>
@@ -345,6 +540,207 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          {/* Kartu Khusus Layar HP / Mobile: Rekap Staff PIC */}
+          <div className="rekap-mobile-cards">
+            {rekapStaff.map((s) => (
+              <div
+                key={s.nama}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                {/* Header: Avatar, Nama & Wilayah */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        background: '#EFF6FF',
+                        color: '#1D4ED8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: '0.82rem',
+                        border: '1.5px solid #BFDBFE',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {s.inisial}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>{s.nama}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>PIC Konsjen {s.wilayah}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontSize: '0.74rem', fontWeight: 800, padding: '3px 8px', borderRadius: '12px' }}>
+                      {s.selesai} Selesai
+                    </span>
+                  </div>
+                </div>
+
+                {/* Grid 2x2: Volume, Proses, Modal, Cashback */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Volume Apply</div>
+                    <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>
+                      {s.jumlahApply} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748B' }}>pemohon</span>
+                    </div>
+                  </div>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Sedang Proses</div>
+                    <div style={{ fontSize: '0.96rem', fontWeight: 800, color: s.proses > 0 ? '#D97706' : '#64748B', marginTop: '1px' }}>
+                      {s.proses} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748B' }}>pemohon</span>
+                    </div>
+                  </div>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Modal Keluar</div>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: '1px' }}>
+                      {formatRupiah(s.nominalKeluar)}
+                    </div>
+                  </div>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '0.64rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Cashback Mitra</div>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: '1px' }}>
+                      {formatRupiah(s.cashback)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer: Fee Bersih */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                  }}
+                >
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
+                    Fee Bersih (Laba)
+                  </span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
+                    {formatRupiah(s.feeBersih)}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {/* Summary Total Tim Staff (Ringkasan Bersih & Rapi) */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+                marginTop: '4px',
+              }}
+            >
+              {/* Header Ringkasan */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#F8FAFC',
+                  borderBottom: '1px solid #E2E8F0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>
+                    account_balance_wallet
+                  </span>
+                  <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Total Tim Operasional
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#DCFCE7',
+                    color: '#15803D',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    border: '1px solid #BBF7D0',
+                  }}
+                >
+                  {totalStaffStats.selesai} Selesai
+                </span>
+              </div>
+
+              {/* Rincian Angka (List Key-Value yang Rapi & Sejajar) */}
+              <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Total Pengajuan Apply</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
+                    {totalStaffStats.jumlahApply} Pemohon
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Sedang Proses</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: totalStaffStats.proses > 0 ? '#D97706' : '#64748B' }}>
+                    {totalStaffStats.proses} Pemohon
+                  </span>
+                </div>
+
+                <div style={{ height: '1px', backgroundColor: '#F1F5F9', margin: '2px 0' }} />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Modal Konsuler</span>
+                  <span style={{ fontSize: '0.90rem', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
+                    {formatRupiah(totalStaffStats.nominalKeluar)}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Cashback Mitra</span>
+                  <span style={{ fontSize: '0.90rem', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
+                    {formatRupiah(totalStaffStats.cashback)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer Total Bersih */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#EFF6FF',
+                  borderTop: '1px solid #BFDBFE',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase' }}>
+                    Total Fee Bersih Tim
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#3B82F6' }}>Akumulasi laba bersih</div>
+                </div>
+                <span style={{ fontSize: '1.10rem', fontWeight: 800, color: '#1D4ED8', fontFamily: 'monospace' }}>
+                  {formatRupiah(totalStaffStats.feeBersih)}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

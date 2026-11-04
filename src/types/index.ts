@@ -63,6 +63,33 @@ export interface Pengajuan {
   tglBayarPemohon?: string;
   buktiBayarPemohon?: string;
   buktiBayarNama?: string;
+  accessKey?: string;
+  payoutStatus?: 'Belum Ditransfer' | 'Berhasil Ditransfer';
+  payoutTanggal?: string;
+  payoutNoRef?: string;
+  payoutBuktiUrl?: string;
+  payoutBy?: string;
+  payoutCatatan?: string;
+}
+
+export interface AffiliatePayout {
+  id: string;
+  pengajuanId: string;
+  noPengajuan: string;
+  namaPemohon: string;
+  affiliateCode: string;
+  mitraNama: string;
+  mitraBank: string;
+  mitraRekening: string;
+  mitraAtasNama: string;
+  nominal: number;
+  tanggalTransfer: string;
+  waktuTransfer: string;
+  noRef: string;
+  buktiTransferUrl?: string;
+  catatanOwner?: string;
+  status: 'Berhasil Ditransfer';
+  transferredBy: string;
 }
 
 export interface KonsjenMaster {
@@ -83,6 +110,7 @@ export interface StaffMaster {
   inisial: string;
   username?: string;
   email?: string;
+  noWa?: string;
   pin?: string;
   konsjenTugas: KonsjenKota[];
   role: string;
@@ -121,4 +149,18 @@ export interface AffiliateUser {
   fotoDiri?: string;
   isProfileComplete?: boolean;
   totalBonus?: number;
+}
+
+export interface StaffFeedback {
+  id: string;
+  namaStaf: string;
+  roleStaf: string;
+  kategori?: 'Fitur Baru' | 'Kendala / Bug' | 'Alur Kerja JVAC' | 'Tampilan / UI' | 'Lainnya';
+  judul?: string;
+  pesan: string;
+  tanggal: string;
+  status: 'Baru' | 'Diproses' | 'Selesai';
+  balasanOwner?: string;
+  likes?: number;
+  avatarUrl?: string;
 }

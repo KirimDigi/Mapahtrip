@@ -1,4 +1,5 @@
 import logoHitam from '../assets/mapahtrip_logo_hitam.png';
+import { handleImageFallback, getLogoHitamFallbacks } from '../utils/imageFallbacks';
 import React from 'react';
 import type { StaffMaster } from '../types';
 
@@ -82,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <img
               src={logoHitam}
               alt="Logo MapahTrip"
+              onError={(e) => handleImageFallback(e, getLogoHitamFallbacks())}
               style={{
                 width: '34px',
                 height: '34px',
@@ -162,11 +164,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, overflow: 'hidden' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', width: '20px', height: '20px', flexShrink: 0 }}>
                     {item.icon}
                   </span>
-                  <span>{item.label}</span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
                 </div>
 
                 {item.badge !== undefined && (

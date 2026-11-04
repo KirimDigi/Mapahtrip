@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import type { Pengajuan, StatusPengajuan } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, updatePengajuanPaymentInDB } from '../lib/supabase';
 import { kirimPesanWA } from '../whatsapp';
+import { getApplicantAccessKey } from '../utils/accessKey';
 
 import type { StaffMaster } from '../types';
 
@@ -27,6 +28,7 @@ interface PengajuanViewProps {
       alasanPenolakan?: string;
     }
   ) => void;
+  onUpdatePengajuan?: (updatedItem: Pengajuan) => void;
 }
 
 export const PengajuanView: React.FC<PengajuanViewProps> = ({
@@ -38,6 +40,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   currentStaff = null,
   initialStatusTab = 'Semua',
   onUpdateStage,
+  onUpdatePengajuan,
 }) => {
   const [activeStatusTab, setActiveStatusTab] = useState<string>(initialStatusTab || 'Semua');
 
@@ -64,10 +67,24 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     setSelectedKonsjen(defaultTerritory);
   }, [defaultTerritory]);
   const [selectedPaket, setSelectedPaket] = useState<string>('Semua');
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('Semua');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(20);
   const [showMaskedPaspor, setShowMaskedPaspor] = useState<boolean>(true);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  // State Modal Pengiriman & Serah Terima Paspor di Bandara Soetta
+  const [kirimModalItem, setKirimModalItem] = useState<Pengajuan | null>(null);
+  const [kirimMetode, setKirimMetode] = useState<'soetta' | 'ekspedisi' | 'kantor'>('soetta');
+  const [ekspedisiKurir, setEkspedisiKurir] = useState<string>('JNE');
+  const [ekspedisiResi, setEkspedisiResi] = useState<string>('');
+  const [soettaFlight, setSoettaFlight] = useState<string>('ANA NH836');
+  const [soettaTanggalJam, setSoettaTanggalJam] = useState<string>('');
+  const [soettaTitikTemu, setSoettaTitikTemu] = useState<string>('Terminal 3 Keberangkatan Internasional Gate 1');
+  const [kantorPengambil, setKantorPengambil] = useState<string>('Pemohon Sendiri');
+  const [kirimKirimWA, setKirimKirimWA] = useState<boolean>(true);
+  const [isSavingKirim, setIsSavingKirim] = useState<boolean>(false);
+  const [showWAPreview, setShowWAPreview] = useState<boolean>(false);
 
   // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
   const [localStageOverrides, setLocalStageOverrides] = useState<
@@ -123,6 +140,63 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       alasanPenolakan,
       currentStatus,
     };
+  };
+
+  const [copiedLinkRowId, setCopiedLinkRowId] = useState<string | null>(null);
+
+  const getCustomerUploadLink = (item: Pengajuan) => {
+    const code = item.noPengajuan || item.noPaspor || item.id;
+    const key = getApplicantAccessKey(item);
+    return `${window.location.origin}/?lacak=${encodeURIComponent(code)}&key=${encodeURIComponent(key)}`;
+  };
+
+  const handleCopyCustomerLink = (e: React.MouseEvent, item: Pengajuan) => {
+    e.stopPropagation();
+    try {
+      const link = getCustomerUploadLink(item);
+      navigator.clipboard.writeText(link);
+      setCopiedLinkRowId(item.id);
+      setTimeout(() => setCopiedLinkRowId(null), 2500);
+      alert(`🔗 Tautan upload mandiri untuk "${item.namaPemohon}" berhasil disalin:\n\n${link}\n\nAnda dapat mengirimkan link ini ke WhatsApp customer agar mereka dapat mengunggah berkas yang kurang langsung dari HP.`);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleSendCustomerWALink = (e: React.MouseEvent, item: Pengajuan) => {
+    e.stopPropagation();
+    const link = getCustomerUploadLink(item);
+    const noWa = item.noTelp?.trim();
+    if (!noWa) {
+      alert(`Nomor WhatsApp untuk pemohon "${item.namaPemohon}" belum tersedia. Silakan salin tautan secara manual.`);
+      return;
+    }
+
+    const berkasList = [
+      { name: 'Formulir Aplikasi Visa Jepang', ok: Boolean(item.berkas?.formVisa || item.uploadedDocs?.formVisa) },
+      { name: 'Scan / Foto Paspor Asli', ok: Boolean(item.berkas?.pasporFisik || item.uploadedDocs?.pasporFisik) },
+      { name: 'Pas Foto 4.5 × 3.5 cm (Background Putih)', ok: Boolean(item.berkas?.foto || item.fotoBase64 || item.uploadedDocs?.foto) },
+      { name: 'Fotokopi / Scan KTP & Kartu Keluarga', ok: Boolean(item.berkas?.ktp || item.uploadedDocs?.ktp) },
+      { name: 'COE / Bukti Booking Hotel & Tiket', ok: Boolean(item.berkas?.coe || item.uploadedDocs?.coe) },
+      { name: 'Bukti Keuangan / Rekening Koran / E-KTLN', ok: Boolean(item.berkas?.ektln || item.uploadedDocs?.ektln) },
+    ];
+    const missing = berkasList.filter((b) => !b.ok).map((b) => `• ${b.name}`).join('\n');
+
+    const pesan =
+`*PEMBERITAHUAN KELENGKAPAN BERKAS VISA JEPANG - MAPAHTRIP*\n\n` +
+`Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+`Pendaftaran pengajuan Visa Jepang Anda telah kami terima (*${item.noPengajuan || '-'}*).\n\n` +
+(missing ? `Berikut berkas persyaratan yang masih perlu Anda lengkapi:\n${missing}\n\n` : '') +
+`Silakan ambil foto / unggah berkas langsung dari HP melalui tautan resmi berikut:\n\n` +
+`${link}\n\n` +
+`Setelah Anda unggah, berkas akan otomatis terverifikasi di sistem staf kami tanpa perlu dikirim manual ke WhatsApp.\n\n` +
+`Terima kasih.\n\n` +
+`Salam hangat,\n` +
+`*Tim Operasional MapahTrip (${item.konsjen || 'Indonesia'})*`;
+
+    const cleanNum = noWa.replace(/[^0-9]/g, '');
+    const finalPhone = cleanNum.startsWith('0') ? '62' + cleanNum.substring(1) : cleanNum.startsWith('62') ? cleanNum : '62' + cleanNum;
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(pesan)}`, '_blank');
   };
 
   // Fitur Ekspor Data Spreadsheet Excel (.xlsx) - Otomatis terpisah kolom & sesuai wilayah
@@ -256,6 +330,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     setTimeout(() => setExportNotice(null), 6000);
   };
 
+  const formatRupiah = (val: number) => {
+    return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
+  };
+
   const handleToggleStage = async (
     item: Pengajuan,
     stage: 'sampai' | 'proses' | 'selesai' | 'kirim'
@@ -264,15 +342,33 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     const today = getTodayFormatted();
     const newStages = { ...(localStageOverrides[item.id] || {}) };
     let newStatus: StatusPengajuan = stages.currentStatus;
+    let shouldSendWASampai = false;
     let shouldSendWAProses = false;
     let shouldSendWASelesai = false;
-    let shouldSendWAKirim = false;
 
     if (stage === 'sampai') {
       if (stages.isSampai) {
+        const confirmBatal = window.confirm(
+          `⚠️ Batalkan Status Berkas Sampai?\n\nApakah Anda yakin ingin membatalkan status berkas fisik sampai untuk pengajuan atas nama "${item.namaPemohon}"?`
+        );
+        if (!confirmBatal) return;
         newStages.tglSampai = '';
       } else {
+        const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
+        const konfirmasi = window.confirm(
+          `⚠️ KONFIRMASI BERKAS FISIK SAMPAI DI KANTOR\n\n` +
+          `Anda akan menandai bahwa berkas fisik & paspor asli telah SAMPAI di kantor MapahTrip:\n` +
+          `• Nama Pemohon : ${item.namaPemohon}\n` +
+          `• No. Paspor   : ${item.noPaspor}\n` +
+          `• No. WhatsApp : ${noWa}\n\n` +
+          `⚠️ PENTING:\n` +
+          `Setelah Anda klik OK, status berkas fisik akan ditandai "Sampai" dan notifikasi resmi bahwa berkas telah tiba beserta RINCIAN TAGIHAN & REKENING RESMI MAPAHTRIP akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
+          `Apakah Anda yakin berkas fisik sudah sampai dan ingin mengirim notifikasi & tagihan ke customer?`
+        );
+        if (!konfirmasi) return;
+
         newStages.tglSampai = today;
+        shouldSendWASampai = true;
       }
     } else if (stage === 'proses') {
       if (stages.isProses) {
@@ -286,13 +382,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         }
       } else {
         const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
+        const isBelumLunas = item.statusPembayaran === 'Menunggu Pembayaran';
+        const warningBayar = isBelumLunas
+          ? `\n\n⚠️ PERHATIAN STATUS PEMBAYARAN:\nStatus pemohon ini masih "Menunggu Pembayaran" (Belum Lunas).\nPastikan pembayaran telah dikonfirmasi kantor sebelum berkas diajukan ke JVAC/Kedutaan!`
+          : '';
         const konfirmasi = window.confirm(
           `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
           `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
           `• Nama Pemohon : ${item.namaPemohon}\n` +
           `• No. Paspor   : ${item.noPaspor}\n` +
-          `• No. WhatsApp : ${noWa}\n\n` +
-          `⚠️ PENTING:\n` +
+          `• No. WhatsApp : ${noWa}` +
+          warningBayar +
+          `\n\n⚠️ PENTING:\n` +
           `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
           `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
         );
@@ -342,20 +443,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         newStages.tglKirim = '';
         newStages.noResi = '';
       } else {
-        const inputResi = window.prompt(
-          `📦 Ceklis Pengiriman Paspor untuk ${item.namaPemohon}:\n\nMasukkan Nomor Resi Ekspedisi (JNE/J&T/TIKI/dll) atau ketik "Diambil Langsung":`,
-          item.noResi || ''
-        );
-        if (inputResi === null) return;
-
-        const resiFinal = inputResi.trim() ? inputResi.trim() : 'Diambil Langsung';
-        newStages.tglKirim = today;
-        newStages.noResi = resiFinal;
-        if (!stages.isSampai) newStages.tglSampai = today;
-        if (!stages.isProses) newStages.tglProses = today;
-        if (!stages.isSelesai) newStages.tglSelesai = today;
-        newStatus = 'Selesai';
-        shouldSendWAKirim = true;
+        openKirimModal(item);
+        return;
       }
     }
 
@@ -372,7 +461,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       };
       try {
         localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
 
@@ -396,19 +485,19 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         const updatedList = list.map((p) =>
           p.id === item.id
             ? {
-                ...p,
-                tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
-                tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
-                tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
-                tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : p.tglKirim,
-                noResi: newStages.noResi !== undefined ? newStages.noResi : p.noResi,
-                status: newStatus,
-              }
+              ...p,
+              tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
+              tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
+              tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
+              tglKirim: newStages.tglKirim !== undefined ? newStages.tglKirim : p.tglKirim,
+              noResi: newStages.noResi !== undefined ? newStages.noResi : p.noResi,
+              status: newStatus,
+            }
             : p
         );
         localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updatedList));
       }
-    } catch {}
+    } catch { }
 
     // 4. Sinkronisasi ke Supabase Cloud
     try {
@@ -431,8 +520,55 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       console.warn('Sync stage to Supabase failed:', e);
     }
 
-    // Otomatis Kirim WhatsApp ke Customer jika Proses / Selesai / Kirim
-    if (shouldSendWAProses) {
+    // Otomatis Kirim WhatsApp ke Customer jika Sampai (Tagihan Resmi) / Proses / Selesai
+    if (shouldSendWASampai) {
+      if (item.noTelp && item.noTelp.trim()) {
+        const nominalTagihan = item.dibayarPemohon || 1650000;
+        const pesanWASampai =
+          `*KONFIRMASI BERKAS FISIK TIBA & TAGIHAN RESMI - MAPAHTRIP* 🇯🇵📦\n\n` +
+          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+          `Kabar baik! Berkas fisik dan dokumen paspor asli Anda telah *SAMPAI DENGAN AMAN* di kantor operasional MapahTrip dan telah diverifikasi oleh tim kami. ✅\n\n` +
+          `📋 *Rincian Pengajuan Visa:*\n` +
+          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+          `• Nama Pemohon: ${item.namaPemohon}\n` +
+          `• No. Paspor: ${item.noPaspor}\n` +
+          `• Program: ${item.program || 'Visa Jepang'}\n` +
+          `• Tanggal Tiba: ${today}\n\n` +
+          `💳 *Rincian Tagihan Pembayaran:*\n` +
+          `• Total Biaya: *${formatRupiah(nominalTagihan)}*\n` +
+          `• Status: *Menunggu Pembayaran*\n\n` +
+          `Silakan lakukan transfer pembayaran ke Rekening Resmi berikut:\n\n` +
+          `🏦 *Bank BTN (Bank Tabungan Negara)*\n` +
+          `No. Rekening: *1190-0150-0015-870*\n` +
+          `Atas Nama: *Tokyo Asia Connection*\n\n` +
+          `⚠️ *Catatan Penting:*\n` +
+          `Setelah transfer, mohon balas pesan WhatsApp ini dengan melampirkan screenshot / foto bukti transfer Anda agar dapat segera diverifikasi oleh tim finance dan berkas Anda langsung diproses ke Kedutaan / JVAC.\n\n` +
+          `Terima kasih telah mempercayakan pengurusan visa Anda bersama MapahTrip! 🌸\n\n` +
+          `Salam hangat,\n` +
+          `*Tim Operasional MapahTrip*\n` +
+          `Website: https://mapahtrip.com`;
+
+        kirimPesanWA(item.noTelp, pesanWASampai)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi berkas sampai & tagihan ke:', item.noTelp, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi berkas sampai:', err);
+          });
+
+        alert(
+          `✅ STATUS BERKAS SAMPAI!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah ditandai BERKAS SAMPAI.\n\n` +
+          `Notifikasi WhatsApp konfirmasi berkas tiba beserta rincian tagihan & rekening resmi (Bank BTN - Tokyo Asia Connection) telah OTOMATIS dikirimkan ke nomor customer (${item.noTelp}).`
+        );
+      } else {
+        alert(
+          `✅ STATUS BERKAS SAMPAI!\n\n` +
+          `Pengajuan atas nama "${item.namaPemohon}" telah ditandai BERKAS SAMPAI.\n\n` +
+          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA rincian tagihan tidak terkirim.`
+        );
+      }
+    } else if (shouldSendWAProses) {
       if (item.noTelp && item.noTelp.trim()) {
         const pesanWAProses =
           `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
@@ -510,37 +646,233 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA tidak terkirim.`
         );
       }
-    } else if (shouldSendWAKirim) {
-      if (item.noTelp && item.noTelp.trim()) {
-        const pesanWAKirim =
-          `*PEMBERITAHUAN PENGIRIMAN PASPOR - MAPAHTRIP* 📦✈️\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Paspor dan berkas Visa Jepang Anda yang telah selesai kini telah dikirimkan / disiapkan untuk penyerahan.\n\n` +
-          `📋 *Rincian Pengiriman:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Status / Resi: *${newStages.noResi || 'Diambil Langsung'}*\n` +
-          `• Tanggal Kirim: ${today}\n\n` +
-          `Silakan simpan nomor resi ini untuk melacak paket Anda. Semoga perjalanan Anda ke Jepang menyenangkan dan berkesan! 🇯🇵🎌\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*`;
+    }
+  };
 
-        kirimPesanWA(item.noTelp, pesanWAKirim)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi kirim ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi kirim:', err);
-          });
+  const openKirimModal = (item: Pengajuan) => {
+    const stages = getCandidateStages(item);
+    const existingResi = stages.noResi || '';
 
-        alert(
-          `📦 STATUS PENGIRIMAN DISIMPAN!\n\n` +
-          `Resi/Status: "${newStages.noResi}" berhasil disimpan.\n` +
-          `Notifikasi WhatsApp pengiriman telah dikirimkan ke ${item.namaPemohon} (${item.noTelp}).`
-        );
+    if (
+      existingResi.toLowerCase().includes('soetta') ||
+      existingResi.toLowerCase().includes('bandara') ||
+      existingResi.toLowerCase().includes('flight') ||
+      existingResi.toLowerCase().includes('handover')
+    ) {
+      setKirimMetode('soetta');
+      const flightMatch = existingResi.match(/(?:handover\s*soetta\s*t3\s*-\s*|flight\s*)([^(]+)/i);
+      if (flightMatch && flightMatch[1]) {
+        setSoettaFlight(flightMatch[1].trim());
+      } else {
+        setSoettaFlight('ANA NH836');
+      }
+      const timeMatch = existingResi.match(/\(([^)]+)\)/);
+      if (timeMatch && timeMatch[1]) {
+        setSoettaTanggalJam(timeMatch[1].trim());
+      } else {
+        setSoettaTanggalJam(`${getTodayFormatted()}, 21:00 WIB`);
+      }
+      const gateMatch = existingResi.match(/\[([^\]]+)\]/);
+      if (gateMatch && gateMatch[1]) {
+        setSoettaTitikTemu(gateMatch[1].trim());
+      } else {
+        setSoettaTitikTemu('Terminal 3 Keberangkatan Internasional Gate 1');
+      }
+    } else if (existingResi.toLowerCase().includes('kantor') || existingResi.toLowerCase().includes('langsung')) {
+      setKirimMetode('kantor');
+      const pengambilMatch = existingResi.match(/\(([^)]+)\)/);
+      setKantorPengambil(pengambilMatch ? pengambilMatch[1].trim() : 'Pemohon Sendiri');
+    } else {
+      setKirimMetode('ekspedisi');
+      const parts = existingResi.split('-');
+      if (parts.length > 1) {
+        setEkspedisiKurir(parts[0].trim() || 'JNE');
+        setEkspedisiResi(parts.slice(1).join('-').trim());
+      } else {
+        setEkspedisiKurir('JNE');
+        setEkspedisiResi(existingResi);
       }
     }
+
+    if (!soettaTanggalJam) {
+      setSoettaTanggalJam(`${getTodayFormatted()}, 21:00 WIB`);
+    }
+
+    setKirimKirimWA(Boolean(item.noTelp && item.noTelp.trim()));
+    setKirimModalItem(item);
+  };
+
+  const getKirimWAMessage = (item: Pengajuan) => {
+    const today = getTodayFormatted();
+    if (kirimMetode === 'soetta') {
+      return (
+        `*PEMBERITAHUAN SERAH TERIMA PASPOR DI BANDARA - MAPAHTRIP* ✈️🇯🇵\n\n` +
+        `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+        `Kabar gembira! Visa Jepang Anda telah selesai terbit. Paspor fisik Anda telah dijadwalkan untuk *SERAH TERIMA LANGSUNG DI BANDARA SOEKARNO-HATTA (TERMINAL 3)* sebelum jadwal keberangkatan Anda ke Jepang. 🌸🎌\n\n` +
+        `📋 *Rincian Serah Terima Bandara:*\n` +
+        `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+        `• Nama Pemohon: ${item.namaPemohon}\n` +
+        `• No. Paspor: ${item.noPaspor}\n` +
+        `• Program: ${item.program || 'Visa Jepang'}\n` +
+        `• Penerbangan: *${soettaFlight.trim() || 'Penerbangan Internasional'}*\n` +
+        (soettaTanggalJam.trim() ? `• Jadwal / Jam Temu: *${soettaTanggalJam.trim()}*\n` : '') +
+        `• Titik Temu: *${soettaTitikTemu.trim() || 'Terminal 3 Keberangkatan Internasional Gate 1'}*\n\n` +
+        `📍 Tim Handover MapahTrip akan berada di titik temu untuk menyerahkan langsung paspor dan visa Anda. Mohon pastikan nomor WhatsApp ini tetap aktif.\n\n` +
+        `Semoga penerbangan dan perjalanan Anda ke Jepang menyenangkan, lancar, dan berkesan! 🇯🇵✨\n\n` +
+        `Salam hangat,\n` +
+        `*Tim Operasional MapahTrip*\n` +
+        `Website: https://mapahtrip.com`
+      );
+    } else if (kirimMetode === 'ekspedisi') {
+      return (
+        `*PEMBERITAHUAN PENGIRIMAN PASPOR - MAPAHTRIP* 📦🚚\n\n` +
+        `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+        `Paspor dan berkas Visa Jepang Anda yang telah selesai kini telah resmi dikirimkan via ekspedisi. 🌸\n\n` +
+        `📋 *Rincian Pengiriman:*\n` +
+        `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+        `• Nama Pemohon: ${item.namaPemohon}\n` +
+        `• No. Paspor: ${item.noPaspor}\n` +
+        `• Kurir / Ekspedisi: *${ekspedisiKurir}*\n` +
+        `• Nomor Resi: *${ekspedisiResi.trim() || 'Sedang diproses ekspedisi'}*\n` +
+        `• Tanggal Kirim: ${today}\n\n` +
+        `Silakan simpan nomor resi tersebut untuk melacak paket paspor Anda. Terima kasih atas kepercayaan Anda bersama MapahTrip! 🇯🇵✨\n\n` +
+        `Salam hangat,\n` +
+        `*Tim Operasional MapahTrip*`
+      );
+    } else {
+      return (
+        `*PEMBERITAHUAN PENGAMBILAN PASPOR - MAPAHTRIP* 🏢📋\n\n` +
+        `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+        `Paspor dan berkas Visa Jepang Anda yang telah selesai kini *SIAP DIAMBIL LANGSUNG* di Kantor Operasional MapahTrip. 🌸\n\n` +
+        `📋 *Rincian Pengambilan:*\n` +
+        `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+        `• Nama Pemohon: ${item.namaPemohon}\n` +
+        `• No. Paspor: ${item.noPaspor}\n` +
+        `• Pengambil: *${kantorPengambil.trim() || 'Pemohon Sendiri'}*\n` +
+        `• Status: Siap Diambil di Kantor\n` +
+        `• Jam Layanan: Jam Operasional Kantor MapahTrip (Senin - Sabtu)\n\n` +
+        `Harap menunjukkan identitas diri saat pengambilan paspor fisik. Terima kasih atas kerja sama dan kepercayaan Anda! 🇯🇵✨\n\n` +
+        `Salam hangat,\n` +
+        `*Tim Operasional MapahTrip*`
+      );
+    }
+  };
+
+  const handleConfirmKirim = async () => {
+    if (!kirimModalItem) return;
+    setIsSavingKirim(true);
+
+    const today = getTodayFormatted();
+    const stages = getCandidateStages(kirimModalItem);
+    const newStages = { ...(localStageOverrides[kirimModalItem.id] || {}) };
+    let resiFinal = '';
+
+    if (kirimMetode === 'soetta') {
+      const flightText = soettaFlight.trim() || 'Flight Internasional';
+      const timeText = soettaTanggalJam.trim() ? ` (${soettaTanggalJam.trim()})` : '';
+      const gateText = soettaTitikTemu.trim() ? ` [${soettaTitikTemu.trim()}]` : '';
+      resiFinal = `Handover Soetta T3 - ${flightText}${timeText}${gateText}`;
+    } else if (kirimMetode === 'ekspedisi') {
+      const kurir = ekspedisiKurir.trim() || 'Ekspedisi';
+      const noResi = ekspedisiResi.trim() || 'Resi Menyusul';
+      resiFinal = `${kurir} - ${noResi}`;
+    } else {
+      const pengambil = kantorPengambil.trim() || 'Pemohon Sendiri';
+      resiFinal = `Diambil Langsung di Kantor (${pengambil})`;
+    }
+
+    newStages.tglKirim = today;
+    newStages.noResi = resiFinal;
+    if (!stages.isSampai) newStages.tglSampai = today;
+    if (!stages.isProses) newStages.tglProses = today;
+    if (!stages.isSelesai) newStages.tglSelesai = today;
+    const newStatus: StatusPengajuan = 'Selesai';
+    newStages.status = newStatus;
+
+    // 1. Simpan ke local state override instan
+    setLocalStageOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [kirimModalItem.id]: {
+          ...(prev[kirimModalItem.id] || {}),
+          ...newStages,
+        },
+      };
+      try {
+        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
+      } catch { }
+      return updated;
+    });
+
+    // 2. Beritahu App.tsx
+    if (onUpdateStage) {
+      onUpdateStage(kirimModalItem.id, {
+        tglBerkasMasuk: newStages.tglSampai,
+        tglApply: newStages.tglProses,
+        tglSelesai: newStages.tglSelesai,
+        tglKirim: newStages.tglKirim,
+        noResi: resiFinal,
+        status: newStatus,
+      });
+    }
+
+    // 3. Simpan ke localStorage registrations
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const list: Pengajuan[] = JSON.parse(raw);
+        const updatedList = list.map((p) =>
+          p.id === kirimModalItem.id
+            ? {
+              ...p,
+              tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
+              tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
+              tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
+              tglKirim: today,
+              noResi: resiFinal,
+              status: newStatus,
+            }
+            : p
+        );
+        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updatedList));
+      }
+    } catch { }
+
+    // 4. Sinkronisasi ke Supabase Cloud
+    try {
+      const numId = Number(kirimModalItem.id);
+      if (!isNaN(numId)) {
+        await supabase
+          .from('pengajuan_visa')
+          .update({
+            tgl_sampai: newStages.tglSampai || null,
+            tgl_proses: newStages.tglProses || null,
+            tgl_selesai: newStages.tglSelesai || null,
+            tgl_kirim: today,
+            resi_pengiriman: resiFinal,
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', numId);
+      }
+    } catch (e) {
+      console.warn('Sync stage to Supabase failed:', e);
+    }
+
+    // 5. Kirim Notifikasi WhatsApp jika dicentang dan nomor WA ada
+    if (kirimKirimWA && kirimModalItem.noTelp && kirimModalItem.noTelp.trim()) {
+      const pesanWAKirim = getKirimWAMessage(kirimModalItem);
+      kirimPesanWA(kirimModalItem.noTelp, pesanWAKirim)
+        .then((res) => {
+          console.log('[WA Gateway] Sukses kirim notifikasi kirim/handover ke:', kirimModalItem.noTelp, res);
+        })
+        .catch((err) => {
+          console.warn('[WA Gateway] Gagal kirim notifikasi kirim/handover:', err);
+        });
+    }
+
+    setIsSavingKirim(false);
+    setKirimModalItem(null);
   };
 
   const handleEditStageDate = (
@@ -578,7 +910,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       };
       try {
         localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
 
@@ -621,7 +953,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         };
         try {
           localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
-        } catch {}
+        } catch { }
         return updated;
       });
 
@@ -667,6 +999,21 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       alasanFinal = trimmed;
     }
 
+    const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : '';
+
+    if (noWa) {
+      const confirmKirim = window.confirm(
+        `⚠️ KONFIRMASI PENOLAKAN & KIRIM WHATSAPP:\n\n` +
+        `Anda akan menandai pengajuan visa ini sebagai DITOLAK:\n` +
+        `  • Nama Pemohon : ${item.namaPemohon}\n` +
+        `  • Alasan        : ${alasanFinal}\n` +
+        `  • No. WhatsApp : ${noWa}\n\n` +
+        `Pemberitahuan resmi penolakan beserta alasan akan OTOMATIS dikirimkan ke WhatsApp customer (${noWa}).\n\n` +
+        `Apakah Anda yakin ingin melanjutkan dan mengirim notifikasi WhatsApp ke customer?`
+      );
+      if (!confirmKirim) return;
+    }
+
     const newStages = { ...(localStageOverrides[item.id] || {}) };
     newStages.status = 'Ditolak';
     newStages.alasanPenolakan = alasanFinal;
@@ -681,7 +1028,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       };
       try {
         localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
 
@@ -704,9 +1051,51 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         .eq('id', numId);
     }
 
-    alert(
-      `❌ Pengajuan "${item.namaPemohon}" berhasil ditandai DITOLAK.\nAlasan: ${alasanFinal}`
-    );
+    // Otomatis Kirim WhatsApp ke Customer
+    if (noWa) {
+      const isDitolakKonsulat = alasanFinal.toLowerCase().includes('konsulat');
+      const pesanWATolak =
+        `*PEMBERITAHUAN STATUS PENGAJUAN VISA - MAPAHTRIP* 🇯🇵⚠️\n\n` +
+        `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+        `Melalui pesan ini, kami dari *MapahTrip* menginformasikan bahwa pengajuan Visa Jepang Anda saat ini *TIDAK DAPAT DIPROSES LEBIH LANJUT / DITOLAK*.\n\n` +
+        `📋 *Rincian Pengajuan:*\n` +
+        `• No. Pengajuan : ${item.noPengajuan || '-'}\n` +
+        `• Nama Pemohon  : ${item.namaPemohon}\n` +
+        `• No. Paspor    : ${item.noPaspor || '-'}\n` +
+        `• Program       : ${item.program || 'Visa Jepang'}\n` +
+        `• Status        : *DITOLAK* ❌\n` +
+        `• Alasan/Catatan: *${alasanFinal}*\n\n` +
+        (isDitolakKonsulat
+          ? `📌 *Catatan Penting:*\nKeputusan persetujuan atau penolakan visa sepenuhnya merupakan hak prerogatif dan wewenang mutlak pihak Kedutaan Besar / Konsulat Jenderal Jepang. Paspor fisik asli Anda tetap aman dan akan segera kami kembalikan / kirimkan kembali kepada Anda.\n\n`
+          : `📌 *Catatan Penting:*\nPengajuan berkas Anda belum dapat kami teruskan ke Kedutaan/JVAC dikarenakan dokumen belum memenuhi persyaratan resmi atau jadwal keberangkatan yang terlalu mepet dengan batas waktu pemrosesan kedutaan. Dokumen fisik asli Anda tetap aman bersama kami.\n\n`) +
+        `Untuk informasi pengembalian dokumen atau konsultasi pengajuan ulang, silakan balas pesan WhatsApp ini atau hubungi tim layanan kami.\n\n` +
+        `Terima kasih atas pengertian dan kerja sama Anda.\n\n` +
+        `Salam hormat,\n` +
+        `*Tim Operasional MapahTrip*\n` +
+        `Website: https://mapahtrip.com`;
+
+      kirimPesanWA(noWa, pesanWATolak)
+        .then((res) => {
+          console.log('[WA Gateway] Sukses kirim notifikasi penolakan ke:', noWa, res);
+        })
+        .catch((err) => {
+          console.warn('[WA Gateway] Gagal kirim notifikasi penolakan:', err);
+        });
+
+      alert(
+        `❌ STATUS PENGAJUAN DITOLAK!\n\n` +
+        `Pengajuan atas nama "${item.namaPemohon}" telah ditandai DITOLAK.\n\n` +
+        `Alasan: ${alasanFinal}\n\n` +
+        `Notifikasi WhatsApp resmi telah OTOMATIS dikirimkan ke nomor customer (${noWa}).`
+      );
+    } else {
+      alert(
+        `❌ STATUS PENGAJUAN DITOLAK!\n\n` +
+        `Pengajuan atas nama "${item.namaPemohon}" telah ditandai DITOLAK.\n\n` +
+        `Alasan: ${alasanFinal}\n\n` +
+        `⚠️ Catatan: Nomor WhatsApp customer belum tersedia, sehingga pesan WA tidak terkirim.`
+      );
+    }
   };
 
   // Daftar pemohon yang masuk ke wilayah konsulat yang dipilih / tugas staf
@@ -737,8 +1126,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     let visaTerbit = 0;
     let sudahKirim = 0;
     let ditolak = 0;
+    let lunas = 0;
+    let belumBayar = 0;
 
     territoryList.forEach((item) => {
+      if (item.statusPembayaran === 'Menunggu Pembayaran') {
+        belumBayar++;
+      } else {
+        lunas++;
+      }
+
       const stages = getCandidateStages(item);
       if (stages.currentStatus === 'Ditolak') {
         ditolak++;
@@ -762,12 +1159,50 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       visaTerbit,
       sudahKirim,
       ditolak,
+      lunas,
+      belumBayar,
       total: territoryList.length,
     };
   }, [territoryList, localStageOverrides]);
 
+  const handleTogglePaymentStatus = async (item: Pengajuan) => {
+    if (!isOwner) return;
+    const current = item.statusPembayaran || 'Lunas';
+    const nextStatus = current === 'Menunggu Pembayaran' ? 'Lunas' : 'Menunggu Pembayaran';
+
+    const konfirm = window.confirm(
+      `Ubah status pembayaran ${item.namaPemohon} menjadi "${nextStatus === 'Lunas' ? 'Lunas (100%)' : 'Menunggu Pembayaran'}"?`
+    );
+    if (!konfirm) return;
+
+    try {
+      await updatePengajuanPaymentInDB(item.id, {
+        statusPembayaran: nextStatus,
+      });
+      const updated: Pengajuan = {
+        ...item,
+        statusPembayaran: nextStatus,
+      };
+      if (onUpdatePengajuan) {
+        onUpdatePengajuan(updated);
+      }
+    } catch (err) {
+      console.warn('Gagal update status pembayaran:', err);
+      if (onUpdatePengajuan) {
+        onUpdatePengajuan({ ...item, statusPembayaran: nextStatus });
+      }
+    }
+  };
+
   const filteredData = pengajuanList.filter((item) => {
     const candidateStages = getCandidateStages(item);
+
+    // Filter Status Pembayaran
+    if (selectedPaymentStatus === 'Lunas') {
+      if (item.statusPembayaran === 'Menunggu Pembayaran') return false;
+    } else if (selectedPaymentStatus === 'Menunggu Pembayaran') {
+      if (item.statusPembayaran !== 'Menunggu Pembayaran') return false;
+    }
 
     // Status / Tahapan Pengajuan Filter
     if (activeStatusTab !== 'Semua') {
@@ -908,10 +1343,6 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     }
   };
 
-  const formatRupiah = (val: number) => {
-    return 'Rp ' + val.toLocaleString('id-ID');
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Header & Action */}
@@ -960,10 +1391,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               const territoryLabel = (!isOwner && currentStaff?.konsjenTugas && currentStaff.konsjenTugas.length > 0)
                 ? currentStaff.konsjenTugas.join('_')
                 : selectedKonsjen === 'Tugas Staf' && currentStaff?.konsjenTugas && currentStaff.konsjenTugas.length > 0
-                ? currentStaff.konsjenTugas.join('_')
-                : selectedKonsjen !== 'Semua'
-                ? selectedKonsjen
-                : 'Wilayah_Tugas';
+                  ? currentStaff.konsjenTugas.join('_')
+                  : selectedKonsjen !== 'Semua'
+                    ? selectedKonsjen
+                    : 'Wilayah_Tugas';
               handleExportExcel(territoryList, territoryLabel);
             }}
             style={{
@@ -1020,23 +1451,17 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       )}
 
       {/* 6 Kartu Pipeline Operasional Interaktif Sebaris Rapi (Klik Kartu untuk Menyaring Tabel) */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-          gap: '10px',
-        }}
-      >
-
+      <div className="staff-pipeline-grid">
         {/* Card 1: Total Pemohon */}
         <div
+          className="staff-pipeline-card"
           onClick={() => setActiveStatusTab('Semua')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
             borderRadius: '14px',
             border: activeStatusTab === 'Semua' ? '2px solid #2563EB' : '1px solid #E2E8F0',
-            boxShadow: activeStatusTab === 'Semua' ? '0 4px 14px rgba(37, 99, 235, 0.14)' : '0 2px 8px rgba(0,0,0,0.02)',
+            boxShadow: activeStatusTab === 'Semua' ? '0 4px 14px rgba(37, 99, 235, 0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
             minWidth: 0,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
@@ -1045,30 +1470,33 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           title="Klik untuk menampilkan semua pemohon"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
               Total Pemohon
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563EB', flexShrink: 0 }}>
-              groups
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#2563EB' }}>
+                groups
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {stageCounts.total}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px' }}>
             {selectedKonsjen === 'Semua' ? 'Semua wilayah' : `Konsulat ${selectedKonsjen}`}
           </div>
         </div>
 
         {/* Card 2: Belum Verifikasi */}
         <div
+          className="staff-pipeline-card"
           onClick={() => setActiveStatusTab('Belum Diverifikasi')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
             borderRadius: '14px',
-            border: activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi' ? '2px solid #D97706' : '1px solid #E2E8F0',
-            boxShadow: activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi' ? '0 4px 14px rgba(217, 119, 6, 0.14)' : '0 2px 8px rgba(0,0,0,0.02)',
+            border: activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi' ? '2px solid #EA580C' : '1px solid #E2E8F0',
+            boxShadow: activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi' ? '0 4px 14px rgba(234, 88, 12, 0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
             minWidth: 0,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
@@ -1077,30 +1505,33 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           title="Klik untuk menyaring pemohon yang belum diverifikasi"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
               Belum Verif
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#D97706', flexShrink: 0 }}>
-              hourglass_top
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#EA580C' }}>
+                hourglass_top
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#B45309', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {stageCounts.belumVerifikasi}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px' }}>
             Pendaftaran baru
           </div>
         </div>
 
         {/* Card 3: Baru Tahap Sampai */}
         <div
+          className="staff-pipeline-card"
           onClick={() => setActiveStatusTab('Baru Sampai')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
             borderRadius: '14px',
-            border: activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? '2px solid #16A34A' : '1px solid #E2E8F0',
-            boxShadow: activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? '0 4px 14px rgba(22, 163, 74, 0.14)' : '0 2px 8px rgba(0,0,0,0.02)',
+            border: activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? '2px solid #0284C7' : '1px solid #E2E8F0',
+            boxShadow: activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? '0 4px 14px rgba(2, 132, 199, 0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
             minWidth: 0,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
@@ -1109,30 +1540,33 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           title="Klik untuk filter pemohon yang baru tahap sampai (berkas di kantor, belum diajukan)"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Baru Sampai
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+              Berkas Tiba
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A', flexShrink: 0 }}>
-              inventory_2
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#0284C7' }}>
+                inventory_2
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#15803D', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {stageCounts.baruSampai}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px' }}>
             Berkas tiba di kantor
           </div>
         </div>
 
         {/* Card 4: Proses JVAC (Proses) */}
         <div
+          className="staff-pipeline-card"
           onClick={() => setActiveStatusTab('Sedang Diproses')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
             borderRadius: '14px',
-            border: activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? '2px solid #EA580C' : '1px solid #E2E8F0',
-            boxShadow: activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? '0 4px 14px rgba(234, 88, 12, 0.14)' : '0 2px 8px rgba(0,0,0,0.02)',
+            border: activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? '2px solid #D97706' : '1px solid #E2E8F0',
+            boxShadow: activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? '0 4px 14px rgba(217, 119, 6, 0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
             minWidth: 0,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
@@ -1141,30 +1575,33 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           title="Klik untuk filter pemohon yang sedang diproses di JVAC / Kedutaan"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#9A3412', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
               Proses JVAC
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EA580C', flexShrink: 0 }}>
-              pending
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#D97706' }}>
+                pending
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#C2410C', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {stageCounts.sedangProses}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px' }}>
             Verifikasi konsulat
           </div>
         </div>
 
         {/* Card 5: Visa Terbit (Selesai) */}
         <div
+          className="staff-pipeline-card"
           onClick={() => setActiveStatusTab('Selesai')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
             borderRadius: '14px',
-            border: activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? '2px solid #0284C7' : '1px solid #E2E8F0',
-            boxShadow: activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? '0 4px 14px rgba(2, 132, 199, 0.14)' : '0 2px 8px rgba(0,0,0,0.02)',
+            border: activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? '2px solid #16A34A' : '1px solid #E2E8F0',
+            boxShadow: activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? '0 4px 14px rgba(22, 163, 74, 0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
             minWidth: 0,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
@@ -1173,30 +1610,33 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           title="Klik untuk filter pemohon dengan visa yang sudah terbit (siap dikirim)"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
               Visa Terbit
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0 }}>
-              task_alt
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#16A34A' }}>
+                task_alt
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0284C7', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {stageCounts.visaTerbit}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px' }}>
             Stiker siap dikirim
           </div>
         </div>
 
         {/* Card 6: Sudah Kirim (Handover) */}
         <div
+          className="staff-pipeline-card"
           onClick={() => setActiveStatusTab('Kirim')}
           style={{
             backgroundColor: '#FFFFFF',
             padding: '12px 14px',
             borderRadius: '14px',
             border: activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim' ? '2px solid #7C3AED' : '1px solid #E2E8F0',
-            boxShadow: activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim' ? '0 4px 14px rgba(124, 58, 237, 0.14)' : '0 2px 8px rgba(0,0,0,0.02)',
+            boxShadow: activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim' ? '0 4px 14px rgba(124, 58, 237, 0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
             minWidth: 0,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
@@ -1205,17 +1645,19 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           title="Klik untuk filter pemohon yang paspornya sudah dikirim / diserahkan"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className="staff-pipeline-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
               Sudah Kirim
             </span>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#7C3AED', flexShrink: 0 }}>
-              flight_takeoff
-            </span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#F3E8FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#7C3AED' }}>
+                flight_takeoff
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#7C3AED', marginTop: '4px', lineHeight: 1.2 }}>
+          <div className="staff-pipeline-val" style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2 }}>
             {stageCounts.sudahKirim}
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="staff-pipeline-sub" style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '3px' }}>
             Paspor terkirim / resi
           </div>
         </div>
@@ -1227,29 +1669,28 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           style={{
             backgroundColor:
               activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
-                ? '#FFFBEB'
-                : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
-                ? '#F0FDF4'
-                : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
                 ? '#FFF7ED'
-                : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
-                ? '#F0F9FF'
-                : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
-                ? '#F5F3FF'
-                : '#FEF2F2',
-            border: `1px solid ${
-              activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
-                ? '#FDE68A'
                 : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
-                ? '#BBF7D0'
-                : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
-                ? '#FED7AA'
-                : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
-                ? '#BAE6FD'
-                : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
-                ? '#DDD6FE'
-                : '#FECACA'
-            }`,
+                  ? '#E0F2FE'
+                  : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
+                    ? '#FEF3C7'
+                    : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
+                      ? '#DCFCE7'
+                      : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
+                        ? '#F3E8FF'
+                        : '#FEF2F2',
+            border: `1px solid ${activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
+                ? '#FFEDD5'
+                : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
+                  ? '#BAE6FD'
+                  : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
+                    ? '#FDE68A'
+                    : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
+                      ? '#BBF7D0'
+                      : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
+                        ? '#DDD6FE'
+                        : '#FECACA'
+              }`,
             borderRadius: '12px',
             padding: '11px 16px',
             display: 'flex',
@@ -1267,16 +1708,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                 fontSize: '22px',
                 color:
                   activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
-                    ? '#D97706'
-                    : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
-                    ? '#16A34A'
-                    : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
                     ? '#EA580C'
-                    : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
-                    ? '#0284C7'
-                    : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
-                    ? '#7C3AED'
-                    : '#DC2626',
+                    : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
+                      ? '#0284C7'
+                      : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
+                        ? '#D97706'
+                        : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
+                          ? '#16A34A'
+                          : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
+                            ? '#7C3AED'
+                            : '#DC2626',
               }}
             >
               filter_alt
@@ -1285,10 +1726,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.88rem' }}>
                 Filter Tahap Aktif: {
                   activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi' ? 'Belum Diverifikasi' :
-                  activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? 'Baru Tahap Sampai (Berkas Masuk)' :
-                  activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? 'Sedang Diproses (JVAC)' :
-                  activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? 'Tahap Selesai (Visa Terbit)' :
-                  activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim' ? 'Sudah Kirim Paspor' : activeStatusTab
+                    activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? 'Baru Tahap Sampai (Berkas Masuk)' :
+                      activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? 'Sedang Diproses (JVAC)' :
+                        activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? 'Tahap Selesai (Visa Terbit)' :
+                          activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim' ? 'Sudah Kirim Paspor' : activeStatusTab
                 }
               </div>
               <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
@@ -1321,19 +1762,63 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       )}
 
       {/* Bar Kontrol Atas Tabel (Tampilkan Data, Filter Konsulat, Filter Paket, Pencarian) */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          padding: '12px 2px 14px 2px',
-        }}
-      >
-        {/* Sisi Kiri: Tampilkan Data & Filter Konsulat/Paket */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.84rem', fontWeight: 500 }}>
+      <div className="pengajuan-filter-bar">
+        {/* Sisi Kiri / Atas: Input Pencarian */}
+        <div className="pengajuan-search-wrapper">
+          <span
+            className="material-symbols-outlined"
+            style={{
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '18px',
+              color: '#94A3B8',
+              pointerEvents: 'none',
+            }}
+          >
+            search
+          </span>
+          <input
+            type="text"
+            value={searchFilter}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            placeholder="Pencarian nama, no. paspor, resi..."
+            className="pengajuan-search-input"
+          />
+          {searchFilter && (
+            <button
+              type="button"
+              onClick={() => onSearchChange?.('')}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: '#E2E8F0',
+                border: 'none',
+                borderRadius: '50%',
+                width: '20px',
+                height: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#475569',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+              title="Hapus pencarian"
+              aria-label="Hapus teks pencarian"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+            </button>
+          )}
+        </div>
+
+        {/* Grup Filter (Wilayah, Paket, Tahapan, Page Size) */}
+        <div className="pengajuan-filter-controls">
+          {/* Tampilkan Data (Khusus Desktop) */}
+          <div className="pengajuan-page-size-desktop">
             <span>Tampilkan</span>
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
               <select
@@ -1342,19 +1827,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
+                className="pengajuan-filter-select"
                 style={{
-                  appearance: 'none',
-                  WebkitAppearance: 'none',
                   padding: '6px 28px 6px 14px',
-                  borderRadius: '9999px',
-                  border: '1px solid #E2E8F0',
                   backgroundColor: '#F8FAFC',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                  color: '#0F172A',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                 }}
                 title="Pilih jumlah data yang ditampilkan"
               >
@@ -1380,28 +1856,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             <span>Data</span>
           </div>
 
-          <div style={{ height: '18px', width: '1px', backgroundColor: '#CBD5E1' }} />
+          <div className="pengajuan-filter-divider" />
 
           {/* Filter Wilayah Konsulat: Khusus Owner (Bisa switch kota/nasional). Staf terkunci pada wilayah tugasnya */}
           {isOwner ? (
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', fontSize: '15px', color: '#64748B', pointerEvents: 'none' }}>
+            <div className="pengajuan-filter-item filter-item-wilayah">
+              <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', fontSize: '15px', color: '#64748B', pointerEvents: 'none', zIndex: 1 }}>
                 location_on
               </span>
               <select
                 value={selectedKonsjen}
                 onChange={(e) => setSelectedKonsjen(e.target.value)}
+                className="pengajuan-filter-select"
                 style={{
-                  padding: '6px 12px 6px 28px',
-                  borderRadius: '9999px',
-                  border: '1px solid #E2E8F0',
-                  fontSize: '0.80rem',
-                  fontWeight: 600,
-                  color: '#0F172A',
-                  backgroundColor: '#FFFFFF',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                  padding: '6px 26px 6px 28px',
                 }}
                 title="Pilih konsulat atau pantau seluruh Indonesia"
               >
@@ -1412,60 +1880,130 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                 <option value="Medan">Medan</option>
                 <option value="Makassar">Makassar</option>
               </select>
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  fontSize: '16px',
+                  color: '#64748B',
+                  pointerEvents: 'none',
+                }}
+              >
+                keyboard_arrow_down
+              </span>
             </div>
           ) : (
             <div
+              className="pengajuan-filter-item filter-item-wilayah"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '6px 12px',
-                borderRadius: '9999px',
+                borderRadius: '10px',
                 border: '1px solid #BFDBFE',
                 backgroundColor: '#EFF6FF',
                 color: '#1E40AF',
                 fontSize: '0.80rem',
                 fontWeight: 700,
+                boxSizing: 'border-box',
               }}
               title="Wilayah tugas konsulat resmi akun Anda"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#2563EB' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#2563EB', flexShrink: 0 }}>
                 location_on
               </span>
-              <span>Wilayah Tugas: {currentStaff?.konsjenTugas?.join(', ') || 'Jakarta'}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Wilayah: {currentStaff?.konsjenTugas?.join(', ') || 'Jakarta'}
+              </span>
             </div>
           )}
 
           {/* Dropdown Paket */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', fontSize: '15px', color: '#64748B', pointerEvents: 'none' }}>
+          <div className="pengajuan-filter-item filter-item-paket">
+            <span className="material-symbols-outlined" style={{ position: 'absolute', left: '10px', fontSize: '15px', color: '#64748B', pointerEvents: 'none', zIndex: 1 }}>
               stars
             </span>
             <select
               value={selectedPaket}
               onChange={(e) => setSelectedPaket(e.target.value)}
+              className="pengajuan-filter-select"
               style={{
-                padding: '6px 12px 6px 28px',
-                borderRadius: '9999px',
-                border: '1px solid #E2E8F0',
-                fontSize: '0.80rem',
-                fontWeight: 600,
-                color: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                cursor: 'pointer',
-                outline: 'none',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                padding: '6px 26px 6px 28px',
               }}
+              title="Filter jenis paket pengajuan"
             >
               <option value="Semua">Semua Paket</option>
               <option value="Reguler">Reguler</option>
               <option value="TAC">TAC (Tokutei)</option>
               <option value="Premium">Premium</option>
             </select>
+            <span
+              className="material-symbols-outlined"
+              style={{
+                position: 'absolute',
+                right: '8px',
+                fontSize: '16px',
+                color: '#64748B',
+                pointerEvents: 'none',
+              }}
+            >
+              keyboard_arrow_down
+            </span>
+          </div>
+
+          {/* Dropdown Status Pembayaran */}
+          <div className="pengajuan-filter-item filter-item-bayar">
+            <span
+              className="material-symbols-outlined"
+              style={{
+                position: 'absolute',
+                left: '10px',
+                fontSize: '15px',
+                color: selectedPaymentStatus !== 'Semua' ? '#16A34A' : '#64748B',
+                pointerEvents: 'none',
+                zIndex: 1,
+              }}
+            >
+              payments
+            </span>
+            <select
+              value={selectedPaymentStatus}
+              onChange={(e) => {
+                setSelectedPaymentStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pengajuan-filter-select"
+              style={{
+                padding: '6px 26px 6px 28px',
+                border: selectedPaymentStatus !== 'Semua' ? '1.5px solid #16A34A' : '1px solid #E2E8F0',
+                backgroundColor: selectedPaymentStatus !== 'Semua' ? '#F0FDF4' : '#FFFFFF',
+                color: selectedPaymentStatus !== 'Semua' ? '#15803D' : '#0F172A',
+                fontWeight: 700,
+              }}
+              title="Filter status pembayaran pemohon"
+            >
+              <option value="Semua">Semua Status Bayar</option>
+              <option value="Lunas">✓ Sudah Lunas ({stageCounts.lunas})</option>
+              <option value="Menunggu Pembayaran">⏳ Belum Bayar ({stageCounts.belumBayar})</option>
+            </select>
+            <span
+              className="material-symbols-outlined"
+              style={{
+                position: 'absolute',
+                right: '8px',
+                fontSize: '16px',
+                color: selectedPaymentStatus !== 'Semua' ? '#16A34A' : '#64748B',
+                pointerEvents: 'none',
+              }}
+            >
+              keyboard_arrow_down
+            </span>
           </div>
 
           {/* Dropdown Pilihan Tahapan Pengajuan */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div className="pengajuan-filter-item filter-item-tahapan">
             <span
               className="material-symbols-outlined"
               style={{
@@ -1474,6 +2012,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                 fontSize: '15px',
                 color: activeStatusTab !== 'Semua' ? '#2563EB' : '#64748B',
                 pointerEvents: 'none',
+                zIndex: 1,
               }}
             >
               tune
@@ -1481,30 +2020,24 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             <select
               value={
                 activeStatusTab === 'Menunggu Verifikasi' ? 'Belum Diverifikasi' :
-                activeStatusTab === 'Sampai' ? 'Baru Sampai' :
-                activeStatusTab === 'Proses' ? 'Sedang Diproses' :
-                activeStatusTab === 'Visa Terbit' ? 'Selesai' :
-                activeStatusTab === 'Sudah Kirim' ? 'Kirim' :
-                activeStatusTab
+                  activeStatusTab === 'Sampai' ? 'Baru Sampai' :
+                    activeStatusTab === 'Proses' ? 'Sedang Diproses' :
+                      activeStatusTab === 'Visa Terbit' ? 'Selesai' :
+                        activeStatusTab === 'Sudah Kirim' ? 'Kirim' :
+                          activeStatusTab
               }
               onChange={(e) => {
                 setActiveStatusTab(e.target.value);
                 setCurrentPage(1);
               }}
+              className="pengajuan-filter-select"
               style={{
-                appearance: 'none',
-                WebkitAppearance: 'none',
                 padding: '6px 28px 6px 30px',
-                borderRadius: '9999px',
                 border: activeStatusTab !== 'Semua' ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
                 backgroundColor: activeStatusTab !== 'Semua' ? '#EFF6FF' : '#FFFFFF',
                 color: activeStatusTab !== 'Semua' ? '#1E40AF' : '#0F172A',
-                fontSize: '0.80rem',
                 fontWeight: 700,
-                cursor: 'pointer',
-                outline: 'none',
                 boxShadow: activeStatusTab !== 'Semua' ? '0 1px 3px rgba(37, 99, 235, 0.15)' : '0 1px 2px rgba(0,0,0,0.02)',
-                transition: 'all 0.15s ease',
               }}
               title="Pilih tahapan pengajuan yang ingin ditampilkan"
             >
@@ -1530,10 +2063,15 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             </span>
           </div>
 
-          {activeStatusTab !== 'Semua' && (
+          {/* Tombol Reset Khusus Desktop */}
+          {(activeStatusTab !== 'Semua' || selectedPaymentStatus !== 'Semua') && (
             <button
               type="button"
-              onClick={() => setActiveStatusTab('Semua')}
+              onClick={() => {
+                setActiveStatusTab('Semua');
+                setSelectedPaymentStatus('Semua');
+              }}
+              className="pengajuan-desktop-reset-btn"
               style={{
                 background: 'none',
                 border: 'none',
@@ -1547,7 +2085,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                 padding: '4px 6px',
                 borderRadius: '6px',
               }}
-              title="Reset filter tahapan ke semua data"
+              title="Reset filter tahapan & pembayaran ke semua data"
             >
               <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>restart_alt</span>
               <span>Reset</span>
@@ -1555,75 +2093,148 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           )}
         </div>
 
-        {/* Sisi Kanan: Input Pencarian... */}
-        <div style={{ position: 'relative', minWidth: '220px', maxWidth: '300px', width: '100%' }}>
-          <input
-            type="text"
-            value={searchFilter}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            placeholder="Pencarian..."
-            style={{
-              width: '100%',
-              padding: '8px 18px',
-              borderRadius: '9999px',
-              border: '1px solid #E2E8F0',
-              backgroundColor: '#FFFFFF',
-              fontSize: '0.84rem',
-              color: '#0F172A',
-              outline: 'none',
-              boxSizing: 'border-box',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-            }}
-          />
+        {/* Baris Bawah Khusus Tampilan HP: Info/Reset & Page Size */}
+        <div className="pengajuan-filter-bottom-info">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            {activeStatusTab !== 'Semua' || selectedKonsjen !== 'Semua' || selectedPaket !== 'Semua' || selectedPaymentStatus !== 'Semua' || Boolean(searchFilter && searchFilter.trim()) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveStatusTab('Semua');
+                  setSelectedKonsjen('Semua');
+                  setSelectedPaket('Semua');
+                  setSelectedPaymentStatus('Semua');
+                  onSearchChange?.('');
+                  setCurrentPage(1);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#DC2626',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                title="Reset semua filter ke awal"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>restart_alt</span>
+                <span>Reset Filter</span>
+              </button>
+            ) : (
+              <span style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>
+                Total <strong>{filteredData.length}</strong> Pemohon
+              </span>
+            )}
+          </div>
+
+          <div className="pengajuan-mobile-page-size">
+            <span>Tampilkan:</span>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                title="Jumlah data per halaman"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={-1}>Semua</option>
+              </select>
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  position: 'absolute',
+                  right: '4px',
+                  fontSize: '14px',
+                  color: '#64748B',
+                  pointerEvents: 'none',
+                }}
+              >
+                keyboard_arrow_down
+              </span>
+            </div>
+            <span>data</span>
+          </div>
         </div>
       </div>
 
-      {/* Main Data Table */}
-      <div className="data-table-container" style={{ overflow: 'visible', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', background: '#ffffff' }}>
-        <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.80rem' }}>
+      {/* Main Data Table (Desktop View) */}
+      <div className="data-table-container pengajuan-table-container pengajuan-desktop-table" style={{ width: '100%', overflowX: 'auto', overflowY: 'visible', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', background: '#ffffff' }}>
+        <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.78rem' }}>
           <thead>
             <tr style={{ color: '#64748B', fontWeight: 700 }}>
-              <th style={{ width: '46px', textAlign: 'center', padding: '10px 8px', position: 'sticky', top: '68px', backgroundColor: '#F8FAFC', zIndex: 25, borderBottom: '2px solid #CBD5E1', boxShadow: '0 2px 4px rgba(0,0,0,0.04)', borderTopLeftRadius: '15px' }}>
+              <th style={{ width: '38px', textAlign: 'center', padding: '10px 4px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1', borderTopLeftRadius: '15px' }}>
                 No.
               </th>
-              <th style={{ minWidth: '160px', padding: '10px 10px', position: 'sticky', top: '68px', backgroundColor: '#F8FAFC', zIndex: 25, borderBottom: '2px solid #CBD5E1', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+              <th style={{ minWidth: '150px', padding: '10px 8px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
                 Pemohon &amp; Identitas
               </th>
-              <th style={{ minWidth: '150px', padding: '10px 10px', position: 'sticky', top: '68px', backgroundColor: '#F8FAFC', zIndex: 25, borderBottom: '2px solid #CBD5E1', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+              <th style={{ minWidth: '130px', padding: '10px 8px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
                 Program &amp; Konsulat
               </th>
-              <th style={{ minWidth: '80px', textAlign: 'center', padding: '10px 8px', position: 'sticky', top: '68px', backgroundColor: '#F8FAFC', zIndex: 25, borderBottom: '2px solid #CBD5E1', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+              <th style={{ width: '135px', minWidth: '125px', textAlign: 'center', padding: '10px 4px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
                 Berkas
               </th>
-              <th style={{ minWidth: '320px', textAlign: 'center', padding: '8px 8px', position: 'sticky', top: '68px', backgroundColor: '#F8FAFC', zIndex: 25, borderBottom: '2px solid #CBD5E1', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.80rem' }}>
-                  Status Pengajuan (Klik Ceklis Tahapan)
+              <th style={{ minWidth: '240px', textAlign: 'center', padding: '8px 4px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
+                <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '3px', fontSize: '0.74rem' }}>
+                  Status Pengajuan
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.70rem', color: '#475569', fontWeight: 700 }}>
-                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 3px', borderRadius: '4px' }}>Sampai</span>
-                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 3px', borderRadius: '4px' }}>Proses</span>
-                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 3px', borderRadius: '4px' }}>Selesai</span>
-                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 3px', borderRadius: '4px' }}>Kirim</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', fontSize: '0.65rem', color: '#475569', fontWeight: 700, width: '100%' }}>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Sampai</span>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Proses</span>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Selesai</span>
+                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Kirim</span>
                 </div>
               </th>
-              {isOwner && (
-                <th style={{ minWidth: '110px', textAlign: 'right', padding: '10px 10px', position: 'sticky', top: '68px', backgroundColor: '#F8FAFC', zIndex: 25, borderBottom: '2px solid #CBD5E1', boxShadow: '0 2px 4px rgba(0,0,0,0.04)', whiteSpace: 'nowrap' }}>
-                  Fee Bersih
+              {isOwner ? (
+                <th
+                  style={{
+                    width: '140px',
+                    minWidth: '135px',
+                    textAlign: 'center',
+                    padding: '10px 4px',
+                    backgroundColor: '#F8FAFC',
+                    borderBottom: '2px solid #CBD5E1',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Keuangan &amp; Bayar
+                </th>
+              ) : (
+                <th
+                  style={{
+                    width: '135px',
+                    minWidth: '130px',
+                    textAlign: 'center',
+                    padding: '10px 4px',
+                    backgroundColor: '#F8FAFC',
+                    borderBottom: '2px solid #CBD5E1',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Status Bayar
                 </th>
               )}
               <th
+                className="table-col-aksi"
                 style={{
-                  width: '90px',
+                  width: '70px',
+                  minWidth: '65px',
                   textAlign: 'center',
-                  padding: '10px 8px',
-                  position: 'sticky',
-                  top: '68px',
-                  right: 0,
+                  padding: '10px 4px',
                   backgroundColor: '#F8FAFC',
-                  boxShadow: '-3px 2px 6px rgba(0,0,0,0.04)',
-                  zIndex: 30,
                   borderBottom: '2px solid #CBD5E1',
                   borderTopRightRadius: '15px',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 Aksi
@@ -1633,7 +2244,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           <tbody>
             {filteredData.length === 0 ? (
               <tr>
-                <td colSpan={isOwner ? 7 : 6} style={{ textAlign: 'center', padding: '36px', color: 'var(--on-surface-variant)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--on-surface-variant)' }}>
                   Tidak ada pengajuan yang sesuai dengan kriteria filter saat ini.
                 </td>
               </tr>
@@ -1663,7 +2274,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     </td>
 
                     {/* 1. Pemohon & Identitas */}
-                    <td style={{ padding: '10px 10px' }}>
+                    <td style={{ padding: '8px 6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {row.fotoBase64 ? (
                           <img
@@ -1772,7 +2383,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     </td>
 
                     {/* 2. Program, Paket & Konsulat (Digabung Rapi & Hemat Ruang) */}
-                    <td style={{ padding: '10px 10px' }}>
+                    <td style={{ padding: '8px 6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: '0.80rem', color: '#0F172A' }}>{row.program}</span>
                         {getPaketBadge(row.paket)}
@@ -1785,36 +2396,137 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     </td>
 
                     {/* 3. Berkas Fisik (Checklist Dots Ringkas) */}
-                    <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
-                        {[
-                          { label: 'Form', ok: row.berkas.formVisa },
-                          { label: 'KTP', ok: row.berkas.ktp },
-                          { label: 'E-KTLN', ok: row.berkas.ektln },
-                          { label: 'COE', ok: row.berkas.coe },
-                          { label: 'Paspor', ok: row.berkas.pasporFisik },
-                        ].map((b, bIdx) => (
-                          <span
-                            key={bIdx}
-                            title={`${b.label}: ${b.ok ? 'Lengkap' : 'Kurang'}`}
-                            style={{
-                              width: '16px',
-                              height: '16px',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '8px',
-                              fontWeight: 700,
-                              background: b.ok ? '#DCFCE7' : '#FEE2E2',
-                              color: b.ok ? '#16A34A' : '#EF4444',
-                              border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
-                            }}
-                          >
-                            {b.ok ? '✓' : '!'}
-                          </span>
-                        ))}
-                      </div>
+                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                      {(() => {
+                        const berkasList = [
+                          { label: 'Form', ok: Boolean(row.berkas?.formVisa || row.uploadedDocs?.formVisa) },
+                          { label: 'Paspor', ok: Boolean(row.berkas?.pasporFisik || row.uploadedDocs?.pasporFisik) },
+                          { label: 'Foto', ok: Boolean(row.berkas?.foto || row.fotoBase64 || row.uploadedDocs?.foto) },
+                          { label: 'KTP', ok: Boolean(row.berkas?.ktp || row.uploadedDocs?.ktp) },
+                          { label: 'COE', ok: Boolean(row.berkas?.coe || row.uploadedDocs?.coe) },
+                          { label: 'E-KTLN', ok: Boolean(row.berkas?.ektln || row.uploadedDocs?.ektln) },
+                        ];
+                        const completeCount = berkasList.filter((b) => b.ok).length;
+                        const isAllComplete = completeCount === berkasList.length;
+                        const missingCount = berkasList.length - completeCount;
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                            {/* 6 Dots Bulat */}
+                            <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
+                              {berkasList.map((b, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  title={`${b.label}: ${b.ok ? 'Lengkap' : 'Kurang'}`}
+                                  style={{
+                                    width: '15px',
+                                    height: '15px',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '8px',
+                                    fontWeight: 800,
+                                    background: b.ok ? '#DCFCE7' : '#FEE2E2',
+                                    color: b.ok ? '#16A34A' : '#EF4444',
+                                    border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                                  }}
+                                >
+                                  {b.ok ? '✓' : '!'}
+                                </span>
+                              ))}
+                            </div>
+
+                            {/* Status Kelengkapan & Tombol Aksi */}
+                            {isAllComplete ? (
+                              <span
+                                style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  color: '#15803D',
+                                  backgroundColor: '#DCFCE7',
+                                  border: '1px solid #BBF7D0',
+                                  borderRadius: '4px',
+                                  padding: '1px 6px',
+                                  whiteSpace: 'nowrap',
+                                  marginTop: '1px',
+                                }}
+                              >
+                                ✓ Lengkap (6/6)
+                              </span>
+                            ) : (
+                              <>
+                                {/* Badge Kurang X Berkas */}
+                                <span
+                                  style={{
+                                    fontSize: '0.60rem',
+                                    fontWeight: 800,
+                                    color: '#B91C1C',
+                                    backgroundColor: '#FEF2F2',
+                                    border: '1px solid #FECACA',
+                                    borderRadius: '4px',
+                                    padding: '1px 5px',
+                                    whiteSpace: 'nowrap',
+                                    marginTop: '1px',
+                                  }}
+                                >
+                                  Kurang {missingCount} Berkas
+                                </span>
+
+                                {/* Tombol Aksi Cepat: Minta via WA & Salin Link */}
+                                <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                                  {row.noTelp && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleSendCustomerWALink(e, row)}
+                                      style={{
+                                        padding: '2px 5px',
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        borderRadius: '4px',
+                                        backgroundColor: '#F0FDF4',
+                                        border: '1px solid #86EFAC',
+                                        color: '#15803D',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                      title="Kirim pesan WhatsApp pengingat berkas yang kurang & tautan upload mandiri untuk customer"
+                                    >
+                                      <span>📲</span>
+                                      <span>Minta via WA</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleCopyCustomerLink(e, row)}
+                                    style={{
+                                      padding: '2px 5px',
+                                      fontSize: '0.62rem',
+                                      fontWeight: 700,
+                                      borderRadius: '4px',
+                                      backgroundColor: copiedLinkRowId === row.id ? '#DCFCE7' : '#EFF6FF',
+                                      border: `1px solid ${copiedLinkRowId === row.id ? '#86EFAC' : '#BFDBFE'}`,
+                                      color: copiedLinkRowId === row.id ? '#15803D' : '#1D4ED8',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '2px',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title="Salin tautan upload mandiri untuk customer"
+                                  >
+                                    <span>{copiedLinkRowId === row.id ? '✓' : '🔗'}</span>
+                                    <span>{copiedLinkRowId === row.id ? 'Tersalin' : 'Salin Link'}</span>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* 4. Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
@@ -1829,20 +2541,21 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             backgroundColor: '#FEF2F2',
                             border: '1px solid #FECACA',
                             borderRadius: '8px',
-                            padding: '7px 10px',
+                            padding: '6px 8px',
                             color: '#B91C1C',
-                            fontSize: '0.75rem',
+                            fontSize: '0.72rem',
                             fontWeight: 700,
-                            minWidth: '320px',
+                            maxWidth: '260px',
+                            margin: '0 auto',
                           }}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#EF4444' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#EF4444' }}>
                             cancel
                           </span>
                           <span>DITOLAK: {st.alasanPenolakan || 'Berkas Tidak Lengkap / Waktu Mepet'}</span>
                         </div>
                       ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', minWidth: '320px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', width: '100%' }}>
                           {stageItems.map((s) => (
                             <div
                               key={s.key}
@@ -1855,6 +2568,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 borderRadius: '6px',
                                 padding: '3px 2px',
                                 transition: 'all 0.15s ease',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                boxSizing: 'border-box',
                               }}
                             >
                               <button
@@ -1904,24 +2620,30 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               {/* Jika tahap Kirim aktif, tampilkan nomor resi / status pengiriman di dalam kotak */}
                               {s.key === 'kirim' && st.noResi && (
                                 <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openKirimModal(row);
+                                  }}
                                   style={{
                                     fontSize: '0.62rem',
                                     fontWeight: 700,
-                                    color: '#6D28D9',
-                                    backgroundColor: '#EDE9FE',
-                                    border: '1px solid #DDD6FE',
-                                    padding: '0 3px',
+                                    color: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '#1E40AF' : '#6D28D9',
+                                    backgroundColor: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '#EFF6FF' : '#EDE9FE',
+                                    border: `1px solid ${(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '#BFDBFE' : '#DDD6FE'}`,
+                                    padding: '0 4px',
                                     borderRadius: '3px',
                                     marginTop: '2px',
                                     whiteSpace: 'nowrap',
-                                    maxWidth: '75px',
+                                    maxWidth: '100%',
+                                    boxSizing: 'border-box',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     display: 'inline-block',
+                                    cursor: 'pointer',
                                   }}
-                                  title={`Nomor Resi / Status: ${st.noResi}`}
+                                  title={`Status Pengiriman: ${st.noResi} (Klik untuk ubah / lihat rincian)`}
                                 >
-                                  📦 {st.noResi}
+                                  {(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '✈️' : '📦'} {st.noResi}
                                 </span>
                               )}
                             </div>
@@ -1930,32 +2652,229 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       )}
                     </td>
 
-                    {/* 5. Khusus Mode Owner: Fee Bersih */}
-                    {isOwner && (
-                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#B45309', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                        {formatRupiah(row.feeBersih)}
+                    {/* 5. Kolom Finansial & Status Bayar: Mode Owner (Finansial & Margin) vs Mode Staf (Indikator Kesiapan Kerja) */}
+                    {isOwner ? (
+                      <td style={{ width: '140px', minWidth: '135px', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const isWaitingWithStruk = row.statusPembayaran === 'Menunggu Pembayaran' && Boolean(row.buktiBayarPemohon);
+                          return (
+                            <div
+                              onClick={() => handleTogglePaymentStatus(row)}
+                              className={isWaitingWithStruk ? 'box-struk-waiting' : undefined}
+                              style={{
+                                backgroundColor: isWaitingWithStruk ? '#FFFBEB' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#FFFBEB' : '#F0FDF4'),
+                                border: isWaitingWithStruk ? '1.5px solid #F59E0B' : `1.5px solid ${row.statusPembayaran === 'Menunggu Pembayaran' ? '#FCD34D' : '#86EFAC'}`,
+                                borderRadius: '8px',
+                                padding: '4px 6px',
+                                display: 'inline-flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '2px',
+                                width: '100%',
+                                maxWidth: '120px',
+                                boxSizing: 'border-box',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                boxShadow: isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '0 1px 3px rgba(245, 158, 11, 0.08)' : '0 1px 3px rgba(16, 185, 129, 0.08)'),
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 3px 8px rgba(0,0,0,0.08)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '0 1px 3px rgba(245, 158, 11, 0.08)' : '0 1px 3px rgba(16, 185, 129, 0.08)');
+                              }}
+                              title={
+                                isWaitingWithStruk
+                                  ? 'Customer telah mengunggah bukti struk transfer! Klik untuk verifikasi & ubah status jadi Lunas'
+                                  : 'Klik untuk ubah status pembayaran pemohon'
+                              }
+                            >
+                              {/* Status Indikator Bulat Halus + Teks */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span
+                                  style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isWaitingWithStruk ? '#EA580C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#D97706' : '#16A34A'),
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontSize: '0.67rem',
+                                    fontWeight: 800,
+                                    color: isWaitingWithStruk ? '#C2410C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#92400E' : '#14532D'),
+                                    letterSpacing: '0.01em',
+                                  }}
+                                >
+                                  {isWaitingWithStruk ? '⚡ Struk' : (row.statusPembayaran === 'Menunggu Pembayaran' ? 'Menunggu Bayar' : 'Lunas (100%)')}
+                                </span>
+                              </div>
+
+                              {/* Fee Bersih Amount */}
+                              <div
+                                style={{
+                                  fontFamily: 'monospace',
+                                  fontWeight: 800,
+                                  fontSize: '0.80rem',
+                                  color: '#0F172A',
+                                  marginTop: '1px',
+                                }}
+                              >
+                                {formatRupiah(row.feeBersih)}
+                              </div>
+
+                              {/* Struk Badge or Subtle Label */}
+                              {row.buktiBayarPemohon ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Struk Transfer: ${row.namaPemohon}` });
+                                  }}
+                                  style={{
+                                    background: isWaitingWithStruk ? '#FEF3C7' : '#EFF6FF',
+                                    color: isWaitingWithStruk ? '#B45309' : '#1D4ED8',
+                                    border: isWaitingWithStruk ? '1px solid #FCD34D' : '1px solid #BFDBFE',
+                                    borderRadius: '4px',
+                                    padding: '1px 5px',
+                                    fontSize: '0.60rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '2px',
+                                    marginTop: '1px',
+                                  }}
+                                  title="Klik untuk melihat foto struk transfer"
+                                >
+                                  <span>📄</span>
+                                  <span>Lihat Struk</span>
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 600 }}>
+                                  Fee Bersih
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    ) : (
+                      <td style={{ width: '135px', minWidth: '130px', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const isLunas = row.statusPembayaran === 'Lunas';
+                          const hasStruk = Boolean(row.buktiBayarPemohon);
+
+                          if (isLunas) {
+                            return (
+                              <div
+                                style={{
+                                  backgroundColor: '#F0FDF4',
+                                  border: '1.5px solid #86EFAC',
+                                  borderRadius: '8px',
+                                  padding: '4px 6px',
+                                  display: 'inline-flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  width: '100%',
+                                  maxWidth: '115px',
+                                  boxSizing: 'border-box',
+                                }}
+                                title="Pembayaran telah lunas & terverifikasi. Berkas aman diajukan ke JVAC."
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16A34A', display: 'inline-block' }} />
+                                  <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#15803D' }}>
+                                    LUNAS
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.62rem', color: '#16A34A', fontWeight: 700 }}>
+                                  ✓ Siap JVAC
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div
+                              style={{
+                                backgroundColor: '#FFFBEB',
+                                border: '1.5px solid #FCD34D',
+                                borderRadius: '8px',
+                                padding: '4px 6px',
+                                display: 'inline-flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '2px',
+                                width: '100%',
+                                maxWidth: '115px',
+                                boxSizing: 'border-box',
+                              }}
+                              title="Customer belum lunas. Tahan pengajuan berkas ke JVAC sampai status diverifikasi oleh Owner."
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97706', display: 'inline-block' }} />
+                                <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#B45309' }}>
+                                  BELUM BAYAR
+                                </span>
+                              </div>
+                              {hasStruk ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Struk Transfer: ${row.namaPemohon}` });
+                                  }}
+                                  style={{
+                                    background: '#FEF3C7',
+                                    color: '#B45309',
+                                    border: '1px solid #F59E0B',
+                                    borderRadius: '4px',
+                                    padding: '1px 5px',
+                                    fontSize: '0.60rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '2px',
+                                    marginTop: '1px',
+                                  }}
+                                  title="Customer telah mengunggah bukti struk transfer"
+                                >
+                                  <span>📄 Cek Struk</span>
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.60rem', color: '#DC2626', fontWeight: 700 }}>
+                                  ⚠️ Tahan Berkas
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     )}
 
-                    {/* 6. Aksi: STICKY RIGHT (Rincian & Tolak) */}
+                    {/* 6. Aksi (Rincian & Tolak) */}
                     <td
+                      className="table-col-aksi"
                       style={{
-                        padding: '6px 8px',
+                        width: '76px',
+                        padding: '6px 6px',
                         textAlign: 'center',
-                        position: 'sticky',
-                        right: 0,
-                        backgroundColor: '#FFFFFF',
-                        boxShadow: '-3px 0 6px rgba(0,0,0,0.04)',
-                        zIndex: 1,
+                        verticalAlign: 'middle',
                       }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center', width: '100%' }}>
                         <button
                           className="btn btn-primary"
                           onClick={() => onSelectPengajuan(row.id)}
                           style={{
-                            padding: '4px 8px',
-                            fontSize: '0.74rem',
+                            padding: '3px 6px',
+                            fontSize: '0.72rem',
                             fontWeight: 700,
                             borderRadius: '6px',
                             display: 'inline-flex',
@@ -2040,6 +2959,475 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Cards View (Khusus Tampilan HP / Layar <= 768px) */}
+      <div className="pengajuan-mobile-cards">
+        {filteredData.length === 0 ? (
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              border: '1px solid #E2E8F0',
+              padding: '36px 16px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                backgroundColor: '#EFF6FF',
+                color: '#2563EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 10px',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>folder_off</span>
+            </div>
+            <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+              Tidak Ada Pengajuan Sesuai Filter
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B', lineHeight: 1.5 }}>
+              Coba sesuaikan kata kunci pencarian atau ubah filter tahapan.
+            </p>
+          </div>
+        ) : (
+          paginatedData.map((row, index) => {
+            const st = getCandidateStages(row);
+            const stageItems = [
+              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
+              { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
+              { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
+              { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
+            ];
+
+            return (
+              <div
+                key={`mob-${row.id}`}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '14px 16px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                {/* Header: No Urut, ID Pengajuan, Program & Paket */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', backgroundColor: '#F1F5F9', padding: '2px 7px', borderRadius: '6px' }}>
+                      #{(activePage - 1) * pageSize + index + 1}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>
+                      {row.noPengajuan}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.75rem', color: '#1E40AF', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '6px' }}>
+                      {row.program}
+                    </span>
+                    {getPaketBadge(row.paket)}
+                  </div>
+                </div>
+
+                {/* Status Pembayaran & Ringkasan Fee */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    backgroundColor: row.statusPembayaran === 'Menunggu Pembayaran' ? '#FFFBEB' : '#F0FDF4',
+                    border: `1px solid ${row.statusPembayaran === 'Menunggu Pembayaran' ? '#FDE68A' : '#BBF7D0'}`,
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.70rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
+                    <button
+                      type="button"
+                      onClick={() => isOwner && handleTogglePaymentStatus(row)}
+                      disabled={!isOwner}
+                      style={{ border: 'none', background: 'none', padding: 0, cursor: isOwner ? 'pointer' : 'default' }}
+                      title={isOwner ? "Klik untuk ubah status pembayaran" : undefined}
+                    >
+                      {row.statusPembayaran === 'Menunggu Pembayaran' ? (
+                        <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D', padding: '2px 7px', borderRadius: '5px', fontSize: '0.70rem', fontWeight: 800 }}>
+                          ⏳ Menunggu Bayar {isOwner && '✎'}
+                        </span>
+                      ) : (
+                        <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', padding: '2px 7px', borderRadius: '5px', fontSize: '0.70rem', fontWeight: 800 }}>
+                          ✓ Lunas (100%) {isOwner && '✎'}
+                        </span>
+                      )}
+                    </button>
+                    {row.buktiBayarPemohon && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Transfer: ${row.namaPemohon}` });
+                        }}
+                        style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '4px', padding: '1px 5px', fontSize: '0.64rem', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        📄 Struk
+                      </button>
+                    )}
+                  </div>
+
+                  {isOwner && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 700 }}>Fee Bersih:</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#15803D' }}>
+                        {formatRupiah(row.feeBersih || 0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pemohon Info: Foto/Inisial, Nama, Paspor, WA, Konsulat */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  {row.fotoBase64 ? (
+                    <img
+                      src={row.fotoBase64}
+                      alt={row.namaPemohon}
+                      onClick={() => setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` })}
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '2px solid #16A34A',
+                        boxShadow: '0 2px 6px rgba(22, 163, 74, 0.2)',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                      title="Klik untuk melihat foto ukuran penuh"
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '0.88rem',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {row.namaPemohon
+                        .split(' ')
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join('')}
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.94rem', lineHeight: 1.3, cursor: 'pointer' }}
+                      onClick={() => onSelectPengajuan(row.id)}
+                    >
+                      {row.namaPemohon}
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: '3px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>
+                        {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
+                      </span>
+                    </div>
+                    {row.noTelp && (
+                      <div style={{ fontSize: '0.74rem', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>
+                        WA: {row.noTelp}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontWeight: 600, color: '#0F172A' }}>📍 {row.konsjen}</span>
+                      <span>•</span>
+                      <span>PIC: {row.staffPic}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Berkas Fisik Checklist (Grid Rapi Anti-Pecah Baris) */}
+                {(() => {
+                  const berkasList = [
+                    { label: 'Form', ok: Boolean(row.berkas?.formVisa || row.uploadedDocs?.formVisa) },
+                    { label: 'Paspor', ok: Boolean(row.berkas?.pasporFisik || row.uploadedDocs?.pasporFisik) },
+                    { label: 'Foto', ok: Boolean(row.berkas?.foto || row.fotoBase64 || row.uploadedDocs?.foto) },
+                    { label: 'KTP', ok: Boolean(row.berkas?.ktp || row.uploadedDocs?.ktp) },
+                    { label: 'COE', ok: Boolean(row.berkas?.coe || row.uploadedDocs?.coe) },
+                    { label: 'E-KTLN', ok: Boolean(row.berkas?.ektln || row.uploadedDocs?.ektln) },
+                  ];
+                  const completeCount = berkasList.filter((b) => b.ok).length;
+                  const isAllComplete = completeCount === berkasList.length;
+
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: '#F8FAFC',
+                        padding: '8px 10px',
+                        borderRadius: '10px',
+                        border: '1px solid #E2E8F0',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>
+                          Berkas Fisik:
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.67rem',
+                            fontWeight: 700,
+                            color: isAllComplete ? '#15803D' : '#D97706',
+                            backgroundColor: isAllComplete ? '#DCFCE7' : '#FEF3C7',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            border: `1px solid ${isAllComplete ? '#BBF7D0' : '#FDE68A'}`,
+                          }}
+                        >
+                          {isAllComplete ? '✓ 6 Berkas Lengkap' : `${completeCount}/6 Berkas`}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(6, 1fr)',
+                          gap: '4px',
+                        }}
+                      >
+                        {berkasList.map((b, bIdx) => (
+                          <div
+                            key={bIdx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '2px',
+                              padding: '5px 2px',
+                              borderRadius: '6px',
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                              backgroundColor: b.ok ? '#DCFCE7' : '#FEE2E2',
+                              color: b.ok ? '#15803D' : '#DC2626',
+                              border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                              textAlign: 'center',
+                              lineHeight: 1,
+                            }}
+                          >
+                            <span>{b.label}</span>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 800 }}>
+                              {b.ok ? '✓' : '✗'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Status 4 Tahapan Ceklis */}
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Tahapan Status (Klik untuk Update):
+                  </div>
+                  {st.currentStatus === 'Ditolak' ? (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        backgroundColor: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        color: '#B91C1C',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EF4444' }}>cancel</span>
+                      <span>DITOLAK: {st.alasanPenolakan || 'Berkas Tidak Lengkap'}</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                      {stageItems.map((s) => (
+                        <div
+                          key={s.key}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            backgroundColor: s.ok ? s.bg : '#F8FAFC',
+                            border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
+                            borderRadius: '8px',
+                            padding: '5px 2px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStage(row, s.key);
+                            }}
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '2px',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              color: s.ok ? s.color : '#94A3B8',
+                              padding: '1px 0',
+                            }}
+                          >
+                            <span>{s.ok ? '✓' : '○'}</span>
+                            <span>{s.label}</span>
+                          </button>
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (s.ok) handleEditStageDate(row, s.key, s.date || '');
+                            }}
+                            style={{
+                              fontSize: '0.64rem',
+                              fontFamily: 'monospace',
+                              color: s.ok ? s.color : '#CBD5E1',
+                              fontWeight: s.ok ? 700 : 500,
+                              lineHeight: 1.1,
+                              marginTop: '2px',
+                            }}
+                          >
+                            {s.ok ? (s.date || getTodayFormatted()) : '-'}
+                          </span>
+                          {s.key === 'kirim' && st.noResi && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openKirimModal(row);
+                              }}
+                              style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 700,
+                                color: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#1E40AF' : '#6D28D9',
+                                backgroundColor: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#EFF6FF' : '#EDE9FE',
+                                border: `1px solid ${(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#BFDBFE' : '#DDD6FE'}`,
+                                padding: '1px 4px',
+                                borderRadius: '3px',
+                                marginTop: '3px',
+                                whiteSpace: 'nowrap',
+                                maxWidth: '70px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ✈️ {st.noResi}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tombol Aksi: Buka Rincian & Tolak/Pulihkan */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => onSelectPengajuan(row.id)}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>visibility</span>
+                    <span>Buka Rincian Lengkap</span>
+                  </button>
+
+                  {st.currentStatus === 'Ditolak' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleTolakPengajuan(row)}
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: '0.78rem',
+                        borderRadius: '8px',
+                        backgroundColor: '#F1F5F9',
+                        border: '1px solid #CBD5E1',
+                        color: '#334155',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+                      <span>Pulihkan</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleTolakPengajuan(row)}
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: '0.78rem',
+                        borderRadius: '8px',
+                        backgroundColor: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        color: '#DC2626',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                      <span>Tolak</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Bar Bawah Pagination (Sesuai Referensi Gambar 2) */}
@@ -2336,6 +3724,557 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                   Tutup
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Pengiriman & Serah Terima Paspor di Bandara Soekarno-Hatta */}
+      {kirimModalItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={() => {
+            if (!isSavingKirim) setKirimModalItem(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '560px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              border: '1px solid #E2E8F0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid #F1F5F9',
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    backgroundColor: kirimMetode === 'soetta' ? '#EFF6FF' : kirimMetode === 'ekspedisi' ? '#F3E8FF' : '#F0FDF4',
+                    color: kirimMetode === 'soetta' ? '#2563EB' : kirimMetode === 'ekspedisi' ? '#7C3AED' : '#16A34A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span className="material-symbols-outlined">
+                    {kirimMetode === 'soetta' ? 'flight_takeoff' : kirimMetode === 'ekspedisi' ? 'local_shipping' : 'storefront'}
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ margin: '0 0 3px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
+                    Metode Pengiriman / Penyerahan Paspor
+                  </h3>
+                  <div style={{ fontSize: '0.80rem', color: '#64748B' }}>
+                    <strong>{kirimModalItem.namaPemohon}</strong> • Paspor: <span style={{ fontFamily: 'monospace', color: '#0F172A', fontWeight: 700 }}>{kirimModalItem.noPaspor}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKirimModalItem(null)}
+                disabled={isSavingKirim}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#94A3B8',
+                  padding: '4px',
+                  borderRadius: '6px',
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+
+              {/* 3 Opsi Kartu Pilihan Metode */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
+                  Pilih Cara Penyerahan Paspor:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {/* Opsi 1: Bandara Soetta */}
+                  <div
+                    onClick={() => setKirimMetode('soetta')}
+                    style={{
+                      border: kirimMetode === 'soetta' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                      backgroundColor: kirimMetode === 'soetta' ? '#EFF6FF' : '#FFFFFF',
+                      borderRadius: '12px',
+                      padding: '12px 10px',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease',
+                      boxShadow: kirimMetode === 'soetta' ? '0 2px 8px rgba(37, 99, 235, 0.12)' : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: '20px', marginBottom: '4px' }}>✈️</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: kirimMetode === 'soetta' ? '#1E40AF' : '#1E293B' }}>
+                      Bandara Soetta
+                    </div>
+                    <div style={{ fontSize: '0.70rem', color: kirimMetode === 'soetta' ? '#3B82F6' : '#64748B', marginTop: '2px' }}>
+                      Terminal 3 (T3)
+                    </div>
+                  </div>
+
+                  {/* Opsi 2: Ekspedisi / Kurir */}
+                  <div
+                    onClick={() => setKirimMetode('ekspedisi')}
+                    style={{
+                      border: kirimMetode === 'ekspedisi' ? '2px solid #7C3AED' : '1px solid #E2E8F0',
+                      backgroundColor: kirimMetode === 'ekspedisi' ? '#F5F3FF' : '#FFFFFF',
+                      borderRadius: '12px',
+                      padding: '12px 10px',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease',
+                      boxShadow: kirimMetode === 'ekspedisi' ? '0 2px 8px rgba(124, 58, 237, 0.12)' : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: '20px', marginBottom: '4px' }}>📦</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: kirimMetode === 'ekspedisi' ? '#6D28D9' : '#1E293B' }}>
+                      Ekspedisi
+                    </div>
+                    <div style={{ fontSize: '0.70rem', color: kirimMetode === 'ekspedisi' ? '#8B5CF6' : '#64748B', marginTop: '2px' }}>
+                      JNE, J&amp;T, TIKI
+                    </div>
+                  </div>
+
+                  {/* Opsi 3: Diambil di Kantor */}
+                  <div
+                    onClick={() => setKirimMetode('kantor')}
+                    style={{
+                      border: kirimMetode === 'kantor' ? '2px solid #16A34A' : '1px solid #E2E8F0',
+                      backgroundColor: kirimMetode === 'kantor' ? '#F0FDF4' : '#FFFFFF',
+                      borderRadius: '12px',
+                      padding: '12px 10px',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease',
+                      boxShadow: kirimMetode === 'kantor' ? '0 2px 8px rgba(22, 163, 74, 0.12)' : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: '20px', marginBottom: '4px' }}>🏢</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: kirimMetode === 'kantor' ? '#15803D' : '#1E293B' }}>
+                      Ambil di Kantor
+                    </div>
+                    <div style={{ fontSize: '0.70rem', color: kirimMetode === 'kantor' ? '#22C55E' : '#64748B', marginTop: '2px' }}>
+                      MapahTrip Office
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Input Sesuai Metode */}
+              {kirimMetode === 'soetta' && (
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #DBEAFE',
+                    borderRadius: '14px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#1D4ED8', fontSize: '0.78rem', fontWeight: 700 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>connecting_airports</span>
+                    <span>Rincian Serah Terima Terminal 3 Soekarno-Hatta:</span>
+                  </div>
+
+                  {/* Flight & Maskapai */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Maskapai &amp; Nomor Penerbangan:
+                    </label>
+                    <input
+                      type="text"
+                      value={soettaFlight}
+                      onChange={(e) => setSoettaFlight(e.target.value)}
+                      placeholder="Contoh: ANA NH836, GA874, JAL JL726..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                    {/* Quick Suggestions Chips */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                      {['ANA NH836', 'Garuda GA874', 'JAL JL726', 'Batik Air', 'Scoot', 'AirAsia'].map((fl) => (
+                        <button
+                          key={fl}
+                          type="button"
+                          onClick={() => setSoettaFlight(fl)}
+                          style={{
+                            background: soettaFlight === fl ? '#2563EB' : '#FFFFFF',
+                            color: soettaFlight === fl ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '9999px',
+                            padding: '2px 8px',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {fl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tanggal & Jam Penerbangan */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Tanggal &amp; Waktu Serah Terima / Flight:
+                    </label>
+                    <input
+                      type="text"
+                      value={soettaTanggalJam}
+                      onChange={(e) => setSoettaTanggalJam(e.target.value)}
+                      placeholder="Contoh: 28/10/2026, 21:00 WIB"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  {/* Titik Temu */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Titik Temu di Terminal 3:
+                    </label>
+                    <input
+                      type="text"
+                      value={soettaTitikTemu}
+                      onChange={(e) => setSoettaTitikTemu(e.target.value)}
+                      placeholder="Terminal 3 Keberangkatan Internasional Gate 1"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                      {[
+                        'Gate 1 Keberangkatan Internasional',
+                        "Depan Roti'O Terminal 3",
+                        'Check-in Island A/B',
+                      ].map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setSoettaTitikTemu(loc)}
+                          style={{
+                            background: soettaTitikTemu === loc ? '#EFF6FF' : '#FFFFFF',
+                            color: soettaTitikTemu === loc ? '#1E40AF' : '#64748B',
+                            border: `1px solid ${soettaTitikTemu === loc ? '#93C5FD' : '#E2E8F0'}`,
+                            borderRadius: '9999px',
+                            padding: '2px 8px',
+                            fontSize: '0.70rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#EFF6FF', borderRadius: '8px', padding: '8px 10px', fontSize: '0.75rem', color: '#1E40AF', display: 'flex', gap: '6px' }}>
+                    <span>✨</span>
+                    <span>
+                      Data ini otomatis tampil di tab <strong>✈️ Jadwal Bandara</strong> pada Portal Mitra (LPK/Agensi) untuk pemohon ini.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {kirimMetode === 'ekspedisi' && (
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E9D5FF',
+                    borderRadius: '14px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#6D28D9', fontSize: '0.78rem', fontWeight: 700 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>local_shipping</span>
+                    <span>Informasi Resi Ekspedisi Pengiriman:</span>
+                  </div>
+
+                  {/* Pilihan Ekspedisi */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Pilih Jasa Kurir:
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {['JNE', 'J&T', 'SiCepat', 'TIKI', 'Pos Indonesia', 'Paxel', 'Lalamove', 'Gojek/Grab'].map((kr) => (
+                        <button
+                          key={kr}
+                          type="button"
+                          onClick={() => setEkspedisiKurir(kr)}
+                          style={{
+                            backgroundColor: ekspedisiKurir === kr ? '#7C3AED' : '#FFFFFF',
+                            color: ekspedisiKurir === kr ? '#FFFFFF' : '#475569',
+                            border: `1px solid ${ekspedisiKurir === kr ? '#7C3AED' : '#CBD5E1'}`,
+                            borderRadius: '8px',
+                            padding: '4px 10px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {kr}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Nomor Resi */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Nomor Resi / AWB:
+                    </label>
+                    <input
+                      type="text"
+                      value={ekspedisiResi}
+                      onChange={(e) => setEkspedisiResi(e.target.value)}
+                      placeholder="Masukkan nomor resi ekspedisi..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                        fontFamily: 'monospace',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {kirimMetode === 'kantor' && (
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #BBF7D0',
+                    borderRadius: '14px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803D', fontSize: '0.78rem', fontWeight: 700 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>storefront</span>
+                    <span>Diambil Langsung di Kantor Operasional MapahTrip:</span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Nama Pengambil / Perwakilan:
+                    </label>
+                    <input
+                      type="text"
+                      value={kantorPengambil}
+                      onChange={(e) => setKantorPengambil(e.target.value)}
+                      placeholder="Contoh: Pemohon Sendiri / Keluarga / LPK"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Opsi Kirim WhatsApp */}
+              <div
+                style={{
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  backgroundColor: '#FFFFFF',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                    <input
+                      type="checkbox"
+                      checked={kirimKirimWA}
+                      onChange={(e) => setKirimKirimWA(e.target.checked)}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span>Kirim notifikasi otomatis via WhatsApp ke customer</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowWAPreview(!showWAPreview)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563EB',
+                      fontSize: '0.76rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '2px',
+                    }}
+                  >
+                    <span>{showWAPreview ? 'Sembunyikan' : 'Lihat'} Pesan</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                      {showWAPreview ? 'expand_less' : 'expand_more'}
+                    </span>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '4px', marginLeft: '24px' }}>
+                  Nomor Tujuan: <strong style={{ color: '#0F172A' }}>{kirimModalItem.noTelp || '(Nomor WA belum terisi)'}</strong>
+                </div>
+
+                {showWAPreview && (
+                  <div
+                    style={{
+                      marginTop: '10px',
+                      padding: '10px 12px',
+                      backgroundColor: '#F0FDF4',
+                      border: '1px solid #DCFCE7',
+                      borderRadius: '8px',
+                      fontSize: '0.74rem',
+                      color: '#166534',
+                      whiteSpace: 'pre-wrap',
+                      maxHeight: '160px',
+                      overflowY: 'auto',
+                      lineHeight: 1.4,
+                      fontFamily: 'sans-serif',
+                    }}
+                  >
+                    {getKirimWAMessage(kirimModalItem)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                borderTop: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '10px',
+                backgroundColor: '#F8FAFC',
+                borderBottomLeftRadius: '20px',
+                borderBottomRightRadius: '20px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setKirimModalItem(null)}
+                disabled={isSavingKirim}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmKirim}
+                disabled={isSavingKirim}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                  color: '#FFFFFF',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  cursor: isSavingKirim ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                  {isSavingKirim ? 'hourglass_top' : 'check_circle'}
+                </span>
+                <span>{isSavingKirim ? 'Menyimpan...' : 'Simpan & Konfirmasi Kirim 📦'}</span>
+              </button>
             </div>
           </div>
         </div>

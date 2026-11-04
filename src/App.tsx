@@ -21,6 +21,18 @@ import { fetchAllPengajuanFromDB, fetchAllMitraFromDB, supabase } from './lib/su
 
 export type AppMode = 'customer' | 'affiliate' | 'staff' | 'owner';
 
+// Deteksi komprehensif apakah perangkat adalah HP / ponsel
+export const isMobileDeviceOrScreen = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  // 1. Lebar viewport <= 900px (Sinkron sempurna dengan breakpoint CSS sidebar @media (max-width: 900px))
+  if (window.innerWidth <= 900) return true;
+  // 2. User Agent smartphone (meskipun user mengaktifkan "Minta Situs Desktop" di browser HP)
+  if (/Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) return true;
+  // 3. Media query match
+  if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) return true;
+  return false;
+};
+
 export function App() {
   // Check if owner is already authenticated in localStorage
   const [isOwnerAuth, setIsOwnerAuth] = useState<boolean>(() => {
@@ -36,7 +48,16 @@ export function App() {
     if (typeof window === 'undefined') return mockStaff;
     try {
       const saved = localStorage.getItem('mapahtrip_staff_list');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed: StaffMaster[] = JSON.parse(saved);
+        return parsed.map((p) => {
+          const defaultStaff = mockStaff.find((ms) => ms.id === p.id);
+          return {
+            ...p,
+            noWa: p.noWa || defaultStaff?.noWa || '',
+          };
+        });
+      }
     } catch {}
     return mockStaff;
   });
@@ -67,6 +88,9 @@ export function App() {
     setCurrentMode('owner');
     window.location.hash = '#owner';
     setIsAdminLoginOpen(false);
+    if (isMobileDeviceOrScreen()) {
+      setActiveTab('pengajuan');
+    }
   };
 
   const handleLoginAsStaff = (staf: StaffMaster) => {
@@ -77,6 +101,9 @@ export function App() {
     setCurrentMode('staff');
     window.location.hash = '#staff';
     setIsAdminLoginOpen(false);
+    if (isMobileDeviceOrScreen()) {
+      setActiveTab('pengajuan');
+    }
   };
 
   // Check URL to determine mode:
@@ -130,6 +157,9 @@ export function App() {
       if (mode === 'owner' && !isOwnerAuth) {
         setIsOwnerLoginOpen(true);
       }
+      if ((mode === 'staff' || mode === 'owner') && isMobileDeviceOrScreen()) {
+        setActiveTab('pengajuan');
+      }
     };
     window.addEventListener('hashchange', handleUrlChange);
     window.addEventListener('popstate', handleUrlChange);
@@ -146,7 +176,25 @@ export function App() {
     }
   }, []);
 
-  const [activeTab, setActiveTab] = useState<NavItemKey>('dashboard');
+  const [activeTab, setActiveTab] = useState<NavItemKey>(() => {
+    if (isMobileDeviceOrScreen()) {
+      return 'pengajuan';
+    }
+    try {
+      const saved = typeof window !== 'undefined' ? (localStorage.getItem('mapahtrip_active_tab') as NavItemKey | null) : null;
+      if (saved && ['dashboard', 'pengajuan', 'keuangan', 'rekap', 'affiliate', 'pengaturan'].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return 'dashboard';
+  });
+
+  // Pada tampilan HP / tablet, pastikan selalu langsung masuk ke kartu pengajuan
+  useEffect(() => {
+    if (isMobileDeviceOrScreen()) {
+      setActiveTab('pengajuan');
+    }
+  }, []);
   const [pengajuanInitialTab, setPengajuanInitialTab] = useState<string>('Semua');
 
   // Helper deduplikasi anti data ganda (berdasarkan ID, noPengajuan, dan paspor+nama)
@@ -199,6 +247,7 @@ export function App() {
   };
 
   const [selectedPengajuanId, setSelectedPengajuanId] = useState<string | null>(null);
+  const [returnTab, setReturnTab] = useState<NavItemKey | null>(null);
   const [pengajuanList, setPengajuanList] = useState<Pengajuan[]>(() => getInitialPengajuanList());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -291,17 +340,26 @@ export function App() {
       return;
     }
     setActiveTab(tab);
+    try {
+      localStorage.setItem('mapahtrip_active_tab', tab);
+    } catch {}
     setSelectedPengajuanId(null);
+    setReturnTab(null);
     setIsMobileMenuOpen(false);
   };
 
-  const handleSelectPengajuan = (id: string) => {
+  const handleSelectPengajuan = (id: string, fromTab?: NavItemKey) => {
     setSelectedPengajuanId(id);
+    setReturnTab(fromTab || activeTab);
     setActiveTab('pengajuan');
   };
 
   const handleBackFromDetail = () => {
     setSelectedPengajuanId(null);
+    if (returnTab) {
+      setActiveTab(returnTab);
+      setReturnTab(null);
+    }
   };
 
   const handleUpdateStatus = async (id: string, newStatus: Pengajuan['status']) => {
@@ -429,6 +487,9 @@ export function App() {
     setIsOwnerAuth(true);
     setCurrentMode('owner');
     window.location.hash = '#owner';
+    if (isMobileDeviceOrScreen()) {
+      setActiveTab('pengajuan');
+    }
   };
 
 
@@ -520,12 +581,13 @@ export function App() {
         <CustomerHome
           pengajuanList={pengajuanList}
           onAddNewPengajuan={handleCustomerRegistration}
+          onUpdatePengajuan={handleUpdatePengajuan}
         />
       </>
     );
   }
 
-  // 2. Affiliate / Mitra Mode (Monitoring Berkas & Siswa Mitra)
+  // 2. Affiliate / Mitra Mode (Monitoring Berkas & Pemohon Mitra)
   if (currentMode === 'affiliate') {
     return (
       <AffiliatePortal
@@ -664,6 +726,7 @@ export function App() {
                   currentStaff={currentStaff}
                   initialStatusTab={pengajuanInitialTab}
                   onUpdateStage={handleUpdateStage}
+                  onUpdatePengajuan={handleUpdatePengajuan}
                 />
               )}
             </>
@@ -680,6 +743,7 @@ export function App() {
           {activeTab === 'affiliate' && (
             <AffiliateView
               pengajuanList={pengajuanList}
+              onUpdatePengajuan={handleUpdatePengajuan}
               onNavigateToPengajuan={(refCode) => {
                 setSearchQuery(refCode);
                 setPengajuanInitialTab('Semua');

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Pengajuan, StatusPengajuan, KonsjenKota, StaffName, PaketVisa, AffiliateUser } from '../types';
-import { REAL_SPREADSHEET_PENGAJUAN } from '../data/spreadsheetData';
+import { REAL_SPREADSHEET_PENGAJUAN, REAL_SPREADSHEET_AFFILIATES } from '../data/spreadsheetData';
 
 const SUPABASE_URL = 'https://vswmndovcmchqhyzlawo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzd21uZG92Y21jaHFoeXpsYXdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwODg0MDksImV4cCI6MjEwNzY2NDQwOX0.79-tEuh-1M3MeJaBnIIbVtrFwUfKK_I-VmC-zm_fQhQ';
@@ -88,6 +88,11 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   let fotoData: string | undefined = undefined;
   let fotoSize: number | undefined = undefined;
   let uploadedDocsData: Record<string, { name: string; base64: string; sizeKB?: number }> | undefined = undefined;
+  let buktiBayarData: string | undefined = undefined;
+  let buktiBayarNamaData: string | undefined = undefined;
+  let statusBayarData: 'Lunas' | 'Menunggu Pembayaran' | undefined = undefined;
+  let metodeBayarData: string | undefined = undefined;
+  let tglBayarData: string | undefined = undefined;
 
   try {
     if (db.keterangan && db.keterangan.startsWith('{') && db.keterangan.endsWith('}')) {
@@ -97,6 +102,11 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
       if (parsed.compressedSizeKB) fotoSize = parsed.compressedSizeKB;
       if (parsed.uploadedDocs) uploadedDocsData = parsed.uploadedDocs;
       else if (parsed.documents) uploadedDocsData = parsed.documents;
+      if (parsed.buktiBayarPemohon) buktiBayarData = parsed.buktiBayarPemohon;
+      if (parsed.buktiBayarNama) buktiBayarNamaData = parsed.buktiBayarNama;
+      if (parsed.statusPembayaran) statusBayarData = parsed.statusPembayaran;
+      if (parsed.metodePembayaran) metodeBayarData = parsed.metodePembayaran;
+      if (parsed.tglBayarPemohon) tglBayarData = parsed.tglBayarPemohon;
     }
   } catch {}
 
@@ -124,11 +134,22 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   const rawTglSelesai = normalizeDate(db.tgl_selesai) || (found ? normalizeDate(found.tglSelesai || found.tglEstimasiSelesai) : '');
   const rawTglKirim = normalizeDate(db.tgl_kirim) || (found ? normalizeDate(found.tglKirim) : '');
 
+  const affCode = (() => {
+    const c = (db.code_referral || '').trim();
+    if (!c || /^\d+$/.test(c)) {
+      return found?.affiliateCode || 'MAPAHTRIP';
+    }
+    return c;
+  })();
+
+  const hasAffiliate = Boolean(affCode && affCode.toUpperCase() !== 'MAPAHTRIP');
   const dibayar = Number(db.nominal_dibayar) || found?.dibayarPemohon || 1650000;
   const keluar = Number(db.nominal_keluar) || found?.nominalKeluar || 1135000;
-  const cb = Number(db.cashback) !== undefined && !isNaN(Number(db.cashback)) && Number(db.cashback) > 0 ? Number(db.cashback) : (found?.cashback ?? 100000);
-  const ref = found ? (found.referralFee ?? 0) : 0;
-  const fee = Number(db.fee_bersih) || found?.feeBersih || (dibayar - keluar - cb - ref);
+  const ref = hasAffiliate ? (found?.referralFee || 100000) : (found?.referralFee || 0);
+  const cb = Number(db.cashback) !== undefined && !isNaN(Number(db.cashback)) && Number(db.cashback) > 0
+    ? Number(db.cashback)
+    : (hasAffiliate ? 0 : (found?.cashback ?? 0));
+  const fee = Number(db.fee_bersih) || found?.feeBersih || (dibayar - keluar - ref);
 
   return {
     id: String(db.id),
@@ -148,13 +169,7 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     tglKirim: rawTglKirim || undefined,
     status: mappedStatus,
     noResi: db.resi_pengiriman || found?.noResi || undefined,
-    affiliateCode: (() => {
-      const c = (db.code_referral || '').trim();
-      if (!c || /^\d+$/.test(c)) {
-        return found?.affiliateCode || 'MAPAHTRIP';
-      }
-      return c;
-    })(),
+    affiliateCode: affCode,
     dibayarPemohon: dibayar,
     nominalKeluar: keluar,
     cashback: cb,
@@ -172,11 +187,11 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     fotoBase64: fotoData,
     fotoSizeKB: fotoSize,
     uploadedDocs: uploadedDocsData,
-    statusPembayaran: (db as any).status_pembayaran || 'Lunas',
-    metodePembayaran: (db as any).metode_pembayaran || 'Transfer BCA',
-    tglBayarPemohon: (db as any).tgl_bayar_pemohon || rawTglMasuk || '',
-    buktiBayarPemohon: (db as any).bukti_bayar_pemohon || (found as any)?.buktiBayarPemohon || undefined,
-    buktiBayarNama: (db as any).bukti_bayar_nama || undefined,
+    statusPembayaran: statusBayarData || (db as any).status_pembayaran || 'Lunas',
+    metodePembayaran: metodeBayarData || (db as any).metode_pembayaran || 'Transfer BCA',
+    tglBayarPemohon: tglBayarData || (db as any).tgl_bayar_pemohon || rawTglMasuk || '',
+    buktiBayarPemohon: buktiBayarData || (db as any).bukti_bayar_pemohon || (found as any)?.buktiBayarPemohon || undefined,
+    buktiBayarNama: buktiBayarNamaData || (db as any).bukti_bayar_nama || undefined,
   };
 }
 
@@ -231,17 +246,25 @@ export async function createPengajuanInDB(payload: {
   original_size_kb?: number;
   compressed_size_kb?: number;
   uploaded_docs?: Record<string, { name: string; base64: string; sizeKB?: number }>;
+  bukti_bayar_pemohon?: string;
+  bukti_bayar_nama?: string;
+  status_pembayaran?: string;
+  metode_pembayaran?: string;
 }) {
   try {
     let ketString = payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id';
     const fotoFinal = payload.foto_base64 || payload.uploaded_docs?.foto?.base64;
-    if (fotoFinal || payload.uploaded_docs) {
+    if (fotoFinal || payload.uploaded_docs || payload.bukti_bayar_pemohon) {
       ketString = JSON.stringify({
         note: payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id',
         fotoBase64: fotoFinal,
         originalSizeKB: payload.original_size_kb,
         compressedSizeKB: payload.compressed_size_kb,
         uploadedDocs: payload.uploaded_docs || {},
+        buktiBayarPemohon: payload.bukti_bayar_pemohon,
+        buktiBayarNama: payload.bukti_bayar_nama,
+        statusPembayaran: payload.status_pembayaran,
+        metodePembayaran: payload.metode_pembayaran,
         uploadedAt: new Date().toISOString(),
       });
     }
@@ -456,7 +479,39 @@ export async function updatePengajuanPaymentInDB(
     if (isNaN(numId)) return true;
 
     // 2. Simpan ke Supabase jika numeric id
+    const { data: row } = await supabase
+      .from('pengajuan_visa')
+      .select('keterangan')
+      .eq('id', numId)
+      .maybeSingle();
+
+    let parsed: any = {};
+    if (row?.keterangan && row.keterangan.startsWith('{') && row.keterangan.endsWith('}')) {
+      try {
+        parsed = JSON.parse(row.keterangan);
+      } catch {}
+    } else {
+      parsed = { note: row?.keterangan || 'Update pembayaran pemohon' };
+    }
+
+    if (paymentData.statusPembayaran !== undefined) {
+      parsed.statusPembayaran = paymentData.statusPembayaran;
+    }
+    if (paymentData.metodePembayaran !== undefined) {
+      parsed.metodePembayaran = paymentData.metodePembayaran;
+    }
+    if (paymentData.tglBayarPemohon !== undefined) {
+      parsed.tglBayarPemohon = paymentData.tglBayarPemohon;
+    }
+    if (paymentData.buktiBayarPemohon !== undefined) {
+      parsed.buktiBayarPemohon = paymentData.buktiBayarPemohon;
+    }
+    if (paymentData.buktiBayarNama !== undefined) {
+      parsed.buktiBayarNama = paymentData.buktiBayarNama;
+    }
+
     const payload: Record<string, any> = {
+      keterangan: JSON.stringify(parsed),
       updated_at: new Date().toISOString(),
     };
     if (paymentData.dibayarPemohon !== undefined) {
@@ -676,4 +731,46 @@ export async function updateMitraBankInDB(
     return { user: null, error: err?.message || 'Gagal memperbarui rekening ke Supabase.' };
   }
 }
+
+/**
+ * Cari data Mitra Affiliate berdasarkan kode referral (baik dari Spreadsheet, LocalStorage, maupun Supabase Cloud)
+ */
+export async function findAffiliateByCode(code: string): Promise<AffiliateUser | null> {
+  const clean = (code || '').trim().toUpperCase();
+  if (!clean || clean === 'MAPAHTRIP') return null;
+
+  // 1. Cek dari REAL_SPREADSHEET_AFFILIATES
+  const fromSpreadsheet = REAL_SPREADSHEET_AFFILIATES.find(
+    (a) => (a.affiliateCode || '').trim().toUpperCase() === clean
+  );
+  if (fromSpreadsheet) return fromSpreadsheet;
+
+  // 2. Cek dari localStorage (jika ada mitra mendaftar baru di sesi lokal)
+  try {
+    const rawLocal = localStorage.getItem('mapahtrip_local_affiliates');
+    if (rawLocal) {
+      const list: AffiliateUser[] = JSON.parse(rawLocal);
+      const found = list.find((a) => (a.affiliateCode || '').trim().toUpperCase() === clean);
+      if (found) return found;
+    }
+  } catch {}
+
+  // 3. Cek dari Supabase Cloud (tabel mitra_affiliate)
+  try {
+    const { data } = await supabase
+      .from('mitra_affiliate')
+      .select('*')
+      .ilike('kode_referral', clean)
+      .maybeSingle();
+
+    if (data) {
+      return mapDBToAffiliate(data);
+    }
+  } catch (err) {
+    console.warn('DB error findAffiliateByCode:', err);
+  }
+
+  return null;
+}
+
 

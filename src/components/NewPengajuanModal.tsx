@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import type { Pengajuan, KonsjenKota, StaffName, PaketVisa } from '../types';
+import type { Pengajuan, KonsjenKota, StaffName, PaketVisa, StaffMaster } from '../types';
 import { compressImageUnder100KB } from '../utils/imageCompressor';
+import { kirimPesanWA } from '../whatsapp';
+import { findAffiliateByCode } from '../lib/supabase';
+import { mockStaff } from '../data/mockData';
 
 interface NewPengajuanModalProps {
   isOpen: boolean;
@@ -35,7 +38,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
   const [cashback, setCashback] = useState(100000);
   const [referralFee, setReferralFee] = useState(100000);
   const [statusPembayaran, setStatusPembayaran] = useState<'Lunas' | 'Menunggu Pembayaran'>('Lunas');
-  const [metodePembayaran, setMetodePembayaran] = useState('Transfer BCA (5780868611)');
+  const [metodePembayaran, setMetodePembayaran] = useState('Transfer BTN (119001500015870) - Tokyo Asia Connection');
   const [tglBayarPemohon, setTglBayarPemohon] = useState(new Date().toISOString().split('T')[0]);
   const [buktiBayarPemohon, setBuktiBayarPemohon] = useState<string | null>(null);
   const [buktiBayarNama, setBuktiBayarNama] = useState<string | null>(null);
@@ -216,6 +219,158 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
     };
 
     onSubmit(newItem);
+
+    // Otomatis kirim WhatsApp ke Mitra Affiliate jika diinput menggunakan kode referral
+    const cleanAffCode = affiliateCode.trim().toUpperCase();
+    if (cleanAffCode && cleanAffCode !== 'MAPAHTRIP') {
+      findAffiliateByCode(cleanAffCode).then((affiliate) => {
+        if (affiliate && affiliate.noWa && affiliate.noWa.trim()) {
+          const pesanWAAffiliate =
+`*PEMBERITAHUAN PENDAFTARAN BARU (KODE REFERRAL ANDA)* 🇯🇵🎉
+
+Halo Kak *${affiliate.nama}*,
+
+Kabar gembira! Ada pemohon visa baru yang didaftarkan ke sistem *MapahTrip* menggunakan kode referral Anda (*${cleanAffCode}*):
+
+📋 *Data Pemohon Binaan Anda:*
+• *ID Pengajuan:* *${newItem.noPengajuan}*
+• *Nama Pemohon:* ${newItem.namaPemohon}
+• *Program Visa:* ${newItem.program} (${newItem.paket})
+• *Konsulat Tujuan:* Konsjen ${newItem.konsjen}
+• *Tanggal Daftar:* ${todayStr}
+
+💰 *Estimasi Komisi Referral:*
+• *Nominal Bonus:* *Rp 100.000*
+• *Status Komisi:* Tercatat di sistem (Menunggu proses visa)
+
+Anda dapat memantau status pemohon binaan dan akumulasi komisi Anda secara realtime melalui Portal Affiliate MapahTrip:
+🌐 https://mapahtrip.com (Masuk ke menu Portal Affiliate)
+
+Terima kasih atas rekomendasi dan kerja samanya bersama MapahTrip! 🌸🤝
+
+Salam hangat,
+*Tim Kemitraan MapahTrip*`;
+
+          kirimPesanWA(affiliate.noWa.trim(), pesanWAAffiliate)
+            .then((res) => {
+              console.log('[WA Gateway] Sukses kirim notifikasi pendaftar baru ke Mitra Affiliate:', affiliate.noWa, res);
+            })
+            .catch((err) => {
+              console.warn('[WA Gateway] Gagal kirim notifikasi ke Mitra Affiliate:', err);
+            });
+        }
+      }).catch(() => {});
+    }
+
+    // Otomatis kirim WhatsApp ke Admin/Staf PIC MapahTrip sesuai wilayah Konsjen
+    let assignedStaff: StaffMaster | undefined;
+    try {
+      let regionalStaffList = mockStaff;
+      if (typeof window !== 'undefined') {
+        const savedStaff = localStorage.getItem('mapahtrip_staff_list');
+        if (savedStaff) {
+          const parsed: StaffMaster[] = JSON.parse(savedStaff);
+          regionalStaffList = parsed.map((p) => {
+            const def = mockStaff.find((ms) => ms.id === p.id);
+            return { ...p, noWa: p.noWa || def?.noWa || '' };
+          });
+        }
+      }
+
+      assignedStaff =
+        regionalStaffList.find((s) => s.aktif && s.konsjenTugas && s.konsjenTugas.includes(newItem.konsjen as KonsjenKota)) ||
+        regionalStaffList.find((s) => s.konsjenTugas && s.konsjenTugas.includes(newItem.konsjen as KonsjenKota));
+
+      if (assignedStaff && assignedStaff.noWa && assignedStaff.noWa.trim()) {
+        const pesanWAStaff =
+`*PEMBERITAHUAN PENDAFTARAN BARU DI WILAYAH ANDA* 🇯🇵📋
+
+Halo Kak *${assignedStaff.nama}* (${assignedStaff.role || `PIC Konsjen ${newItem.konsjen}`}),
+
+Ada permohonan visa Jepang baru yang baru saja didaftarkan untuk wilayah tugas Anda (*Konsjen ${newItem.konsjen}*):
+
+📋 *Data Pemohon:*
+• *ID Pengajuan:* *${newItem.noPengajuan}*
+• *Nama Pemohon:* ${newItem.namaPemohon}
+• *No. WhatsApp Pemohon:* ${newItem.noTelp}
+• *No. Paspor:* ${newItem.noPaspor}
+• *Wilayah Konsjen:* Konsjen ${newItem.konsjen}
+• *Program Visa:* ${newItem.program} (${newItem.paket})
+${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Kode Mitra Referral:* ${cleanAffCode}\n` : ''}• *Tanggal Daftar:* ${todayStr}
+
+Status Saat Ini: *Menunggu Berkas Fisik Tiba di Kantor*.
+Silakan pantau dan persiapkan verifikasi berkas begitu dokumen fisik tiba di kantor.
+
+Cek detail pemohon di Dashboard Staf:
+🌐 https://mapahtrip.com (Menu Dashboard Staf)
+
+*MapahTrip Internal Operational System*`;
+
+        kirimPesanWA(assignedStaff.noWa.trim(), pesanWAStaff)
+          .then((res) => {
+            console.log(`[WA Gateway] Sukses kirim notifikasi pendaftar baru ke PIC ${newItem.konsjen} (${assignedStaff?.nama}):`, assignedStaff?.noWa, res);
+          })
+          .catch((err) => {
+            console.warn(`[WA Gateway] Gagal kirim notifikasi ke PIC ${newItem.konsjen}:`, err);
+          });
+      }
+    } catch (staffErr) {
+      console.warn('Gagal memproses notifikasi staff wilayah:', staffErr);
+    }
+
+    // Otomatis kirim WhatsApp ke Owner MapahTrip
+    try {
+      let ownerWa = '081214104332';
+      let isOwnerNotifyActive = true;
+      if (typeof window !== 'undefined') {
+        const savedWa = localStorage.getItem('mapahtrip_owner_wa');
+        if (savedWa && savedWa.trim()) {
+          ownerWa = savedWa.trim();
+        }
+        const savedNotify = localStorage.getItem('mapahtrip_owner_notify');
+        if (savedNotify === 'false') {
+          isOwnerNotifyActive = false;
+        }
+      }
+
+      if (isOwnerNotifyActive && ownerWa && ownerWa.trim()) {
+        const pesanWAOwner =
+`*PEMBERITAHUAN PENDAFTARAN BARU (NOTIFIKASI OWNER MAPAHTRIP)* 👑🇯🇵
+
+Halo Owner MapahTrip,
+
+Ada permohonan visa Jepang baru yang baru saja didaftarkan ke sistem:
+
+📋 *Data Pemohon Baru:*
+• *ID Pengajuan:* *${newItem.noPengajuan}*
+• *Nama Pemohon:* ${newItem.namaPemohon}
+• *No. WhatsApp Pemohon:* ${newItem.noTelp}
+• *No. Paspor:* ${newItem.noPaspor}
+• *Wilayah Konsjen:* Konsjen ${newItem.konsjen}
+• *Staf PIC Wilayah:* ${assignedStaff?.nama || 'Staf Wilayah'}
+• *Program Visa:* ${newItem.program} (${newItem.paket})
+${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Kode Mitra Referral:* ${cleanAffCode}\n` : ''}• *Tanggal Daftar:* ${todayStr}
+
+Status Saat Ini: *Menunggu Berkas Fisik Tiba di Kantor*.
+Data pemohon telah tersimpan dan siap dipantau.
+
+Pantau & kelola pengajuan di Dashboard Owner:
+🌐 https://mapahtrip.com/#owner
+
+*MapahTrip Executive Alert System*`;
+
+        kirimPesanWA(ownerWa.trim(), pesanWAOwner)
+          .then((res) => {
+            console.log('[WA Gateway] Sukses kirim notifikasi pendaftar baru ke Owner MapahTrip:', ownerWa, res);
+          })
+          .catch((err) => {
+            console.warn('[WA Gateway] Gagal kirim notifikasi ke Owner MapahTrip:', err);
+          });
+      }
+    } catch (ownerErr) {
+      console.warn('Gagal memproses notifikasi Owner:', ownerErr);
+    }
+
     onClose();
 
     // Reset form
@@ -1069,7 +1224,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
                     onChange={(e) => setMetodePembayaran(e.target.value)}
                     style={{ width: '100%', marginTop: '4px', padding: '7px 10px', borderRadius: '6px', border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.80rem', fontWeight: 600, color: '#0F172A' }}
                   >
-                    <option value="Transfer BCA (5780868611)">Transfer BCA (5780868611)</option>
+                    <option value="Transfer BTN (119001500015870) - Tokyo Asia Connection">Transfer BTN (119001500015870) - Tokyo Asia Connection</option>
                     <option value="Transfer Mandiri">Transfer Mandiri</option>
                     <option value="Transfer BNI">Transfer BNI</option>
                     <option value="Transfer BRI">Transfer BRI</option>

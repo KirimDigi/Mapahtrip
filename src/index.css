@@ -119,7 +119,7 @@ body {
   font-feature-settings: 'tnum' on, 'cv05' on;
 }
 
-/* Material symbols helper */
+/* Material symbols helper - Anti-layout shift (mencegah teks ikon melebar sebelum font selesai dimuat) */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
   font-weight: normal;
@@ -128,11 +128,21 @@ body {
   line-height: 1;
   letter-spacing: normal;
   text-transform: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 1em;
+  height: 1em;
+  min-width: 1em;
+  max-width: 1em;
+  overflow: hidden;
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
   -webkit-font-smoothing: antialiased;
+  user-select: none;
+  font-feature-settings: 'liga';
 }
 
 /* App container layout */
@@ -179,10 +189,9 @@ body {
 }
 
 .page-body {
-  padding: 28px 32px;
-  max-width: 1440px;
+  padding: 24px 32px;
   width: 100%;
-  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* Custom cards */
@@ -209,6 +218,8 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge-success {
@@ -926,11 +937,28 @@ html, body, #root {
   gap: 10px;
 }
 
+.header-btn-daftar {
+  background-color: #005BB5;
+  color: #FFFFFF;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 7px 18px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(0, 91, 181, 0.28);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .header-btn-daftar:hover,
 .nav-link-daftar-inline:hover {
   background-color: #004494 !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 91, 181, 0.35) !important;
+  box-shadow: 0 4px 12px rgba(0, 91, 181, 0.38) !important;
 }
 
 @media (max-width: 960px) {
@@ -938,6 +966,9 @@ html, body, #root {
     gap: 12px;
   }
   .desktop-nav {
+    display: none !important;
+  }
+  .header-btn-daftar {
     display: none !important;
   }
   .mobile-menu-toggle {
@@ -1077,20 +1108,33 @@ html, body, #root {
     line-height: 1.2 !important;
     word-break: break-word !important;
   }
+  /* Trust Bar Mobile: Ditumpuk rapi ke bawah (tidak bisa digeser, tidak ada scrollbar, teks utuh) */
   .hero-trust-bar {
     display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justifyContent: space-between !important;
-    gap: 6px !important;
-    padding: 10px 12px !important;
-    overflow-x: auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+    overflow-x: visible !important;
+    border-radius: 14px !important;
   }
   .hero-trust-bar span.trust-dot-sep {
-    display: inline-block !important;
+    display: none !important;
   }
-  .hero-trust-bar div {
-    white-space: nowrap !important;
+  .hero-trust-bar > div {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    white-space: normal !important;
+  }
+  .hero-trust-bar > div:not(:last-child) {
+    padding-bottom: 7px !important;
+    border-bottom: 1px dashed #F1F5F9 !important;
+  }
+  .hero-trust-bar > div span:last-child {
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
   }
 }
 
@@ -1169,7 +1213,22 @@ html, body, #root {
     box-sizing: border-box !important;
   }
 
-  /* FAQ Horizontal Snap Carousel on Mobile */
+  /* FAQ Horizontal Snap Carousel on Mobile (Geser Kesamping) */
+  .mobile-swipe-hint {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #0284C7;
+    font-size: 0.74rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    background: #F0F9FF;
+    border: 1px solid #E0F2FE;
+    padding: 6px 14px;
+    border-radius: 9999px;
+  }
+
   .faq-cards-grid {
     display: flex !important;
     overflow-x: auto !important;
@@ -1183,7 +1242,7 @@ html, body, #root {
     width: calc(100% + 32px) !important;
     scrollbar-width: none !important;
     box-sizing: border-box !important;
-    align-items: stretch !important;
+    align-items: stretch !important; /* Samakan rata tinggi semua kartu FAQ */
   }
 
   .faq-cards-grid::-webkit-scrollbar {
@@ -1202,17 +1261,40 @@ html, body, #root {
     border: 1px solid #E2E8F0 !important;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04) !important;
     background-color: #FFFFFF !important;
+    align-self: stretch !important;
   }
 
   .faq-card-item button {
-    padding: 16px 16px 10px !important;
+    padding: 16px 16px 14px !important;
     cursor: default !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justifyContent: space-between !important;
+    background: none !important;
+    border: none !important;
+    text-align: left !important;
+    min-height: 86px !important; /* Area pertanyaan sama tinggi sehingga garis pemisah rata sejajar */
+    box-sizing: border-box !important;
+  }
+
+  .faq-card-item button > div {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .faq-card-item .faq-num-badge {
+    background-color: #005bb5 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(0, 91, 181, 0.25) !important;
   }
 
   .faq-card-item .faq-question-text {
-    font-size: 0.88rem !important;
-    line-height: 1.35 !important;
+    font-size: 0.9rem !important;
+    line-height: 1.4 !important;
     font-weight: 700 !important;
+    color: #0F172A !important;
   }
 
   .faq-card-item .faq-chevron-icon {
@@ -1220,19 +1302,26 @@ html, body, #root {
   }
 
   .faq-card-item .faq-answer-content {
-    display: block !important;
-    padding: 10px 16px 16px 16px !important;
-    font-size: 0.83rem !important;
-    line-height: 1.55 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important; /* Isi ruang ke bawah agar dasar kartu rata lurus sempurna */
+    padding: 14px 16px 18px 16px !important;
+    font-size: 0.84rem !important;
+    line-height: 1.6 !important;
     color: #475569 !important;
     border-top: 1px dashed #E2E8F0 !important;
-    margin-top: auto !important;
+    margin-top: 0 !important;
+    box-sizing: border-box !important;
   }
 }
 
 .dark-theme .faq-card-item {
   background-color: #1E293B !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark-theme .faq-card-item .faq-num-badge {
+  background-color: #0284C7 !important;
+  color: #FFFFFF !important;
 }
 .dark-theme .faq-card-item .faq-question-text {
   color: #F8FAFC !important;
@@ -1364,158 +1453,252 @@ html, body, #root {
     padding: 24px 18px !important;
   }
   /* Compact Sleek Customer Footer for Mobile */
+  /* Mobile Footer: Rapi, simetris, modern, dan nyaman dilihat */
   .customer-main-footer {
-    padding: 30px 16px 20px !important;
+    padding: 36px 16px 90px !important; /* 90px padding bawah agar tidak tertutup tombol WhatsApp melayang */
   }
   .customer-main-footer > div:first-child {
     flex-direction: column !important;
-    gap: 18px !important;
+    gap: 22px !important;
   }
   .footer-brand-col {
     max-width: 100% !important;
     flex: 1 1 auto !important;
   }
   .footer-brand-col p {
-    font-size: 0.8rem !important;
-    line-height: 1.5 !important;
-    margin-top: 6px !important;
+    font-size: 0.82rem !important;
+    line-height: 1.6 !important;
+    margin: 10px 0 14px !important;
     color: #94a3b8 !important;
   }
   .footer-wa-link {
-    background: rgba(37, 211, 102, 0.12) !important;
-    border: 1px solid rgba(37, 211, 102, 0.3) !important;
-    padding: 7px 14px !important;
-    border-radius: 9999px !important;
-    font-size: 0.84rem !important;
+    display: flex !important;
+    width: 100% !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background: linear-gradient(135deg, #16a34a, #15803d) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    padding: 11px 16px !important;
+    border-radius: 12px !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.28) !important;
+    box-sizing: border-box !important;
   }
   .footer-columns-group {
     display: flex !important;
     flex-direction: column !important;
-    gap: 16px !important;
+    gap: 20px !important;
     width: 100% !important;
   }
 
-  /* 1. Sosial Media: Sleek horizontal pill badges */
+  /* 1. Sosial Media: Grid 2-kolom seimbang + Email full width */
   .footer-col-social {
     order: 1 !important;
     width: 100% !important;
     min-width: 0 !important;
   }
   .footer-col-social > div:first-child {
-    font-size: 0.78rem !important;
+    font-size: 0.74rem !important;
     margin-bottom: 8px !important;
     color: #94a3b8 !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: 0.06em !important;
     font-weight: 700 !important;
   }
   .footer-social-list {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
+    width: 100% !important;
   }
   .footer-social-list a {
-    display: inline-flex !important;
+    display: flex !important;
+    justify-content: center !important;
     align-items: center !important;
-    gap: 6px !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    padding: 5px 11px !important;
-    border-radius: 9999px !important;
-    font-size: 0.76rem !important;
+    gap: 8px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 10px 10px !important;
+    min-height: 40px !important;
+    border-radius: 10px !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    color: #f1f5f9 !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+  }
+  .footer-social-list a:last-child {
+    grid-column: 1 / -1 !important;
   }
 
-  /* 2. Jenis Visa: Compact 2-column card (cuts vertical height by 50%!) */
+  /* 2. Jenis Visa: Kartu 2-kolom terstruktur dengan chip tombol rapi setinggi seragam */
   .footer-col-visa {
     order: 2 !important;
     width: 100% !important;
     min-width: 0 !important;
-    background: rgba(255, 255, 255, 0.02) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    border-radius: 12px !important;
-    padding: 12px 14px !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
+    padding: 14px 12px !important;
+    box-sizing: border-box !important;
   }
   .footer-col-visa > div:first-child {
-    font-size: 0.8rem !important;
-    margin-bottom: 8px !important;
-    color: #f1f5f9 !important;
-    font-weight: 700 !important;
+    font-size: 0.84rem !important;
+    margin-bottom: 10px !important;
+    color: #f8fafc !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.02em !important;
   }
   .footer-visa-list {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 6px 10px !important;
+    gap: 8px !important;
+    align-items: stretch !important;
   }
   .footer-visa-list button {
-    font-size: 0.75rem !important;
-    line-height: 1.35 !important;
-    padding: 2px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    min-height: 42px !important;
+    font-size: 0.73rem !important;
+    font-weight: 500 !important;
+    line-height: 1.25 !important;
+    padding: 8px 10px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 9px !important;
     color: #cbd5e1 !important;
     text-align: left !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
+  .footer-visa-list button:active {
+    background: rgba(14, 165, 233, 0.15) !important;
+    border-color: rgba(14, 165, 233, 0.4) !important;
+    color: #38bdf8 !important;
   }
 
-  /* 3. Bantuan: Horizontal wrap tags */
+  /* 3. Bantuan: Pill tags berbingkai rapi & simetris 3 + 2 */
   .footer-col-bantuan {
     order: 3 !important;
     width: 100% !important;
     min-width: 0 !important;
   }
   .footer-col-bantuan > div:first-child {
-    font-size: 0.78rem !important;
+    font-size: 0.74rem !important;
     margin-bottom: 8px !important;
     color: #94a3b8 !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: 0.06em !important;
     font-weight: 700 !important;
   }
   .footer-bantuan-list {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    gap: 8px 14px !important;
+    display: grid !important;
+    grid-template-columns: repeat(6, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .footer-bantuan-list > *:nth-child(1),
+  .footer-bantuan-list > *:nth-child(2),
+  .footer-bantuan-list > *:nth-child(3) {
+    grid-column: span 2 !important;
+  }
+  .footer-bantuan-list > *:nth-child(4),
+  .footer-bantuan-list > *:nth-child(5) {
+    grid-column: span 3 !important;
   }
   .footer-bantuan-list a,
   .footer-bantuan-list span {
-    font-size: 0.76rem !important;
-    color: #94a3b8 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 36px !important;
+    padding: 6px 8px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 9999px !important;
+    font-size: 0.74rem !important;
+    font-weight: 500 !important;
+    color: #cbd5e1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    transition: all 0.15s ease !important;
+  }
+  .footer-bantuan-list a:active,
+  .footer-bantuan-list span:active {
+    background: rgba(14, 165, 233, 0.15) !important;
+    border-color: rgba(14, 165, 233, 0.4) !important;
+    color: #38bdf8 !important;
   }
 
-  /* 4. Kantor & JVAC: Compact info badge */
+  /* 4. Kantor & JVAC: Kartu terstruktur dengan sub-cardlets elegan */
   .footer-col-kantor {
     order: 4 !important;
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    background: rgba(14, 165, 233, 0.05) !important;
-    border: 1px solid rgba(14, 165, 233, 0.18) !important;
-    border-radius: 12px !important;
-    padding: 12px 14px !important;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(15, 23, 42, 0.65)) !important;
+    border: 1px solid rgba(14, 165, 233, 0.22) !important;
+    border-radius: 14px !important;
+    padding: 14px 14px !important;
+    box-sizing: border-box !important;
   }
   .footer-col-kantor > a:first-child {
-    margin-bottom: 6px !important;
-    font-size: 0.82rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 12px !important;
+    font-size: 0.88rem !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid rgba(14, 165, 233, 0.16) !important;
   }
   .footer-kantor-details {
-    gap: 6px !important;
-  }
-  .footer-kantor-details div {
-    font-size: 0.74rem !important;
-    line-height: 1.4 !important;
-  }
-
-  /* 5. Bottom bar */
-  .footer-bottom-bar {
-    margin-top: 22px !important;
-    padding-top: 14px !important;
+    display: flex !important;
     flex-direction: column !important;
     gap: 8px !important;
+  }
+  .footer-kantor-cardlet {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 10px !important;
+    padding: 9px 12px !important;
+    box-sizing: border-box !important;
+  }
+  .footer-kantor-cardlet:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
+
+  /* 5. Bottom bar: Disclaimer & Copyright */
+  .footer-bottom-bar {
+    margin-top: 24px !important;
+    padding-top: 16px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    flex-direction: column !important;
+    gap: 12px !important;
     align-items: flex-start !important;
   }
-  .footer-bottom-bar > div {
+  .footer-bottom-bar > div:first-child {
     text-align: left !important;
-    font-size: 0.7rem !important;
-    line-height: 1.5 !important;
+    font-size: 0.72rem !important;
+    line-height: 1.6 !important;
+    color: #64748b !important;
+  }
+  .footer-bottom-bar > div:last-child {
+    font-size: 0.75rem !important;
+    color: #94a3b8 !important;
+    font-weight: 600 !important;
+    text-align: left !important;
+    width: 100% !important;
   }
 }
 
@@ -1541,6 +1724,13 @@ html, body, #root {
     flex: 0 0 200px;
     scroll-snap-align: start;
   }
+}
+
+.metric-total-desktop-view {
+  display: block;
+}
+.metric-total-mobile-view {
+  display: none;
 }
 
 /* Notification badge & popover animations */
@@ -1649,7 +1839,9 @@ html, body, #root {
   .main-content {
     margin-left: 0 !important;
     width: 100% !important;
+    max-width: 100vw !important;
     min-width: 0 !important;
+    overflow-x: hidden !important;
   }
 
   /* Top header responsive padding & height */
@@ -1662,7 +1854,9 @@ html, body, #root {
   .page-body {
     padding: 16px 12px !important;
     width: 100% !important;
+    max-width: 100vw !important;
     box-sizing: border-box !important;
+    overflow-x: hidden !important;
   }
 
   /* Hamburger button on top-header */
@@ -1692,6 +1886,78 @@ html, body, #root {
     align-items: center;
     gap: 8px;
   }
+
+  /* Rekap Operasional: Cards on mobile, Table on desktop */
+  .rekap-desktop-table {
+    display: none !important;
+  }
+  .rekap-mobile-cards {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  .rekap-container {
+    gap: 14px !important;
+  }
+  .rekap-top-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .rekap-page-title {
+    font-size: 1.45rem !important;
+    font-family: inherit !important;
+    margin: 0 0 4px !important;
+  }
+  .rekap-page-subtitle {
+    font-size: 0.82rem !important;
+    line-height: 1.45 !important;
+  }
+  .rekap-subtab-toggle {
+    width: 100% !important;
+    display: flex !important;
+    background: #F1F5F9 !important;
+    padding: 4px !important;
+    border-radius: 12px !important;
+    border: 1px solid #E2E8F0 !important;
+    box-sizing: border-box !important;
+    gap: 4px !important;
+  }
+  .rekap-subtab-toggle button {
+    flex: 1 1 50% !important;
+    text-align: center !important;
+    padding: 8px 12px !important;
+    font-size: 0.84rem !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+  }
+  .rekap-main-card {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .rekap-section-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 10px !important;
+    padding: 0 2px !important;
+  }
+  .rekap-section-title {
+    font-family: inherit !important;
+    font-size: 0.94rem !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+  }
+  .rekap-section-badge {
+    font-size: 0.72rem !important;
+    padding: 3px 10px !important;
+    border-radius: 20px !important;
+    font-weight: 700 !important;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1708,6 +1974,35 @@ html, body, #root {
   display: none !important;
 }
 
+.modal-applicants-desktop {
+  display: block;
+}
+
+.modal-applicants-mobile {
+  display: none !important;
+}
+
+.affiliate-filter-bar {
+  display: flex;
+  justifyContent: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.affiliate-chips-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.affiliate-page-size-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 @media (max-width: 768px) {
   /* Hide heavy horizontal table on mobile */
   .affiliate-desktop-table {
@@ -1717,34 +2012,689 @@ html, body, #root {
   /* Show sleek vertical cards on mobile */
   .affiliate-mobile-cards {
     display: flex !important;
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
   }
 
-  /* 2x2 grid for KPI metrics on mobile */
-  .affiliate-kpi-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+  .affiliate-container {
+    gap: 14px !important;
+  }
+
+  .affiliate-header-wrapper {
+    flex-direction: column !important;
+    align-items: stretch !important;
     gap: 10px !important;
   }
 
-  /* Full-width filter & search controls */
+  .affiliate-page-title {
+    font-size: 1.35rem !important;
+    margin: 0 0 2px !important;
+  }
+
+  .affiliate-page-subtitle {
+    font-size: 0.80rem !important;
+    line-height: 1.4 !important;
+  }
+
+  .affiliate-actions {
+    width: 100% !important;
+  }
+
+  .affiliate-refresh-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 7px 12px !important;
+  }
+
+  /* 2x2 grid for KPI metrics on ALL mobile phones */
+  .affiliate-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .affiliate-kpi-card {
+    padding: 10px 12px !important;
+  }
+
+  .affiliate-kpi-num {
+    font-size: 1.25rem !important;
+  }
+
+  .affiliate-main-card {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Unified mobile filter card */
   .affiliate-filter-bar {
+    display: flex !important;
     flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 12px !important;
+    gap: 10px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 16px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 14px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
   }
 
   .affiliate-search-wrapper {
+    order: 1 !important;
     min-width: 100% !important;
     max-width: 100% !important;
     width: 100% !important;
   }
+
+  .affiliate-chips-group {
+    order: 2 !important;
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 2px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .affiliate-chips-group::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .affiliate-chips-group button {
+    flex: 0 0 auto !important;
+    text-align: center !important;
+    padding: 6px 14px !important;
+    font-size: 0.78rem !important;
+    white-space: nowrap !important;
+    border-radius: 20px !important;
+  }
+
+  .affiliate-page-size-row {
+    order: 3 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    border-top: 1px solid #F1F5F9 !important;
+    padding-top: 8px !important;
+  }
+
+  .affiliate-pagination-bar {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    padding: 14px 4px !important;
+  }
+
+  .affiliate-pagination-info {
+    order: 2 !important;
+    font-size: 0.78rem !important;
+    text-align: center !important;
+  }
+
+  .affiliate-pagination-controls {
+    order: 1 !important;
+    justify-content: center !important;
+  }
+
+  /* Affiliate Detail Modal Mobile Optimization */
+  .affiliate-modal-overlay {
+    padding: 10px !important;
+  }
+
+  .affiliate-modal-box {
+    max-height: 94vh !important;
+    border-radius: 16px !important;
+    width: 100% !important;
+  }
+
+  .affiliate-modal-header {
+    padding: 12px 14px !important;
+  }
+
+  .affiliate-modal-title {
+    font-size: 0.94rem !important;
+    line-height: 1.3 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .affiliate-modal-body {
+    padding: 14px !important;
+    gap: 14px !important;
+  }
+
+  .affiliate-modal-info-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .affiliate-modal-info-grid > div {
+    padding: 8px 10px !important;
+  }
+
+  .affiliate-modal-payout-card {
+    padding: 12px !important;
+  }
+
+  .affiliate-modal-payout-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .affiliate-modal-payout-name {
+    grid-column: span 2 !important;
+    border-top: 1px dashed #BBF7D0 !important;
+    padding-top: 8px !important;
+    margin-top: 2px !important;
+  }
+
+  .affiliate-modal-activity-box {
+    padding: 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .affiliate-modal-table-container {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .affiliate-modal-table-container table {
+    min-width: 640px !important;
+  }
+
+  /* Modal Daftar Pemohon Binaan: Mobile Cards View on phone screens */
+  .modal-applicants-desktop {
+    display: none !important;
+  }
+
+  .modal-applicants-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
 }
 
-@media (max-width: 440px) {
-  /* Single column KPI on small mobile */
-  .affiliate-kpi-grid {
+/* Custom Sleek Scrollbar for Payout Modal */
+.payout-transfer-modal {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+.payout-transfer-modal::-webkit-scrollbar {
+  width: 5px;
+}
+.payout-transfer-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.payout-transfer-modal::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   KEUANGAN VIEW RESPONSIVE STYLING (Owner Finansial HP Optimization)
+   ========================================================================== */
+.keuangan-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.keuangan-desktop-table {
+  display: block;
+  width: 100%;
+}
+
+.keuangan-mobile-cards {
+  display: none !important;
+}
+
+.keuangan-view-mode-toggle {
+  display: none !important;
+}
+
+/* Keuangan Pagination Bar (Desktop Base) */
+.keuangan-pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: #64748B;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.keuangan-pagination-info-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.keuangan-page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keuangan-page-size-select {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid #CBD5E1;
+  font-size: 0.80rem;
+  font-weight: 600;
+  color: #0F172A;
+  background: #FFFFFF;
+  outline: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.keuangan-pagination-count {
+  font-size: 0.82rem;
+  color: #64748B;
+}
+
+.keuangan-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keuangan-nav-btn {
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #0F172A;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.80rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.keuangan-nav-btn:disabled {
+  background: #F8FAFC;
+  color: #94A3B8;
+  border-color: #E2E8F0;
+  cursor: not-allowed;
+}
+
+.keuangan-page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.keuangan-page-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.keuangan-page-btn.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+@media (max-width: 1024px) {
+  .keuangan-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Header & Control layout on mobile */
+  .keuangan-top-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .keuangan-main-title {
+    font-size: 1.35rem !important;
+  }
+  .keuangan-main-subtitle {
+    font-size: 0.78rem !important;
+  }
+  .keuangan-header-actions {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+  .keuangan-header-actions > div,
+  .keuangan-header-actions > button {
+    flex: 1 !important;
+    justify-content: center !important;
+    font-size: 0.78rem !important;
+    padding: 8px 12px !important;
+  }
+  .keuangan-header-actions select {
+    width: 100% !important;
+    font-size: 0.78rem !important;
+  }
+
+  /* 2x2 KPI Grid for mobile: clean and compact */
+  .keuangan-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .keuangan-kpi-grid .card {
+    padding: 12px 10px !important;
+    border-radius: 12px !important;
+  }
+  .keuangan-kpi-grid .kpi-label {
+    font-size: 0.70rem !important;
+  }
+  .keuangan-kpi-grid .kpi-value {
+    font-size: 1.10rem !important;
+    margin: 4px 0 2px !important;
+  }
+  .keuangan-kpi-grid .kpi-sub {
+    font-size: 0.65rem !important;
+  }
+
+  /* Chart controls */
+  .keuangan-chart-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .keuangan-chart-toggle {
+    width: 100% !important;
+  }
+  .keuangan-chart-toggle button {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 6px 8px !important;
+    font-size: 0.72rem !important;
+  }
+
+  /* Tab switcher & Search */
+  .keuangan-tab-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .keuangan-tab-switcher {
+    width: 100% !important;
+  }
+  .keuangan-tab-switcher button {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 7px 10px !important;
+    font-size: 0.75rem !important;
+  }
+  .keuangan-search-bar {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+  .keuangan-search-bar > div {
+    flex: 1 !important;
+    width: auto !important;
+  }
+  .keuangan-search-bar input {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Toggle mode between Cards and Table on mobile */
+  .keuangan-view-mode-toggle {
+    display: flex !important;
+    align-items: center;
+    justifyContent: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #E2E8F0;
+  }
+
+  /* Mobile cards active by default, hide table unless toggled */
+  .keuangan-desktop-table {
+    display: none !important;
+  }
+  .keuangan-desktop-table.show-on-mobile {
+    display: block !important;
+  }
+  .keuangan-mobile-cards {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .keuangan-mobile-cards.hide-on-mobile {
+    display: none !important;
+  }
+
+  /* Pagination on mobile */
+  .keuangan-pagination-bar {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin-top: 14px !important;
+    padding-top: 14px !important;
+    border-top: 1px dashed #E2E8F0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .keuangan-pagination-info-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  .keuangan-page-size-selector {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+  .keuangan-page-size-select {
+    padding: 6px 12px !important;
+    font-size: 0.80rem !important;
+    border-radius: 8px !important;
+    background-color: #F8FAFC !important;
+  }
+
+  .keuangan-pagination-count {
+    font-size: 0.74rem !important;
+    color: #64748B !important;
+  }
+
+  .keuangan-pagination-controls {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+
+  .keuangan-nav-btn {
+    padding: 6px 10px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
+    font-size: 0.78rem !important;
+    white-space: nowrap !important;
+  }
+
+  .keuangan-nav-btn .nav-btn-text {
+    display: none !important;
+  }
+
+  .keuangan-page-btn {
+    min-width: 32px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+    font-size: 0.80rem !important;
+  }
+}
+
+/* ==========================================================================
+   PENGATURAN VIEW RESPONSIVE STYLING (HP / Mobile Optimization)
+   ========================================================================== */
+.pengaturan-desktop-staff-table,
+.pengaturan-desktop-konsjen-table {
+  display: block;
+  width: 100%;
+}
+
+.pengaturan-mobile-staff-list,
+.pengaturan-mobile-konsjen-list {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .pengaturan-header-section {
+    gap: 12px !important;
+  }
+
+  .pengaturan-main-title {
+    font-size: 1.35rem !important;
+    line-height: 1.25 !important;
+    margin-bottom: 4px !important;
+  }
+
+  .pengaturan-main-desc {
+    font-size: 0.78rem !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Segmented tabs on mobile: full width, 50% / 50% distribution */
+  .pengaturan-tabs-bar {
+    width: 100% !important;
+    display: flex !important;
+    padding: 3px !important;
+  }
+
+  .pengaturan-tab-btn {
+    flex: 1 1 0 !important;
+    justify-content: center !important;
+    padding: 8px 6px !important;
+    font-size: 0.74rem !important;
+    gap: 4px !important;
+    text-align: center !important;
+  }
+
+  .pengaturan-card {
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Staff action buttons on mobile */
+  .pengaturan-staff-actions {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+
+  .pengaturan-staff-actions > button {
+    flex: 1 1 0 !important;
+    justify-content: center !important;
+    padding: 8px 10px !important;
+    font-size: 0.74rem !important;
+  }
+
+  /* Switch from heavy tables to mobile native cards */
+  .pengaturan-desktop-staff-table,
+  .pengaturan-desktop-konsjen-table {
+    display: none !important;
+  }
+
+  .pengaturan-mobile-staff-list,
+  .pengaturan-mobile-konsjen-list {
+    display: flex !important;
+  }
+
+  /* Achievement Banner on mobile */
+  .pengaturan-achievement-banner {
+    padding: 12px 14px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    border-radius: 14px !important;
+  }
+
+  .pengaturan-achievement-badge {
+    border-top: 1px dashed #BBF7D0 !important;
+    padding-top: 8px !important;
+    width: 100% !important;
+  }
+
+  .pengaturan-achievement-badge > div {
+    border-left: none !important;
+    padding-left: 0 !important;
+    text-align: left !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  /* Profile Card on mobile */
+  .pengaturan-profile-card {
+    padding: 16px 14px !important;
+  }
+
+  /* Modal responsive on mobile */
+  .pengaturan-modal-overlay {
+    padding: 10px !important;
+  }
+
+  .pengaturan-modal-box {
+    border-radius: 16px !important;
+    max-height: 94vh !important;
+  }
+
+  .pengaturan-modal-header {
+    padding: 14px 16px !important;
+  }
+
+  .pengaturan-modal-form {
+    padding: 14px !important;
+    gap: 12px !important;
+  }
+
+  .pengaturan-form-row {
     grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
 }
 
@@ -1790,6 +2740,27 @@ html, body, #root {
   display: none !important;
 }
 
+/* Portal Notification Banner Desktop */
+.portal-notif-banner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+}
+
+.portal-notif-banner-content {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex: 1 !important;
+}
+
+.portal-notif-banner-actions {
+  display: flex !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+
 @media (max-width: 768px) {
   .affiliate-portal-root {
     flex-direction: column !important;
@@ -1808,10 +2779,20 @@ html, body, #root {
     border-bottom: 1px solid #E2E8F0 !important;
     position: sticky !important;
     top: 0 !important;
-    z-index: 900 !important;
+    z-index: 1001 !important;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
     width: 100% !important;
     box-sizing: border-box !important;
+  }
+
+  .portal-notif-popover {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: 0 !important;
+    width: min(360px, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18) !important;
   }
 
   .portal-mobile-menu-btn {
@@ -1875,18 +2856,38 @@ html, body, #root {
   }
 
   .portal-welcome-banner {
-    padding: 18px 16px !important;
+    padding: 16px 14px !important;
     border-radius: 16px !important;
     margin-bottom: 16px !important;
   }
 
-  .portal-welcome-banner h1 {
-    font-size: 1.25rem !important;
-    line-height: 1.25 !important;
+  .portal-welcome-content {
+    padding-right: 0 !important;
   }
 
-  .portal-welcome-banner > div:first-of-type {
-    padding-right: 0 !important;
+  .portal-welcome-title {
+    font-size: 1.2rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .portal-welcome-subtitle {
+    font-size: 0.80rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .portal-referral-strip {
+    display: flex !important;
+    width: 100% !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    padding: 8px 8px 8px 12px !important;
+    margin-top: 12px !important;
+    border-radius: 10px !important;
+  }
+
+  .portal-copy-btn {
+    padding: 8px 12px !important;
+    font-size: 0.76rem !important;
   }
 
   .welcome-banner-notif-btn {
@@ -1897,16 +2898,31 @@ html, body, #root {
   .portal-notif-banner {
     flex-direction: column !important;
     align-items: stretch !important;
-    padding: 14px 14px !important;
-    gap: 12px !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
   }
 
-  .portal-notif-banner > button {
+  .portal-notif-banner-content {
+    align-items: flex-start !important;
+    gap: 10px !important;
+    padding-right: 24px !important;
+  }
+
+  .portal-notif-banner-actions {
+    margin-top: 4px !important;
+    width: 100% !important;
+  }
+
+  .portal-notif-banner-actions > button,
+  .portal-notif-action-btn {
     width: 100% !important;
     justify-content: center !important;
+    padding: 8px 14px !important;
+    font-size: 0.80rem !important;
+    border-radius: 9px !important;
   }
 
-  /* Partner Metrics 2-Column Grid on Mobile (No horizontal scrollbar, no text cutoff) */
+  /* Partner Metrics Grid on Mobile: Card 1 as Full Summary Header, Cards 2-5 as 2x2 Grid */
   .partner-metrics-grid {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -1923,8 +2939,24 @@ html, body, #root {
     border-radius: 12px !important;
   }
 
-  .partner-metrics-grid > div:last-child {
+  /* Card 1: Total Pemohon (Summary Banner di Atas Full-Width) */
+  .partner-metrics-grid > div.metric-card-total {
     grid-column: 1 / -1 !important;
+    background: linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%) !important;
+    border: 1.5px solid #BFDBFE !important;
+    box-shadow: 0 3px 12px rgba(37, 99, 235, 0.08) !important;
+    padding: 12px 16px !important;
+  }
+
+  .metric-total-desktop-view {
+    display: none !important;
+  }
+
+  .metric-total-mobile-view {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
   }
 
   .partner-metrics-grid span {
@@ -1955,6 +2987,15 @@ html, body, #root {
     text-align: center !important;
   }
 
+  .portal-table-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .portal-table-controls > div:first-child {
+    width: 100% !important;
+  }
+
   /* Candidate Table vs Mobile Cards */
   .candidate-desktop-table {
     display: none !important;
@@ -1966,6 +3007,1066 @@ html, body, #root {
     gap: 10px !important;
     width: 100% !important;
   }
+
+  /* MPC Subtabs Mobile: Rapi, scrollable horizontal jika sempit, tanpa radio circle */
+  .mpc-subtabs-nav {
+    display: flex !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 2px !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    margin-bottom: 20px !important;
+  }
+  .mpc-subtabs-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+  .mpc-subtab-btn {
+    padding: 8px 10px 10px !important;
+    font-size: 0.82rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* MPC Sync Badge Mobile */
+  .mpc-sync-badge {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    margin-top: 4px !important;
+  }
+
+  /* MPC Podium Mobile: Swipe horizontal ke samping (Juara 1 -> Juara 2 -> Juara 3) */
+  .mpc-podium-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 14px !important;
+    padding: 18px 4px 12px !important; /* padding atas untuk badge Juara melayang */
+    margin-top: 4px !important;
+    margin-bottom: 20px !important;
+    scrollbar-width: none !important;
+  }
+  .mpc-podium-grid::-webkit-scrollbar {
+    display: none !important;
+  }
+  .podium-card {
+    flex: 0 0 260px !important;
+    min-width: 260px !important;
+    max-width: 280px !important;
+    scroll-snap-align: start !important;
+    box-sizing: border-box !important;
+  }
+  .podium-card-1 {
+    order: 1 !important; /* Juara 1 di kartu pertama */
+    flex: 0 0 270px !important;
+    min-width: 270px !important;
+    box-shadow: 0 8px 24px rgba(0, 91, 181, 0.18) !important;
+  }
+  .podium-card-2 {
+    order: 2 !important; /* Juara 2 di kartu kedua */
+  }
+  .podium-card-3 {
+    order: 3 !important; /* Juara 3 di kartu ketiga */
+  }
+
+  /* Leaderboard Filter Pills Mobile 3-Kolom Rapi */
+  .leaderboard-filter-group {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    box-sizing: border-box !important;
+  }
+  .leaderboard-filter-group button {
+    padding: 7px 4px !important;
+    font-size: 0.72rem !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  /* Leaderboard Table di HP diganti Kartu Rapi (Teks & Angka tidak terpotong) */
+  .leaderboard-desktop-table {
+    display: none !important;
+  }
+  .leaderboard-mobile-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  /* MPC Social Proof Banner di HP (Rapi, tersusun vertikal seimbang, teks lega tidak terhimpit) */
+  .mpc-social-proof-banner {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 18px 14px !important;
+    gap: 14px !important;
+  }
+  .mpc-social-proof-content {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  .mpc-social-proof-avatars {
+    justify-content: center !important;
+    margin-left: 0 !important;
+  }
+  .mpc-social-proof-text {
+    text-align: center !important;
+    width: 100% !important;
+  }
+  .mpc-social-proof-text > div:first-child {
+    justify-content: center !important;
+  }
+  .mpc-social-proof-text p {
+    text-align: center !important;
+    line-height: 1.5 !important;
+  }
+  .mpc-social-proof-badge {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  /* MPC Terms & Conditions Modal di HP: Sebaris Rapi, Sempurna & Tanpa Terpotong */
+  .terms-modal-card {
+    max-height: 90vh !important;
+    border-radius: 16px !important;
+    width: 96% !important;
+    margin: auto !important;
+  }
+  .terms-modal-header {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  .terms-modal-header > div:first-child {
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .terms-modal-icon {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 1rem !important;
+    border-radius: 8px !important;
+    margin-top: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  .terms-modal-title {
+    font-size: clamp(0.72rem, 3.4vw, 0.82rem) !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.3px !important;
+    margin: 0 0 2px !important;
+  }
+  .terms-modal-subtitle {
+    font-size: 0.70rem !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
+  }
+  .terms-sub-full {
+    display: none !important;
+  }
+  .terms-sub-mobile {
+    display: block !important;
+    white-space: nowrap !important;
+    color: #64748B !important;
+    font-weight: 600 !important;
+  }
+  .terms-modal-close-btn {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 13px !important;
+    margin-top: 0 !important;
+    align-self: center !important;
+    flex-shrink: 0 !important;
+  }
+  .terms-modal-body {
+    padding: 16px 14px !important;
+  }
+
+  /* Kop Surat & Judul Formal di HP: Sebaris Rapi Tanpa Kata Menggantung */
+  .terms-doc-kop {
+    padding-bottom: 12px !important;
+  }
+  .terms-doc-badge {
+    font-size: 0.68rem !important;
+    letter-spacing: 0.8px !important;
+  }
+  .terms-doc-title {
+    font-size: clamp(0.78rem, 3.8vw, 0.92rem) !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    letter-spacing: -0.2px !important;
+  }
+  .terms-doc-number {
+    font-size: 0.76rem !important;
+    margin-top: 2px !important;
+  }
+  .terms-doc-subject {
+    font-size: clamp(0.7rem, 3.2vw, 0.82rem) !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    letter-spacing: -0.2px !important;
+    margin-top: 3px !important;
+  }
+
+  /* MPC Terms Document Content Responsiveness on Mobile */
+  .terms-pasal-header {
+    font-size: 0.84rem !important;
+  }
+  .terms-item {
+    font-size: 0.8rem !important;
+    line-height: 1.55 !important;
+    gap: 6px !important;
+  }
+  .terms-item-num {
+    min-width: 18px !important;
+  }
+  .terms-para {
+    font-size: 0.8rem !important;
+    line-height: 1.55 !important;
+  }
+  .terms-ordered-list,
+  .terms-unordered-list {
+    font-size: 0.8rem !important;
+    line-height: 1.55 !important;
+    padding-left: 18px !important;
+    gap: 5px !important;
+  }
+  .terms-sim-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+  .terms-komisi-box {
+    padding: 10px 12px !important;
+  }
+  .terms-komisi-title {
+    font-size: clamp(0.70rem, 3.2vw, 0.88rem) !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.3px !important;
+    line-height: 1.3 !important;
+    margin-bottom: 7px !important;
+  }
+  .terms-komisi-sub {
+    font-size: 0.78rem !important;
+    line-height: 1.45 !important;
+  }
+  .terms-rights-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .terms-signature-card {
+    justify-content: center !important;
+  }
+  .terms-signature-card > div {
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  /* MPC Informasi & Leaderboard Banner Mobile Styles */
+  .mpc-info-card {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+    margin-bottom: 14px !important;
+  }
+  .mpc-info-desc {
+    font-size: 0.82rem !important;
+    line-height: 1.55 !important;
+    margin-bottom: 12px !important;
+  }
+  .mpc-benefit-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    margin-bottom: 14px !important;
+  }
+  .mpc-benefit-card {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+  .mpc-terms-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 16px !important;
+    border-radius: 10px !important;
+    font-size: 0.82rem !important;
+    height: 40px !important;
+  }
+  .mpc-leaderboard-banner {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    margin-bottom: 14px !important;
+    min-height: unset !important;
+    height: auto !important;
+  }
+  .mpc-leaderboard-content {
+    flex: unset !important;
+    width: 100% !important;
+    min-height: unset !important;
+    height: auto !important;
+  }
+  .mpc-winner-badge {
+    font-size: 0.69rem !important;
+    padding: 3px 8px !important;
+    gap: 5px !important;
+    line-height: 1.35 !important;
+    margin-bottom: 6px !important;
+  }
+  .mpc-leaderboard-banner h3 {
+    font-size: 0.98rem !important;
+    line-height: 1.35 !important;
+    margin-bottom: 6px !important;
+  }
+  .mpc-leaderboard-banner p {
+    font-size: 0.78rem !important;
+    line-height: 1.45 !important;
+    margin-bottom: 0 !important;
+  }
+  .mpc-leaderboard-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 11px 18px !important;
+    font-size: 0.84rem !important;
+    border-radius: 10px !important;
+    margin-top: 2px !important;
+    height: 42px !important;
+  }
+  .mpc-register-now-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 13px 20px !important;
+    border-radius: 12px !important;
+    font-size: 0.92rem !important;
+  }
+
+  /* Staff Dashboard (DashboardView) Mobile Responsiveness */
+  .staff-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .staff-header-actions {
+    width: 100% !important;
+  }
+  .staff-header-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 11px 16px !important;
+  }
+  .staff-achievement-card {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+  .staff-achievement-eval {
+    text-align: left !important;
+    width: 100% !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed #BBF7D0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+  .staff-achievement-eval-text {
+    text-align: left !important;
+  }
+  .staff-pipeline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .staff-pipeline-card {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+  .staff-pipeline-label {
+    font-size: 0.70rem !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  .staff-pipeline-val {
+    font-size: 1.45rem !important;
+    line-height: 1.15 !important;
+    margin-top: 4px !important;
+  }
+  .staff-pipeline-sub {
+    font-size: 0.67rem !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.25 !important;
+    margin-top: 2px !important;
+  }
+  .staff-sections-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .staff-section-card {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+  }
+  .staff-section-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+  .staff-task-item {
+    padding: 10px 12px !important;
+  }
+
+  /* Detail Pengajuan Mobile Responsiveness */
+  .detail-breadcrumb-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .detail-breadcrumb-nav {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 0.80rem !important;
+    flex-wrap: wrap !important;
+  }
+  .detail-breadcrumb-pill {
+    max-width: 165px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-size: 0.72rem !important;
+  }
+  .detail-breadcrumb-row button.btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .detail-applicant-card {
+    padding: 16px 14px !important;
+  }
+  .detail-applicant-body {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+  .detail-applicant-info {
+    width: 100% !important;
+    gap: 12px !important;
+  }
+  .detail-applicant-header-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  .detail-applicant-name {
+    font-size: 1.30rem !important;
+    line-height: 1.2 !important;
+  }
+  .detail-applicant-meta-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .detail-meta-pill {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 10px !important;
+    font-size: 0.74rem !important;
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 8px !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .detail-meta-pill.detail-meta-full {
+    grid-column: span 2 !important;
+  }
+  .detail-meta-pill span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.25 !important;
+  }
+  .detail-action-ctas {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .detail-action-ctas > * {
+    width: 100% !important;
+    justify-content: center !important;
+    display: flex !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+  }
+  .detail-columns-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .detail-doc-item {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+  .detail-doc-info {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .detail-doc-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1.35fr 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  .detail-doc-actions button,
+  .detail-doc-actions label {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 4px !important;
+    font-size: 0.72rem !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .detail-doc-card-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-bottom: 14px !important;
+    width: 100% !important;
+  }
+  .detail-doc-card-title {
+    font-size: clamp(0.78rem, 3.1vw, 0.94rem) !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    flex-shrink: 1 !important;
+  }
+  .detail-doc-card-badge {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-size: 0.68rem !important;
+    padding: 2px 7px !important;
+  }
+
+  /* General Card padding on mobile */
+  .card {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Pengajuan List: Hide heavy horizontal table on mobile, show sleek touch-friendly cards */
+  .pengajuan-desktop-table {
+    display: none !important;
+  }
+  .pengajuan-mobile-cards {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Pengajuan Filter Bar: Clean mobile card layout */
+  .pengajuan-filter-bar {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 16px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 8px !important;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
+  .pengajuan-search-wrapper {
+    order: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pengajuan-search-input {
+    height: 42px !important;
+    font-size: 0.86rem !important;
+    border-radius: 12px !important;
+    background-color: #F8FAFC !important;
+    padding-left: 38px !important;
+    padding-right: 36px !important;
+  }
+
+  .pengajuan-filter-controls {
+    order: 2 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    align-items: stretch !important;
+  }
+
+  .pengajuan-filter-divider {
+    display: none !important;
+  }
+
+  .pengajuan-page-size-desktop {
+    display: none !important;
+  }
+
+  .pengajuan-desktop-reset-btn {
+    display: none !important;
+  }
+
+  .filter-item-wilayah {
+    grid-column: 1 / 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .filter-item-paket {
+    grid-column: 2 / 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .filter-item-tahapan {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pengajuan-filter-select {
+    width: 100% !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+    font-size: 0.80rem !important;
+    background-color: #F8FAFC !important;
+    box-sizing: border-box !important;
+  }
+
+  .filter-item-wilayah select,
+  .filter-item-paket select {
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    width: 100% !important;
+  }
+
+  .filter-item-tahapan select {
+    width: 100% !important;
+    font-weight: 700 !important;
+  }
+
+  .pengajuan-filter-bottom-info {
+    order: 3 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed #E2E8F0 !important;
+  }
+
+  .pengajuan-mobile-page-size {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 0.78rem !important;
+    color: #475569 !important;
+  }
+
+  .pengajuan-mobile-page-size select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 4px 22px 4px 10px;
+    border-radius: 8px;
+    border: 1px solid #CBD5E1;
+    background-color: #F8FAFC;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #0F172A;
+    cursor: pointer;
+  }
+
+  /* Rekap List: Hide heavy horizontal table on mobile, show sleek touch-friendly cards */
+  .rekap-desktop-table {
+    display: none !important;
+  }
+  .rekap-mobile-cards {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  .rekap-container {
+    gap: 14px !important;
+  }
+  .rekap-top-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .rekap-page-title {
+    font-size: 1.45rem !important;
+    font-family: inherit !important;
+    margin: 0 0 4px !important;
+  }
+  .rekap-page-subtitle {
+    font-size: 0.82rem !important;
+    line-height: 1.45 !important;
+  }
+  .rekap-subtab-toggle {
+    width: 100% !important;
+    display: flex !important;
+    background: #F1F5F9 !important;
+    padding: 4px !important;
+    border-radius: 12px !important;
+    border: 1px solid #E2E8F0 !important;
+    box-sizing: border-box !important;
+    gap: 4px !important;
+  }
+  .rekap-subtab-toggle button {
+    flex: 1 1 50% !important;
+    text-align: center !important;
+    padding: 8px 12px !important;
+    font-size: 0.84rem !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+  }
+  .rekap-main-card {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .rekap-section-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 10px !important;
+    padding: 0 2px !important;
+  }
+  .rekap-section-title {
+    font-family: inherit !important;
+    font-size: 0.94rem !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+  }
+  .rekap-section-badge {
+    font-size: 0.72rem !important;
+    padding: 3px 10px !important;
+    border-radius: 20px !important;
+    font-weight: 700 !important;
+  }
+}
+
+/* Rekap Base Styles (Desktop) */
+.rekap-desktop-table {
+  display: block;
+  width: 100%;
+}
+.rekap-mobile-cards {
+  display: none;
+}
+
+/* Base Styles (Desktop): Pengajuan Filter Bar, Mobile Cards, Desktop table */
+.pengajuan-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 2px 14px 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pengajuan-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pengajuan-page-size-desktop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.pengajuan-filter-divider {
+  height: 18px;
+  width: 1px;
+  background-color: #CBD5E1;
+}
+
+.pengajuan-filter-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.pengajuan-search-wrapper {
+  position: relative;
+  min-width: 220px;
+  max-width: 300px;
+  width: 100%;
+}
+
+.pengajuan-search-input {
+  width: 100%;
+  padding: 8px 34px 8px 36px;
+  border-radius: 9999px;
+  border: 1px solid #E2E8F0;
+  background-color: #FFFFFF;
+  font-size: 0.84rem;
+  color: #0F172A;
+  outline: none;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pengajuan-search-input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.pengajuan-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 9999px;
+  border: 1px solid #E2E8F0;
+  background-color: #FFFFFF;
+  font-size: 0.80rem;
+  font-weight: 600;
+  color: #0F172A;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: border-color 0.15s ease;
+  height: 34px;
+  box-sizing: border-box;
+}
+
+.pengajuan-filter-select:focus {
+  border-color: #2563EB;
+}
+
+.pengajuan-filter-bottom-info {
+  display: none;
+}
+.pengajuan-mobile-cards {
+  display: none;
+}
+.pengajuan-desktop-table {
+  display: block;
+  overflow: visible;
+  max-width: 100%;
+}
+
+/* Detail Applicant Meta Base Styles (Desktop) */
+.detail-applicant-meta-grid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.detail-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+/* Staff Dashboard Base Styles (Desktop) */
+.staff-pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+.staff-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 24px;
+}
+.pengajuan-table-container {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .staff-pipeline-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+}
+
+/* Base Styles: Terms Modal Subtitle Desktop vs Mobile */
+.terms-sub-mobile {
+  display: none;
+}
+.terms-sub-full {
+  display: inline;
+}
+
+/* MPC Terms & Conditions Official Document Styles (Global & Desktop) */
+.terms-pasal-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.terms-pasal-header {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 5px;
+  border-bottom: 1.5px solid #E2E8F0;
+}
+.terms-pasal-header::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 13px;
+  background-color: #005BB5;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.terms-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.terms-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+.terms-item-num {
+  font-weight: 700;
+  color: #0F172A;
+  min-width: 22px;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+.terms-item-text {
+  flex: 1;
+  min-width: 0;
+  color: #475569;
+}
+.terms-para {
+  margin: 0;
+  color: #475569;
+  font-size: 0.83rem;
+  line-height: 1.65;
+}
+.terms-code-tag {
+  background-color: #F1F5F9;
+  color: #0F172A;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid #E2E8F0;
+  font-weight: 600;
+  font-size: 0.85em;
+  font-family: inherit;
+  display: inline-block;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+.terms-code-highlight {
+  background-color: #EFF6FF;
+  color: #005BB5;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid #BFDBFE;
+  font-weight: 800;
+  font-size: 0.85em;
+  font-family: inherit;
+  display: inline-block;
+  line-height: 1.4;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
+}
+.terms-ordered-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+.terms-unordered-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+.terms-sim-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.terms-sim-chip {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.terms-sim-count {
+  font-size: 0.72rem;
+  color: #64748B;
+  font-weight: 600;
+}
+.terms-sim-val {
+  font-size: 0.84rem;
+  color: #047857;
+  font-weight: 800;
+  margin-top: 2px;
 }
 
 /* Candidate Table vs Mobile Cards Base Styles */
@@ -1975,4 +4076,67 @@ html, body, #root {
 
 .candidate-desktop-table {
   display: block;
+}
+
+/* Leaderboard Desktop Table vs Mobile List Base Styles (Desktop 100% Aman) */
+.leaderboard-desktop-table {
+  display: block;
+}
+.leaderboard-mobile-list {
+  display: none;
+}
+
+/* MPC Podium Desktop: Olympic Podium Layout (2 - 1 - 3) */
+@media (min-width: 769px) {
+  .mpc-podium-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1.08fr 1fr !important;
+    align-items: end !important;
+    gap: 14px !important;
+  }
+  .podium-card-2 {
+    order: 1 !important;
+  }
+  .podium-card-1 {
+    order: 2 !important;
+    margin-bottom: 8px !important;
+  }
+  .podium-card-3 {
+    order: 3 !important;
+  }
+}
+
+/* Struk Uploaded - Action Pulse & Glow Animations */
+@keyframes strukVerifyPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7), 0 2px 6px rgba(22, 163, 74, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(22, 163, 74, 0), 0 4px 14px rgba(22, 163, 74, 0.45);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0), 0 2px 6px rgba(22, 163, 74, 0.25);
+    transform: scale(1);
+  }
+}
+
+@keyframes strukAmberPulse {
+  0%, 100% {
+    border-color: #F59E0B;
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.35), 0 1px 3px rgba(245, 158, 11, 0.1);
+  }
+  50% {
+    border-color: #D97706;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.7), 0 2px 8px rgba(245, 158, 11, 0.25);
+  }
+}
+
+.btn-struk-verify {
+  animation: strukVerifyPulse 2s infinite ease-in-out;
+}
+
+.box-struk-waiting {
+  animation: strukAmberPulse 2.2s infinite ease-in-out;
 }

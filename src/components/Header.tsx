@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Pengajuan, StaffMaster } from '../types';
 import logoHitam from '../assets/mapahtrip_logo_hitam.png';
+import { handleImageFallback, getLogoHitamFallbacks } from '../utils/imageFallbacks';
 
 interface HeaderProps {
   searchQuery?: string;
@@ -174,6 +175,20 @@ export const Header: React.FC<HeaderProps> = ({
     onSelectPengajuan?.(item.pengajuanId);
   };
 
+  // Tutup Dropdown Notifikasi dengan tombol Esc / Escape
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDropdownOpen]);
+
   return (
     <header className="top-header">
       {/* Sisi Kiri: Tombol Menu Hamburger & Brand Logo Khusus Mobile */}
@@ -194,6 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
           <img
             src={logoHitam}
             alt="Logo MapahTrip"
+            onError={(e) => handleImageFallback(e, getLogoHitamFallbacks())}
             style={{ width: '28px', height: '28px', objectFit: 'contain' }}
           />
           <span
