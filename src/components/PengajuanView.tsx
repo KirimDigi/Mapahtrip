@@ -3162,25 +3162,26 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                   </div>
                 </div>
 
-                {/* Berkas Fisik Checklist (Grid Rapi Anti-Pecah Baris) */}
+                {/* Berkas Fisik Checklist (Option 1 Rapi Bersih Mobile) */}
                 {(() => {
                   const berkasList = [
-                    { label: 'Form', ok: Boolean(row.berkas?.formVisa || row.uploadedDocs?.formVisa) },
-                    { label: 'Paspor', ok: Boolean(row.berkas?.pasporFisik || row.uploadedDocs?.pasporFisik) },
-                    { label: 'Foto', ok: Boolean(row.berkas?.foto || row.fotoBase64 || row.uploadedDocs?.foto) },
-                    { label: 'KTP', ok: Boolean(row.berkas?.ktp || row.uploadedDocs?.ktp) },
-                    { label: 'COE', ok: Boolean(row.berkas?.coe || row.uploadedDocs?.coe) },
-                    { label: 'E-KTLN', ok: Boolean(row.berkas?.ektln || row.uploadedDocs?.ektln) },
+                    { label: 'Formulir Visa', short: 'Form', ok: Boolean(row.berkas?.formVisa || row.uploadedDocs?.formVisa) },
+                    { label: 'Paspor Fisik', short: 'Paspor', ok: Boolean(row.berkas?.pasporFisik || row.uploadedDocs?.pasporFisik) },
+                    { label: 'Pasfoto 3.5x4.5', short: 'Foto', ok: Boolean(row.berkas?.foto || row.fotoBase64 || row.uploadedDocs?.foto) },
+                    { label: 'KTP Asli / Scan', short: 'KTP', ok: Boolean(row.berkas?.ktp || row.uploadedDocs?.ktp) },
+                    { label: 'COE Dokumen', short: 'COE', ok: Boolean(row.berkas?.coe || row.uploadedDocs?.coe) },
+                    { label: 'E-KTLN Dokumen', short: 'E-KTLN', ok: Boolean(row.berkas?.ektln || row.uploadedDocs?.ektln) },
                   ];
                   const completeCount = berkasList.filter((b) => b.ok).length;
                   const isAllComplete = completeCount === berkasList.length;
+                  const missingCount = berkasList.length - completeCount;
 
                   return (
                     <div
                       style={{
                         backgroundColor: '#F8FAFC',
-                        padding: '8px 10px',
-                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '12px',
                         border: '1px solid #E2E8F0',
                       }}
                     >
@@ -3189,66 +3190,140 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          marginBottom: '6px',
+                          marginBottom: '8px',
                         }}
                       >
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>
-                          Berkas Fisik:
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569' }}>
+                          Kelengkapan Dokumen Fisik:
                         </span>
                         <span
                           style={{
-                            fontSize: '0.67rem',
-                            fontWeight: 700,
-                            color: isAllComplete ? '#15803D' : '#D97706',
-                            backgroundColor: isAllComplete ? '#DCFCE7' : '#FEF3C7',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            color: isAllComplete ? '#15803D' : '#B91C1C',
+                            backgroundColor: isAllComplete ? '#DCFCE7' : '#FEE2E2',
                             padding: '2px 8px',
                             borderRadius: '12px',
-                            border: `1px solid ${isAllComplete ? '#BBF7D0' : '#FDE68A'}`,
+                            border: `1px solid ${isAllComplete ? '#BBF7D0' : '#FECACA'}`,
                           }}
                         >
-                          {isAllComplete ? '✓ 6 Berkas Lengkap' : `${completeCount}/6 Berkas`}
+                          {isAllComplete ? '✓ Lengkap (6/6)' : `Kurang ${missingCount} Dokumen`}
                         </span>
                       </div>
 
+                      {/* 6 Circle Dots with tooltips */}
                       <div
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(6, 1fr)',
-                          gap: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '6px',
+                          padding: '6px 8px',
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: '8px',
+                          border: '1px solid #EEF2F6',
                         }}
                       >
                         {berkasList.map((b, bIdx) => (
                           <div
                             key={bIdx}
+                            title={`${b.label}: ${b.ok ? 'Sudah Ada' : 'Belum Ada'}`}
                             style={{
+                              flex: 1,
                               display: 'flex',
+                              flexDirection: 'column',
                               alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '2px',
-                              padding: '5px 2px',
-                              borderRadius: '6px',
-                              fontSize: '0.66rem',
-                              fontWeight: 700,
-                              whiteSpace: 'nowrap',
-                              backgroundColor: b.ok ? '#DCFCE7' : '#FEE2E2',
-                              color: b.ok ? '#15803D' : '#DC2626',
-                              border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
-                              textAlign: 'center',
-                              lineHeight: 1,
+                              gap: '3px',
                             }}
                           >
-                            <span>{b.label}</span>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800 }}>
-                              {b.ok ? '✓' : '✗'}
+                            <span
+                              style={{
+                                width: '22px',
+                                height: '22px',
+                                borderRadius: '50%',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.70rem',
+                                fontWeight: 800,
+                                background: b.ok ? '#DCFCE7' : '#FEE2E2',
+                                color: b.ok ? '#16A34A' : '#EF4444',
+                                border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                              }}
+                            >
+                              {b.ok ? '✓' : '!'}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.62rem',
+                                color: b.ok ? '#15803D' : '#64748B',
+                                fontWeight: b.ok ? 700 : 500,
+                              }}
+                            >
+                              {b.short}
                             </span>
                           </div>
                         ))}
                       </div>
+
+                      {/* Tombol Aksi Cepat jika ada berkas kurang */}
+                      {!isAllComplete && (
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                          {row.noTelp && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleSendCustomerWALink(e, row)}
+                              style={{
+                                flex: 1,
+                                padding: '6px 8px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                borderRadius: '6px',
+                                backgroundColor: '#F0FDF4',
+                                border: '1px solid #86EFAC',
+                                color: '#15803D',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                              }}
+                              title="Kirim pesan WhatsApp pengingat berkas yang kurang & tautan upload mandiri untuk customer"
+                            >
+                              <span>📲</span>
+                              <span>Minta via WA</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyCustomerLink(e, row)}
+                            style={{
+                              flex: 1,
+                              padding: '6px 8px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderRadius: '6px',
+                              backgroundColor: copiedLinkRowId === row.id ? '#DCFCE7' : '#EFF6FF',
+                              border: `1px solid ${copiedLinkRowId === row.id ? '#86EFAC' : '#BFDBFE'}`,
+                              color: copiedLinkRowId === row.id ? '#15803D' : '#1D4ED8',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                            }}
+                            title="Salin tautan upload mandiri untuk customer"
+                          >
+                            <span>{copiedLinkRowId === row.id ? '✓' : '🔗'}</span>
+                            <span>{copiedLinkRowId === row.id ? 'Link Tersalin' : 'Salin Link Upload'}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
 
-                {/* Status 4 Tahapan Ceklis */}
+                {/* Status 4 Tahapan Ceklis (2x2 Grid Elegan & Mudah Ditap) */}
                 <div>
                   <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Tahapan Status (Klik untuk Update):
@@ -3272,86 +3347,126 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       <span>DITOLAK: {st.alasanPenolakan || 'Berkas Tidak Lengkap'}</span>
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
-                      {stageItems.map((s) => (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                      {stageItems.map((s, sIdx) => (
                         <div
                           key={s.key}
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
-                            alignItems: 'center',
+                            justifyContent: 'space-between',
                             backgroundColor: s.ok ? s.bg : '#F8FAFC',
                             border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
-                            borderRadius: '8px',
-                            padding: '5px 2px',
+                            borderRadius: '10px',
+                            padding: '8px 10px',
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleStage(row, s.key);
-                            }}
-                            style={{
-                              width: '100%',
-                              border: 'none',
-                              background: 'transparent',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '2px',
-                              fontSize: '0.72rem',
-                              fontWeight: 800,
-                              color: s.ok ? s.color : '#94A3B8',
-                              padding: '1px 0',
-                            }}
-                          >
-                            <span>{s.ok ? '✓' : '○'}</span>
-                            <span>{s.label}</span>
-                          </button>
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (s.ok) handleEditStageDate(row, s.key, s.date || '');
-                            }}
-                            style={{
-                              fontSize: '0.64rem',
-                              fontFamily: 'monospace',
-                              color: s.ok ? s.color : '#CBD5E1',
-                              fontWeight: s.ok ? 700 : 500,
-                              lineHeight: 1.1,
-                              marginTop: '2px',
-                            }}
-                          >
-                            {s.ok ? (s.date || getTodayFormatted()) : '-'}
-                          </span>
-                          {s.key === 'kirim' && st.noResi && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleStage(row, s.key);
+                              }}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                color: s.ok ? s.color : '#64748B',
+                                padding: 0,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  borderRadius: '50%',
+                                  backgroundColor: s.ok ? s.color : '#CBD5E1',
+                                  color: '#FFFFFF',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {s.ok ? '✓' : sIdx + 1}
+                              </span>
+                              <span>{s.label}</span>
+                            </button>
+
+                            {s.ok && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditStageDate(row, s.key, s.date || '');
+                                }}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  cursor: 'pointer',
+                                  fontSize: '0.68rem',
+                                  color: s.color,
+                                  padding: '2px',
+                                  borderRadius: '4px',
+                                }}
+                                title="Ubah tanggal"
+                              >
+                                ✎
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', minHeight: '18px' }}>
                             <span
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openKirimModal(row);
+                                if (s.ok) handleEditStageDate(row, s.key, s.date || '');
                               }}
                               style={{
-                                fontSize: '0.62rem',
-                                fontWeight: 700,
-                                color: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#1E40AF' : '#6D28D9',
-                                backgroundColor: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#EFF6FF' : '#EDE9FE',
-                                border: `1px solid ${(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#BFDBFE' : '#DDD6FE'}`,
-                                padding: '1px 4px',
-                                borderRadius: '3px',
-                                marginTop: '3px',
-                                whiteSpace: 'nowrap',
-                                maxWidth: '70px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                cursor: 'pointer',
+                                fontSize: '0.68rem',
+                                fontFamily: 'monospace',
+                                color: s.ok ? s.color : '#94A3B8',
+                                fontWeight: s.ok ? 700 : 500,
+                                cursor: s.ok ? 'pointer' : 'default',
                               }}
                             >
-                              ✈️ {st.noResi}
+                              {s.ok ? (s.date || getTodayFormatted()) : 'Belum'}
                             </span>
-                          )}
+
+                            {s.key === 'kirim' && st.noResi && (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openKirimModal(row);
+                                }}
+                                style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 700,
+                                  color: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#1E40AF' : '#6D28D9',
+                                  backgroundColor: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#EFF6FF' : '#EDE9FE',
+                                  border: `1px solid ${(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#BFDBFE' : '#DDD6FE'}`,
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  maxWidth: '85px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={st.noResi}
+                              >
+                                ✈️ {st.noResi}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -3365,7 +3480,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     className="btn btn-primary"
                     onClick={() => onSelectPengajuan(row.id)}
                     style={{
-                      flex: 1,
+                      flex: 2,
                       padding: '8px 12px',
                       fontSize: '0.82rem',
                       fontWeight: 700,
@@ -3377,7 +3492,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>visibility</span>
-                    <span>Buka Rincian Lengkap</span>
+                    <span>Buka Rincian</span>
                   </button>
 
                   {st.currentStatus === 'Ditolak' ? (
@@ -3385,6 +3500,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       type="button"
                       onClick={() => handleTolakPengajuan(row)}
                       style={{
+                        flex: 1,
                         padding: '8px 12px',
                         fontSize: '0.78rem',
                         borderRadius: '8px',
@@ -3395,6 +3511,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '4px',
                       }}
                     >
@@ -3406,6 +3523,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       type="button"
                       onClick={() => handleTolakPengajuan(row)}
                       style={{
+                        flex: 1,
                         padding: '8px 12px',
                         fontSize: '0.78rem',
                         borderRadius: '8px',
@@ -3416,6 +3534,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '4px',
                       }}
                     >
