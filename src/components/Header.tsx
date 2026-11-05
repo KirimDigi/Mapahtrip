@@ -14,6 +14,8 @@ interface HeaderProps {
   currentStaff?: StaffMaster | null;
   activeTab?: string;
   onToggleMobileMenu?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 interface NotificationItem {
@@ -35,6 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentStaff = null,
   activeTab = 'dashboard',
   onToggleMobileMenu,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [filterType, setFilterType] = useState<'all' | 'new' | 'action'>('all');
@@ -191,8 +195,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="top-header">
-      {/* Sisi Kiri: Tombol Menu Hamburger & Brand Logo Khusus Mobile */}
+      {/* Sisi Kiri: Tombol Menu Hamburger Desktop & Mobile, serta Brand Logo Khusus Mobile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Tombol Hamburger Khusus Mobile (Membuka drawer mobile) */}
         <button
           type="button"
           className="mobile-menu-btn"
@@ -202,6 +207,41 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
             menu
+          </span>
+        </button>
+
+        {/* Tombol Hamburger / Close Khusus Desktop (Menciutkan / Melebarkan Sidebar) */}
+        <button
+          type="button"
+          className="desktop-sidebar-toggle"
+          onClick={onToggleSidebar}
+          title={isSidebarCollapsed ? 'Perluas Menu Navigasi' : 'Ciutkan Menu Navigasi (Compact)'}
+          aria-label={isSidebarCollapsed ? 'Perluas Menu Navigasi' : 'Ciutkan Menu Navigasi (Compact)'}
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            border: '1px solid #E2E8F0',
+            backgroundColor: isSidebarCollapsed ? '#EFF6FF' : '#FFFFFF',
+            color: isSidebarCollapsed ? '#2563EB' : '#475569',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s ease',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = isSidebarCollapsed ? '#DBEAFE' : '#F8FAFC';
+            e.currentTarget.style.borderColor = '#CBD5E1';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = isSidebarCollapsed ? '#EFF6FF' : '#FFFFFF';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+            {isSidebarCollapsed ? 'close' : 'menu'}
           </span>
         </button>
 

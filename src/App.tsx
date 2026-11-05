@@ -332,6 +332,24 @@ export function App() {
   }, []);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('mapahtrip_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('mapahtrip_sidebar_collapsed', next ? 'true' : 'false');
+      } catch {}
+      return next;
+    });
+  };
 
   const handleSelectTab = (tab: NavItemKey) => {
     // If selecting financial tab and not authenticated as owner, block it
@@ -641,7 +659,7 @@ export function App() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Mobile Backdrop Overlay */}
       {isMobileMenuOpen && (
         <div
@@ -667,6 +685,7 @@ export function App() {
         onLogout={handleLogout}
         isMobileOpen={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        isCollapsed={isSidebarCollapsed}
       />
 
       {/* Main Workspace */}
@@ -685,6 +704,8 @@ export function App() {
           isOwner={isOwnerMode}
           currentStaff={currentStaff}
           onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
         />
 
         <main className="page-body">

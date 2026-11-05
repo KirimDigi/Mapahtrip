@@ -164,6 +164,11 @@ body {
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 1px 0 10px rgba(0, 0, 0, 0.02);
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar.is-collapsed {
+  width: 72px;
 }
 
 .main-content {
@@ -172,6 +177,18 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-layout.sidebar-collapsed .main-content {
+  margin-left: 72px;
+  width: calc(100% - 72px);
+}
+
+.desktop-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .top-header {
@@ -1783,6 +1800,10 @@ html, body, #root {
 }
 
 @media (max-width: 900px) {
+  .desktop-sidebar-toggle {
+    display: none !important;
+  }
+
   /* Backdrop overlay when mobile drawer is open */
   .mobile-backdrop {
     display: block !important;
