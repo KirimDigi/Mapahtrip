@@ -348,15 +348,29 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
     if (stage === 'sampai') {
       if (stages.isSampai) {
+        // Cek apakah tahap berikutnya masih aktif
+        if (stages.isProses || stages.isSelesai || stages.isKirim) {
+          const nextStage = stages.isKirim ? 'Kirim' : stages.isSelesai ? 'Selesai' : 'Proses';
+          alert(
+            `⚠️ Tidak Dapat Membatalkan Tahap 1 (Sampai)!\n\n` +
+            `Pengajuan berkas atas nama "${item.namaPemohon}" saat ini sudah berada di tahap selanjutnya (${nextStage}).\n\n` +
+            `Harap batalkan tahap "${nextStage}" terlebih dahulu secara berurutan.`
+          );
+          return;
+        }
+
         const confirmBatal = window.confirm(
           `⚠️ Batalkan Status Berkas Sampai?\n\nApakah Anda yakin ingin membatalkan status berkas fisik sampai untuk pengajuan atas nama "${item.namaPemohon}"?`
         );
         if (!confirmBatal) return;
         newStages.tglSampai = '';
+        if (newStatus === 'Sedang Diproses') {
+          newStatus = 'Menunggu Verifikasi';
+        }
       } else {
         const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
         const konfirmasi = window.confirm(
-          `⚠️ KONFIRMASI BERKAS FISIK SAMPAI DI KANTOR\n\n` +
+          `⚠️ KONFIRMASI BERKAS FISIK SAMPAI DI KANTOR (TAHAP 1)\n\n` +
           `Anda akan menandai bahwa berkas fisik & paspor asli telah SAMPAI di kantor MapahTrip:\n` +
           `• Nama Pemohon : ${item.namaPemohon}\n` +
           `• No. Paspor   : ${item.noPaspor}\n` +
@@ -368,10 +382,24 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         if (!konfirmasi) return;
 
         newStages.tglSampai = today;
+        if (!newStatus) {
+          newStatus = 'Menunggu Verifikasi';
+        }
         shouldSendWASampai = true;
       }
     } else if (stage === 'proses') {
       if (stages.isProses) {
+        // Cek apakah tahap berikutnya masih aktif
+        if (stages.isSelesai || stages.isKirim) {
+          const nextStage = stages.isKirim ? 'Kirim' : 'Selesai';
+          alert(
+            `⚠️ Tidak Dapat Membatalkan Tahap 2 (Proses)!\n\n` +
+            `Pengajuan visa atas nama "${item.namaPemohon}" saat ini sudah berada di tahap selanjutnya (${nextStage}).\n\n` +
+            `Harap batalkan tahap "${nextStage}" terlebih dahulu secara berurutan.`
+          );
+          return;
+        }
+
         const confirmBatal = window.confirm(
           `⚠️ Batalkan Status Proses?\n\nApakah Anda yakin ingin membatalkan status SEDANG DIPROSES untuk pengajuan atas nama "${item.namaPemohon}"?`
         );
@@ -381,13 +409,23 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           newStatus = 'Menunggu Verifikasi';
         }
       } else {
+        // VALIDASI URUTAN: Tahap 1 (Sampai) harus selesai terlebih dahulu
+        if (!stages.isSampai) {
+          alert(
+            `⚠️ TAHAPAN HARUS BERURUTAN!\n\n` +
+            `Tahap 1 (Berkas Sampai di Kantor) harus diselesaikan terlebih dahulu sebelum dapat melanjutkan ke Tahap 2 (Sedang Diproses di Kedutaan/JVAC).\n\n` +
+            `Silakan tandai Berkas Sampai terlebih dahulu.`
+          );
+          return;
+        }
+
         const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
         const isBelumLunas = item.statusPembayaran === 'Menunggu Pembayaran';
         const warningBayar = isBelumLunas
           ? `\n\n⚠️ PERHATIAN STATUS PEMBAYARAN:\nStatus pemohon ini masih "Menunggu Pembayaran" (Belum Lunas).\nPastikan pembayaran telah dikonfirmasi kantor sebelum berkas diajukan ke JVAC/Kedutaan!`
           : '';
         const konfirmasi = window.confirm(
-          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES?\n\n` +
+          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES? (TAHAP 2)\n\n` +
           `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
           `• Nama Pemohon : ${item.namaPemohon}\n` +
           `• No. Paspor   : ${item.noPaspor}\n` +
@@ -400,12 +438,21 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         if (!konfirmasi) return;
 
         newStages.tglProses = today;
-        if (!stages.isSampai) newStages.tglSampai = today;
         newStatus = 'Sedang Diproses';
         shouldSendWAProses = true;
       }
     } else if (stage === 'selesai') {
       if (stages.isSelesai) {
+        // Cek apakah tahap Kirim sudah aktif
+        if (stages.isKirim) {
+          alert(
+            `⚠️ Tidak Dapat Membatalkan Tahap 3 (Selesai)!\n\n` +
+            `Paspor atas nama "${item.namaPemohon}" saat ini sudah berstatus Kirim / Handover.\n\n` +
+            `Harap batalkan status Kirim terlebih dahulu sebelum membatalkan status Selesai.`
+          );
+          return;
+        }
+
         const confirmBatal = window.confirm(
           `⚠️ Batalkan Status Selesai?\n\nApakah Anda yakin ingin membatalkan status SELESAI untuk pengajuan atas nama "${item.namaPemohon}"?`
         );
@@ -415,10 +462,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           newStatus = stages.isProses ? 'Sedang Diproses' : 'Menunggu Verifikasi';
         }
       } else {
+        // VALIDASI URUTAN: Tahap 2 (Proses) harus selesai terlebih dahulu
+        if (!stages.isProses) {
+          alert(
+            `⚠️ TAHAPAN HARUS BERURUTAN!\n\n` +
+            `Tahap 2 (Sedang Diproses di Kedutaan) harus diselesaikan terlebih dahulu sebelum menandai Visa Terbit / Selesai (Tahap 3).\n\n` +
+            `Silakan selesaikan Tahap 2 (Proses) terlebih dahulu.`
+          );
+          return;
+        }
+
         const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
         const konfirmasi = window.confirm(
-          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI?\n\n` +
-          `Anda akan menandai pengajuan visa ini sebagai SELESAI:\n` +
+          `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH SELESAI? (TAHAP 3)\n\n` +
+          `Anda akan menandai pengajuan visa ini sebagai SELESAI (Visa Terbit):\n` +
           `• Nama Pemohon : ${item.namaPemohon}\n` +
           `• No. Paspor   : ${item.noPaspor}\n` +
           `• No. WhatsApp : ${noWa}\n\n` +
@@ -429,8 +486,6 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         if (!konfirmasi) return;
 
         newStages.tglSelesai = today;
-        if (!stages.isSampai) newStages.tglSampai = today;
-        if (!stages.isProses) newStages.tglProses = today;
         newStatus = 'Selesai';
         shouldSendWASelesai = true;
       }
@@ -442,7 +497,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         if (!confirmBatal) return;
         newStages.tglKirim = '';
         newStages.noResi = '';
+        newStatus = 'Selesai';
       } else {
+        // VALIDASI URUTAN: Tahap 3 (Selesai) harus selesai terlebih dahulu
+        if (!stages.isSelesai) {
+          alert(
+            `⚠️ TAHAPAN HARUS BERURUTAN!\n\n` +
+            `Tahap 3 (Visa Terbit / Selesai) harus diselesaikan terlebih dahulu sebelum paspor dapat dikirimkan ke customer atau diserahterimakan (Tahap 4).\n\n` +
+            `Silakan selesaikan Tahap 3 (Selesai) terlebih dahulu.`
+          );
+          return;
+        }
+
         openKirimModal(item);
         return;
       }
@@ -503,14 +569,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     try {
       const numId = Number(item.id);
       if (!isNaN(numId)) {
+        const finalSampai = newStages.tglSampai !== undefined ? newStages.tglSampai : (stages.tglSampai || '');
+        const finalProses = newStages.tglProses !== undefined ? newStages.tglProses : (stages.tglProses || '');
+        const finalSelesai = newStages.tglSelesai !== undefined ? newStages.tglSelesai : (stages.tglSelesai || '');
+        const finalKirim = newStages.tglKirim !== undefined ? newStages.tglKirim : (stages.tglKirim || '');
+        const finalResi = newStages.noResi !== undefined ? newStages.noResi : (stages.noResi || '');
+
         await supabase
           .from('pengajuan_visa')
           .update({
-            tgl_sampai: newStages.tglSampai || null,
-            tgl_proses: newStages.tglProses || null,
-            tgl_selesai: newStages.tglSelesai || null,
-            tgl_kirim: newStages.tglKirim || null,
-            resi_pengiriman: newStages.noResi || null,
+            tgl_sampai: finalSampai || null,
+            tgl_proses: finalProses || null,
+            tgl_selesai: finalSelesai || null,
+            tgl_kirim: finalKirim || null,
+            resi_pengiriman: finalResi || null,
             status: newStatus,
             updated_at: new Date().toISOString(),
           })
@@ -760,10 +832,19 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
   const handleConfirmKirim = async () => {
     if (!kirimModalItem) return;
+    const stages = getCandidateStages(kirimModalItem);
+
+    if (!stages.isSelesai) {
+      alert(
+        `⚠️ TAHAPAN HARUS BERURUTAN!\n\n` +
+        `Tahap 3 (Visa Terbit / Selesai) harus diselesaikan terlebih dahulu sebelum paspor dapat disimpan sebagai Kirim/Handover (Tahap 4).`
+      );
+      return;
+    }
+
     setIsSavingKirim(true);
 
     const today = getTodayFormatted();
-    const stages = getCandidateStages(kirimModalItem);
     const newStages = { ...(localStageOverrides[kirimModalItem.id] || {}) };
     let resiFinal = '';
 
@@ -783,9 +864,6 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
     newStages.tglKirim = today;
     newStages.noResi = resiFinal;
-    if (!stages.isSampai) newStages.tglSampai = today;
-    if (!stages.isProses) newStages.tglProses = today;
-    if (!stages.isSelesai) newStages.tglSelesai = today;
     const newStatus: StatusPengajuan = 'Selesai';
     newStages.status = newStatus;
 
@@ -842,12 +920,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     try {
       const numId = Number(kirimModalItem.id);
       if (!isNaN(numId)) {
+        const finalSampai = newStages.tglSampai !== undefined ? newStages.tglSampai : (stages.tglSampai || '');
+        const finalProses = newStages.tglProses !== undefined ? newStages.tglProses : (stages.tglProses || '');
+        const finalSelesai = newStages.tglSelesai !== undefined ? newStages.tglSelesai : (stages.tglSelesai || '');
+
         await supabase
           .from('pengajuan_visa')
           .update({
-            tgl_sampai: newStages.tglSampai || null,
-            tgl_proses: newStages.tglProses || null,
-            tgl_selesai: newStages.tglSelesai || null,
+            tgl_sampai: finalSampai || null,
+            tgl_proses: finalProses || null,
+            tgl_selesai: finalSelesai || null,
             tgl_kirim: today,
             resi_pengiriman: resiFinal,
             status: newStatus,
@@ -1348,14 +1430,6 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       {/* Top Header & Action */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>
-              folder_shared
-            </span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--primary)' }}>
-              Manajemen Dokumen &amp; Status
-            </span>
-          </div>
           <h1 className="font-serif" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--on-surface)' }}>
             Daftar Pengajuan Visa
           </h1>
@@ -1984,9 +2058,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               }}
               title="Filter status pembayaran pemohon"
             >
-              <option value="Semua">Semua Status Bayar</option>
-              <option value="Lunas">✓ Sudah Lunas ({stageCounts.lunas})</option>
-              <option value="Menunggu Pembayaran">⏳ Belum Bayar ({stageCounts.belumBayar})</option>
+              <option value="Semua">Status Bayar</option>
+              <option value="Lunas">✓ Lunas ({stageCounts.lunas})</option>
+              <option value="Menunggu Pembayaran">⏳ Belum ({stageCounts.belumBayar})</option>
             </select>
             <span
               className="material-symbols-outlined"
@@ -2251,11 +2325,15 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             ) : (
               paginatedData.map((row, index) => {
                 const st = getCandidateStages(row);
+                const isProsesLocked = !st.isSampai && !st.isProses;
+                const isSelesaiLocked = !st.isProses && !st.isSelesai;
+                const isKirimLocked = !st.isSelesai && !st.isKirim;
+
                 const stageItems = [
-                  { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
-                  { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
-                  { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
-                  { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
+                  { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', isLocked: false },
+                  { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', isLocked: isProsesLocked },
+                  { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', isLocked: isSelesaiLocked },
+                  { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', isLocked: isKirimLocked },
                 ];
 
                 return (
@@ -2284,10 +2362,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             style={{
                               width: '38px',
                               height: '38px',
-                              borderRadius: '50%',
+                              borderRadius: '10px',
                               objectFit: 'cover',
-                              border: '2px solid #16A34A',
-                              boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
+                              border: '1px solid #CBD5E1',
+                              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
                               cursor: 'pointer',
                               flexShrink: 0,
                             }}
@@ -2298,15 +2376,17 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             style={{
                               width: '36px',
                               height: '36px',
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
-                              color: '#fff',
+                              borderRadius: '10px',
+                              backgroundColor: '#EFF6FF',
+                              border: '1px solid #DBEAFE',
+                              color: '#1D4ED8',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontWeight: 700,
-                              fontSize: '0.8rem',
+                              fontWeight: 800,
+                              fontSize: '0.84rem',
                               flexShrink: 0,
+                              boxShadow: '0 1px 2px rgba(37, 99, 235, 0.06)',
                             }}
                           >
                             {row.namaPemohon
@@ -2318,8 +2398,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         )}
                         <div>
                           <div
-                            style={{ fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem' }}
+                            style={{ fontWeight: 800, color: '#0F172A', cursor: 'pointer', fontSize: '0.86rem', transition: 'color 0.15s' }}
                             onClick={() => onSelectPengajuan(row.id)}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#2563EB')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = '#0F172A')}
                             title="Klik untuk lihat detail"
                           >
                             {row.namaPemohon}
@@ -2333,9 +2415,32 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                             {row.noTelp && (
-                              <span style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: 600 }}>
-                                WA: {row.noTelp}
-                              </span>
+                              <a
+                                href={`https://wa.me/${row.noTelp.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  color: '#475569',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
+                                  transition: 'color 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.color = '#15803D')}
+                                onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
+                                title="Klik untuk langsung chat WhatsApp pemohon"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
+                                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.54 1.769.782 2.791.782h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.182-2.585-5.768-5.769-5.768zm3.376 8.163c-.141.396-.713.725-1.021.76-.299.034-.689.147-2.27-.478-1.579-.623-2.58-2.23-2.658-2.336-.079-.105-.639-.851-.639-1.624 0-.773.407-1.154.551-1.31.144-.156.315-.195.42-.195.105 0 .21.001.302.006.098.005.228-.037.356.271.132.316.452 1.104.492 1.185.04.081.066.176.013.281-.053.106-.079.172-.158.264-.079.092-.166.205-.237.276-.08.079-.163.165-.07.325.093.16.413.681.887 1.102.61.543 1.124.71 1.284.79.16.08.254.067.348-.04.094-.107.404-.47.512-.631.108-.161.216-.134.364-.08.148.054.938.442 1.099.522.16.08.267.12.306.186.039.066.039.382-.102.778z"/>
+                                  <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.98-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.156c-1.636 0-3.155-.472-4.436-1.285l-.318-.202-2.955.775.789-2.88-.22-.35A8.109 8.109 0 013.844 12c0-4.497 3.659-8.156 8.156-8.156 4.497 0 8.156 3.659 8.156 8.156 0 4.497-3.659 8.156-8.156 8.156z"/>
+                                </svg>
+                                <span>{row.noTelp}</span>
+                              </a>
                             )}
                             {row.fotoBase64 && (
                               <button
@@ -2345,9 +2450,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` });
                                 }}
                                 style={{
-                                  background: '#DCFCE7',
-                                  color: '#15803D',
-                                  border: '1px solid #BBF7D0',
+                                  background: '#F1F5F9',
+                                  color: '#334155',
+                                  border: '1px solid #CBD5E1',
                                   borderRadius: '4px',
                                   padding: '1px 5px',
                                   fontSize: '0.68rem',
@@ -2365,9 +2470,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             {row.uploadedDocs && Object.keys(row.uploadedDocs).length > 0 && (
                               <span
                                 style={{
-                                  background: '#EFF6FF',
-                                  color: '#1E40AF',
-                                  border: '1px solid #DBEAFE',
+                                  background: '#F8FAFC',
+                                  color: '#334155',
+                                  border: '1px solid #E2E8F0',
                                   borderRadius: '4px',
                                   padding: '1px 5px',
                                   fontSize: '0.68rem',
@@ -2389,7 +2494,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         {getPaketBadge(row.paket)}
                       </div>
                       <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ color: '#0F172A', fontWeight: 600 }}>📍 {row.konsjen}</span>
+                        <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
                         <span>•</span>
                         <span>PIC: {row.staffPic.split(' ')[0]}</span>
                       </div>
@@ -2413,7 +2518,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
                             {/* 6 Dots Bulat */}
-                            <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
                               {berkasList.map((b, bIdx) => (
                                 <span
                                   key={bIdx}
@@ -2425,14 +2530,14 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '8px',
+                                    fontSize: '8.5px',
                                     fontWeight: 800,
-                                    background: b.ok ? '#DCFCE7' : '#FEE2E2',
-                                    color: b.ok ? '#16A34A' : '#EF4444',
-                                    border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                                    background: '#F8FAFC',
+                                    color: b.ok ? '#16A34A' : '#DC2626',
+                                    border: '1px solid #E2E8F0',
                                   }}
                                 >
-                                  {b.ok ? '✓' : '!'}
+                                  {b.ok ? '✓' : '✕'}
                                 </span>
                               ))}
                             </div>
@@ -2442,11 +2547,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               <span
                                 style={{
                                   fontSize: '0.62rem',
-                                  fontWeight: 800,
-                                  color: '#15803D',
-                                  backgroundColor: '#DCFCE7',
-                                  border: '1px solid #BBF7D0',
-                                  borderRadius: '4px',
+                                  fontWeight: 700,
+                                  color: '#059669',
+                                  backgroundColor: '#ECFDF5',
+                                  border: '1px solid #A7F3D0',
+                                  borderRadius: '6px',
                                   padding: '1px 6px',
                                   whiteSpace: 'nowrap',
                                   marginTop: '1px',
@@ -2459,13 +2564,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 {/* Badge Kurang X Berkas */}
                                 <span
                                   style={{
-                                    fontSize: '0.60rem',
-                                    fontWeight: 800,
-                                    color: '#B91C1C',
-                                    backgroundColor: '#FEF2F2',
-                                    border: '1px solid #FECACA',
-                                    borderRadius: '4px',
-                                    padding: '1px 5px',
+                                    fontSize: '0.62rem',
+                                    fontWeight: 700,
+                                    color: '#E11D48',
+                                    backgroundColor: '#FFF1F2',
+                                    border: '1px solid #FFE4E6',
+                                    borderRadius: '6px',
+                                    padding: '1px 6px',
                                     whiteSpace: 'nowrap',
                                     marginTop: '1px',
                                   }}
@@ -2473,7 +2578,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   Kurang {missingCount} Berkas
                                 </span>
 
-                                {/* Tombol Aksi Cepat: Minta via WA & Salin Link */}
+                                {/* Tombol Aksi Cepat: Seragam, Netral & Rapi */}
                                 <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
                                   {row.noTelp && (
                                     <button
@@ -2484,16 +2589,19 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                         fontSize: '0.62rem',
                                         fontWeight: 700,
                                         borderRadius: '4px',
-                                        backgroundColor: '#F0FDF4',
-                                        border: '1px solid #86EFAC',
-                                        color: '#15803D',
+                                        backgroundColor: '#F8FAFC',
+                                        border: '1px solid #CBD5E1',
+                                        color: '#334155',
                                         cursor: 'pointer',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: '2px',
                                         whiteSpace: 'nowrap',
+                                        transition: 'all 0.15s ease',
                                       }}
                                       title="Kirim pesan WhatsApp pengingat berkas yang kurang & tautan upload mandiri untuk customer"
+                                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
+                                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
                                     >
                                       <span>📲</span>
                                       <span>Minta via WA</span>
@@ -2507,16 +2615,23 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                       fontSize: '0.62rem',
                                       fontWeight: 700,
                                       borderRadius: '4px',
-                                      backgroundColor: copiedLinkRowId === row.id ? '#DCFCE7' : '#EFF6FF',
-                                      border: `1px solid ${copiedLinkRowId === row.id ? '#86EFAC' : '#BFDBFE'}`,
-                                      color: copiedLinkRowId === row.id ? '#15803D' : '#1D4ED8',
+                                      backgroundColor: copiedLinkRowId === row.id ? '#ECFDF5' : '#F8FAFC',
+                                      border: `1px solid ${copiedLinkRowId === row.id ? '#A7F3D0' : '#CBD5E1'}`,
+                                      color: copiedLinkRowId === row.id ? '#059669' : '#334155',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '2px',
                                       whiteSpace: 'nowrap',
+                                      transition: 'all 0.15s ease',
                                     }}
                                     title="Salin tautan upload mandiri untuk customer"
+                                    onMouseEnter={(e) => {
+                                      if (copiedLinkRowId !== row.id) e.currentTarget.style.backgroundColor = '#F1F5F9';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (copiedLinkRowId !== row.id) e.currentTarget.style.backgroundColor = '#F8FAFC';
+                                    }}
                                   >
                                     <span>{copiedLinkRowId === row.id ? '✓' : '🔗'}</span>
                                     <span>{copiedLinkRowId === row.id ? 'Tersalin' : 'Salin Link'}</span>
@@ -2538,21 +2653,37 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '6px',
-                            backgroundColor: '#FEF2F2',
-                            border: '1px solid #FECACA',
+                            backgroundColor: 'rgba(239, 68, 68, 0.04)',
+                            border: '1px solid rgba(239, 68, 68, 0.22)',
                             borderRadius: '8px',
                             padding: '6px 8px',
-                            color: '#B91C1C',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
                             maxWidth: '260px',
                             margin: '0 auto',
+                            lineHeight: 1.3,
                           }}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#EF4444' }}>
-                            cancel
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              color: '#DC2626',
+                              fontWeight: 800,
+                              fontSize: '0.68rem',
+                              flexShrink: 0,
+                              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#DC2626' }}>
+                              cancel
+                            </span>
+                            DITOLAK
                           </span>
-                          <span>DITOLAK: {st.alasanPenolakan || 'Berkas Tidak Lengkap / Waktu Mepet'}</span>
+                          <span style={{ color: '#334155', fontWeight: 600, fontSize: '0.72rem', textAlign: 'left', wordBreak: 'break-word' }}>
+                            {st.alasanPenolakan || 'Berkas Tidak Lengkap / Waktu Mepet'}
+                          </span>
                         </div>
                       ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', width: '100%' }}>
@@ -2563,14 +2694,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
-                                backgroundColor: s.ok ? s.bg : '#F8FAFC',
-                                border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
+                                backgroundColor: s.ok ? '#FFFFFF' : '#F8FAFC',
+                                border: s.ok ? `1.5px solid ${s.color}60` : '1px solid #E2E8F0',
                                 borderRadius: '6px',
                                 padding: '3px 2px',
                                 transition: 'all 0.15s ease',
                                 minWidth: 0,
                                 overflow: 'hidden',
                                 boxSizing: 'border-box',
+                                boxShadow: s.ok ? '0 1px 2px rgba(0,0,0,0.03)' : 'none',
+                                opacity: s.isLocked ? 0.6 : 1,
                               }}
                             >
                               <button
@@ -2579,24 +2712,28 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   e.stopPropagation();
                                   handleToggleStage(row, s.key);
                                 }}
-                                title={`Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} tahap ${s.label}`}
+                                title={
+                                  s.isLocked
+                                    ? `⚠️ Tahap sebelumnya belum selesai (Wajib berurutan)`
+                                    : `Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} tahap ${s.label}`
+                                }
                                 style={{
                                   width: '100%',
                                   border: 'none',
                                   background: 'transparent',
-                                  cursor: 'pointer',
+                                  cursor: s.isLocked ? 'not-allowed' : 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '2px',
                                   fontSize: '0.72rem',
                                   fontWeight: 800,
-                                  color: s.ok ? s.color : '#94A3B8',
+                                  color: s.ok ? '#0F172A' : (s.isLocked ? '#CBD5E1' : '#94A3B8'),
                                   padding: '1px 0',
                                 }}
                               >
-                                <span>{s.ok ? '✓' : '○'}</span>
-                                <span>{s.label}</span>
+                                <span style={{ color: s.ok ? s.color : (s.isLocked ? '#CBD5E1' : '#CBD5E1'), fontSize: '0.70rem' }}>{s.ok ? '✓' : '○'}</span>
+                                <span style={{ color: s.ok ? '#0F172A' : (s.isLocked ? '#94A3B8' : '#64748B') }}>{s.label}</span>
                               </button>
                               <span
                                 onClick={(e) => {
@@ -2607,7 +2744,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 style={{
                                   fontSize: '0.65rem',
                                   fontFamily: 'monospace',
-                                  color: s.ok ? s.color : '#CBD5E1',
+                                  color: s.ok ? '#475569' : '#CBD5E1',
                                   fontWeight: s.ok ? 700 : 500,
                                   cursor: s.ok ? 'pointer' : 'default',
                                   textDecoration: s.ok ? 'underline dotted' : 'none',
@@ -2625,11 +2762,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                     openKirimModal(row);
                                   }}
                                   style={{
-                                    fontSize: '0.62rem',
+                                    fontSize: '0.60rem',
                                     fontWeight: 700,
-                                    color: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '#1E40AF' : '#6D28D9',
-                                    backgroundColor: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '#EFF6FF' : '#EDE9FE',
-                                    border: `1px solid ${(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '#BFDBFE' : '#DDD6FE'}`,
+                                    color: '#0F172A',
+                                    backgroundColor: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
                                     padding: '0 4px',
                                     borderRadius: '3px',
                                     marginTop: '2px',
@@ -2640,6 +2777,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                     textOverflow: 'ellipsis',
                                     display: 'inline-block',
                                     cursor: 'pointer',
+                                    fontFamily: 'monospace',
                                   }}
                                   title={`Status Pengiriman: ${st.noResi} (Klik untuk ubah / lihat rincian)`}
                                 >
@@ -2662,8 +2800,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               onClick={() => handleTogglePaymentStatus(row)}
                               className={isWaitingWithStruk ? 'box-struk-waiting' : undefined}
                               style={{
-                                backgroundColor: isWaitingWithStruk ? '#FFFBEB' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#FFFBEB' : '#F0FDF4'),
-                                border: isWaitingWithStruk ? '1.5px solid #F59E0B' : `1.5px solid ${row.statusPembayaran === 'Menunggu Pembayaran' ? '#FCD34D' : '#86EFAC'}`,
+                                backgroundColor: isWaitingWithStruk ? '#FFFBEB' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#FFFBEB' : '#ECFDF5'),
+                                border: isWaitingWithStruk ? '1.5px solid #F59E0B' : `1.5px solid ${row.statusPembayaran === 'Menunggu Pembayaran' ? '#FCD34D' : '#A7F3D0'}`,
                                 borderRadius: '8px',
                                 padding: '4px 6px',
                                 display: 'inline-flex',
@@ -2675,7 +2813,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 boxSizing: 'border-box',
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease',
-                                boxShadow: isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '0 1px 3px rgba(245, 158, 11, 0.08)' : '0 1px 3px rgba(16, 185, 129, 0.08)'),
+                                boxShadow: isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 1px 2px rgba(0,0,0,0.03)',
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -2683,7 +2821,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '0 1px 3px rgba(245, 158, 11, 0.08)' : '0 1px 3px rgba(16, 185, 129, 0.08)');
+                                e.currentTarget.style.boxShadow = isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 1px 2px rgba(0,0,0,0.03)';
                               }}
                               title={
                                 isWaitingWithStruk
@@ -2698,14 +2836,14 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                     width: '6px',
                                     height: '6px',
                                     borderRadius: '50%',
-                                    backgroundColor: isWaitingWithStruk ? '#EA580C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#D97706' : '#16A34A'),
+                                    backgroundColor: isWaitingWithStruk ? '#EA580C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#D97706' : '#059669'),
                                   }}
                                 />
                                 <span
                                   style={{
                                     fontSize: '0.67rem',
                                     fontWeight: 800,
-                                    color: isWaitingWithStruk ? '#C2410C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#92400E' : '#14532D'),
+                                    color: isWaitingWithStruk ? '#C2410C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#92400E' : '#065F46'),
                                     letterSpacing: '0.01em',
                                   }}
                                 >
@@ -2772,8 +2910,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             return (
                               <div
                                 style={{
-                                  backgroundColor: '#F0FDF4',
-                                  border: '1.5px solid #86EFAC',
+                                  backgroundColor: '#ECFDF5',
+                                  border: '1.5px solid #A7F3D0',
                                   borderRadius: '8px',
                                   padding: '4px 6px',
                                   display: 'inline-flex',
@@ -2787,12 +2925,12 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 title="Pembayaran telah lunas & terverifikasi. Berkas aman diajukan ke JVAC."
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16A34A', display: 'inline-block' }} />
-                                  <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#15803D' }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#059669', display: 'inline-block' }} />
+                                  <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#065F46' }}>
                                     LUNAS
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.62rem', color: '#16A34A', fontWeight: 700 }}>
+                                <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 700 }}>
                                   ✓ Siap JVAC
                                 </span>
                               </div>
@@ -2818,7 +2956,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97706', display: 'inline-block' }} />
-                                <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#B45309' }}>
+                                <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#92400E' }}>
                                   BELUM BAYAR
                                 </span>
                               </div>
@@ -2928,8 +3066,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               padding: '2px 6px',
                               fontSize: '0.68rem',
                               borderRadius: '5px',
-                              backgroundColor: '#FEF2F2',
-                              border: '1px solid #FECACA',
+                              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                              border: '1px solid rgba(239, 68, 68, 0.22)',
                               color: '#DC2626',
                               fontWeight: 700,
                               cursor: 'pointer',
@@ -2942,8 +3080,12 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               transition: 'all 0.15s ease',
                             }}
                             title="Tolak berkas di awal atau karena ditolak konsulat"
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FEE2E2')}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FEF2F2')}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.16)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+                            }}
                           >
                             <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
                               close
@@ -2998,11 +3140,15 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         ) : (
           paginatedData.map((row, index) => {
             const st = getCandidateStages(row);
+            const isProsesLocked = !st.isSampai && !st.isProses;
+            const isSelesaiLocked = !st.isProses && !st.isSelesai;
+            const isKirimLocked = !st.isSelesai && !st.isKirim;
+
             const stageItems = [
-              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' },
-              { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
-              { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
-              { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
+              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD', isLocked: false },
+              { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A', isLocked: isProsesLocked },
+              { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0', isLocked: isSelesaiLocked },
+              { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE', isLocked: isKirimLocked },
             ];
 
             return (
@@ -3037,7 +3183,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                   </div>
                 </div>
 
-                {/* Status Pembayaran & Ringkasan Fee */}
+                {/* Status Pembayaran & Info Wilayah/Fee */}
                 <div
                   style={{
                     display: 'flex',
@@ -3045,14 +3191,14 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                     gap: '8px',
-                    backgroundColor: row.statusPembayaran === 'Menunggu Pembayaran' ? '#FFFBEB' : '#F0FDF4',
-                    border: `1px solid ${row.statusPembayaran === 'Menunggu Pembayaran' ? '#FDE68A' : '#BBF7D0'}`,
-                    borderRadius: '8px',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '10px',
                     padding: '8px 12px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.70rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
                     <button
                       type="button"
                       onClick={() => isOwner && handleTogglePaymentStatus(row)}
@@ -3061,11 +3207,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       title={isOwner ? "Klik untuk ubah status pembayaran" : undefined}
                     >
                       {row.statusPembayaran === 'Menunggu Pembayaran' ? (
-                        <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D', padding: '2px 7px', borderRadius: '5px', fontSize: '0.70rem', fontWeight: 800 }}>
-                          ⏳ Menunggu Bayar {isOwner && '✎'}
+                        <span style={{ backgroundColor: '#FFFBEB', color: '#92400E', border: '1px solid #FCD34D', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800 }}>
+                          ⏳ Belum Lunas {isOwner && '✎'}
                         </span>
                       ) : (
-                        <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', padding: '2px 7px', borderRadius: '5px', fontSize: '0.70rem', fontWeight: 800 }}>
+                        <span style={{ backgroundColor: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800 }}>
                           ✓ Lunas (100%) {isOwner && '✎'}
                         </span>
                       )}
@@ -3077,25 +3223,31 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           e.stopPropagation();
                           setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Transfer: ${row.namaPemohon}` });
                         }}
-                        style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '4px', padding: '1px 5px', fontSize: '0.64rem', fontWeight: 700, cursor: 'pointer' }}
+                        style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '5px', padding: '2px 7px', fontSize: '0.66rem', fontWeight: 700, cursor: 'pointer' }}
                       >
                         📄 Struk
                       </button>
                     )}
                   </div>
 
-                  {isOwner && (
+                  {isOwner ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 700 }}>Fee Bersih:</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#15803D' }}>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600 }}>Fee:</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#15803D' }}>
                         {formatRupiah(row.feeBersih || 0)}
                       </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                      <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
+                      <span>•</span>
+                      <span>PIC: {row.staffPic}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Pemohon Info: Foto/Inisial, Nama, Paspor, WA, Konsulat */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                {/* Pemohon Info: Foto/Inisial, Nama, Paspor & WA */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {row.fotoBase64 ? (
                     <img
                       src={row.fotoBase64}
@@ -3104,10 +3256,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       style={{
                         width: '44px',
                         height: '44px',
-                        borderRadius: '50%',
+                        borderRadius: '12px',
                         objectFit: 'cover',
-                        border: '2px solid #16A34A',
-                        boxShadow: '0 2px 6px rgba(22, 163, 74, 0.2)',
+                        border: '1px solid #CBD5E1',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                         cursor: 'pointer',
                         flexShrink: 0,
                       }}
@@ -3118,15 +3270,17 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       style={{
                         width: '44px',
                         height: '44px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #2b68e0, #004fc0)',
-                        color: '#fff',
+                        borderRadius: '12px',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #DBEAFE',
+                        color: '#1D4ED8',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: '0.88rem',
+                        fontWeight: 800,
+                        fontSize: '0.96rem',
                         flexShrink: 0,
+                        boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)',
                       }}
                     >
                       {row.namaPemohon
@@ -3139,25 +3293,68 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
-                      style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.94rem', lineHeight: 1.3, cursor: 'pointer' }}
+                      style={{
+                        fontWeight: 800,
+                        color: '#0F172A',
+                        fontSize: '0.96rem',
+                        lineHeight: 1.25,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
                       onClick={() => onSelectPengajuan(row.id)}
+                      title={row.namaPemohon}
                     >
                       {row.namaPemohon}
                     </div>
-                    <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: '3px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>
-                        {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
+
+                    {/* Paspor & WhatsApp (1 Baris Rapi & Elegan) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          fontSize: '0.74rem',
+                          color: '#334155',
+                          backgroundColor: '#F1F5F9',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                        }}
+                        title="Nomor Paspor"
+                      >
+                        🛂 {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
                       </span>
-                    </div>
-                    {row.noTelp && (
-                      <div style={{ fontSize: '0.74rem', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>
-                        WA: {row.noTelp}
-                      </div>
-                    )}
-                    <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontWeight: 600, color: '#0F172A' }}>📍 {row.konsjen}</span>
-                      <span>•</span>
-                      <span>PIC: {row.staffPic}</span>
+
+                      {row.noTelp && (
+                        <a
+                          href={`https://wa.me/${row.noTelp.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.72rem',
+                            color: '#166534',
+                            backgroundColor: '#F0FDF4',
+                            border: '1px solid #BBF7D0',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                          }}
+                          title="Chat WhatsApp pemohon"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
+                            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.54 1.769.782 2.791.782h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.182-2.585-5.768-5.769-5.768zm3.376 8.163c-.141.396-.713.725-1.021.76-.299.034-.689.147-2.27-.478-1.579-.623-2.58-2.23-2.658-2.336-.079-.105-.639-.851-.639-1.624 0-.773.407-1.154.551-1.31.144-.156.315-.195.42-.195.105 0 .21.001.302.006.098.005.228-.037.356.271.132.316.452 1.104.492 1.185.04.081.066.176.013.281-.053.106-.079.172-.158.264-.079.092-.166.205-.237.276-.08.079-.163.165-.07.325.093.16.413.681.887 1.102.61.543 1.124.71 1.284.79.16.08.254.067.348-.04.094-.107.404-.47.512-.631.108-.161.216-.134.364-.08.148.054.938.442 1.099.522.16.08.267.12.306.186.039.066.039.382-.102.778z"/>
+                            <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.98-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.156c-1.636 0-3.155-.472-4.436-1.285l-.318-.202-2.955.775.789-2.88-.22-.35A8.109 8.109 0 013.844 12c0-4.497 3.659-8.156 8.156-8.156 4.497 0 8.156 3.659 8.156 8.156 0 4.497-3.659 8.156-8.156 8.156z"/>
+                          </svg>
+                          <span>{row.noTelp}</span>
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3193,18 +3390,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           marginBottom: '8px',
                         }}
                       >
-                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569' }}>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155' }}>
                           Kelengkapan Dokumen Fisik:
                         </span>
                         <span
                           style={{
                             fontSize: '0.68rem',
-                            fontWeight: 800,
-                            color: isAllComplete ? '#15803D' : '#B91C1C',
-                            backgroundColor: isAllComplete ? '#DCFCE7' : '#FEE2E2',
+                            fontWeight: 700,
+                            color: isAllComplete ? '#059669' : '#E11D48',
+                            backgroundColor: isAllComplete ? '#ECFDF5' : '#FFF1F2',
                             padding: '2px 8px',
-                            borderRadius: '12px',
-                            border: `1px solid ${isAllComplete ? '#BBF7D0' : '#FECACA'}`,
+                            borderRadius: '6px',
+                            border: `1px solid ${isAllComplete ? '#A7F3D0' : '#FFE4E6'}`,
                           }}
                         >
                           {isAllComplete ? '✓ Lengkap (6/6)' : `Kurang ${missingCount} Dokumen`}
@@ -3244,20 +3441,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.70rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 800,
-                                background: b.ok ? '#DCFCE7' : '#FEE2E2',
-                                color: b.ok ? '#16A34A' : '#EF4444',
-                                border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                                background: '#F8FAFC',
+                                color: b.ok ? '#16A34A' : '#DC2626',
+                                border: '1px solid #E2E8F0',
                               }}
                             >
-                              {b.ok ? '✓' : '!'}
+                              {b.ok ? '✓' : '✕'}
                             </span>
                             <span
                               style={{
                                 fontSize: '0.62rem',
-                                color: b.ok ? '#15803D' : '#64748B',
-                                fontWeight: b.ok ? 700 : 500,
+                                color: b.ok ? '#475569' : '#94A3B8',
+                                fontWeight: b.ok ? 600 : 500,
                               }}
                             >
                               {b.short}
@@ -3279,14 +3476,15 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 fontSize: '0.72rem',
                                 fontWeight: 700,
                                 borderRadius: '6px',
-                                backgroundColor: '#F0FDF4',
-                                border: '1px solid #86EFAC',
-                                color: '#15803D',
+                                backgroundColor: '#F8FAFC',
+                                border: '1px solid #CBD5E1',
+                                color: '#334155',
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: '4px',
+                                transition: 'all 0.15s ease',
                               }}
                               title="Kirim pesan WhatsApp pengingat berkas yang kurang & tautan upload mandiri untuk customer"
                             >
@@ -3303,14 +3501,15 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               fontSize: '0.72rem',
                               fontWeight: 700,
                               borderRadius: '6px',
-                              backgroundColor: copiedLinkRowId === row.id ? '#DCFCE7' : '#EFF6FF',
-                              border: `1px solid ${copiedLinkRowId === row.id ? '#86EFAC' : '#BFDBFE'}`,
-                              color: copiedLinkRowId === row.id ? '#15803D' : '#1D4ED8',
+                              backgroundColor: copiedLinkRowId === row.id ? '#ECFDF5' : '#F8FAFC',
+                              border: `1px solid ${copiedLinkRowId === row.id ? '#A7F3D0' : '#CBD5E1'}`,
+                              color: copiedLinkRowId === row.id ? '#059669' : '#334155',
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               gap: '4px',
+                              transition: 'all 0.15s ease',
                             }}
                             title="Salin tautan upload mandiri untuk customer"
                           >
@@ -3333,165 +3532,177 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        backgroundColor: '#FEF2F2',
-                        border: '1px solid #FECACA',
-                        borderRadius: '8px',
+                        gap: '8px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.04)',
+                        border: '1px solid rgba(239, 68, 68, 0.22)',
+                        borderRadius: '10px',
                         padding: '8px 12px',
-                        color: '#B91C1C',
                         fontSize: '0.76rem',
-                        fontWeight: 700,
+                        lineHeight: 1.35,
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EF4444' }}>cancel</span>
-                      <span>DITOLAK: {st.alasanPenolakan || 'Berkas Tidak Lengkap'}</span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: '#DC2626',
+                          fontWeight: 800,
+                          fontSize: '0.70rem',
+                          flexShrink: 0,
+                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                          padding: '3px 7px',
+                          borderRadius: '5px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#DC2626' }}>cancel</span>
+                        DITOLAK
+                      </span>
+                      <span style={{ color: '#334155', fontWeight: 600, flex: 1, wordBreak: 'break-word' }}>
+                        {st.alasanPenolakan || 'Berkas Tidak Lengkap'}
+                      </span>
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
-                      {stageItems.map((s, sIdx) => (
-                        <div
-                          key={s.key}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'space-between',
-                            backgroundColor: s.ok ? s.bg : '#F8FAFC',
-                            border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
-                            borderRadius: '10px',
-                            padding: '8px 10px',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleStage(row, s.key);
-                              }}
-                              style={{
-                                border: 'none',
-                                background: 'transparent',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '0.78rem',
-                                fontWeight: 800,
-                                color: s.ok ? s.color : '#64748B',
-                                padding: 0,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: '18px',
-                                  height: '18px',
-                                  borderRadius: '50%',
-                                  backgroundColor: s.ok ? s.color : '#CBD5E1',
-                                  color: '#FFFFFF',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 800,
-                                }}
-                              >
-                                {s.ok ? '✓' : sIdx + 1}
-                              </span>
-                              <span>{s.label}</span>
-                            </button>
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                        {stageItems.map((s, sIdx) => (
+                          <div
+                            key={s.key}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStage(row, s.key);
+                            }}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center',
+                              backgroundColor: s.ok ? '#FFFFFF' : '#F8FAFC',
+                              border: s.ok ? `1.5px solid ${s.color}60` : '1px solid #E2E8F0',
+                              borderRadius: '10px',
+                              padding: '8px 10px',
+                              cursor: s.isLocked ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.15s ease',
+                              minHeight: '52px',
+                              boxSizing: 'border-box',
+                              boxShadow: s.ok ? '0 1px 3px rgba(0,0,0,0.03)' : 'none',
+                              opacity: s.isLocked ? 0.6 : 1,
+                            }}
+                            title={s.isLocked ? "⚠️ Tahap sebelumnya belum selesai (Wajib berurutan)" : "Klik untuk ubah status tahapan"}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span
+                                  style={{
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '50%',
+                                    backgroundColor: s.ok ? s.color : '#F1F5F9',
+                                    color: s.ok ? '#FFFFFF' : (s.isLocked ? '#CBD5E1' : '#94A3B8'),
+                                    border: s.ok ? 'none' : '1px solid #CBD5E1',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    flexShrink: 0,
+                                    boxShadow: s.ok ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                                  }}
+                                >
+                                  {s.ok ? '✓' : sIdx + 1}
+                                </span>
+                                <span style={{ fontSize: '0.80rem', fontWeight: 700, color: s.ok ? '#0F172A' : (s.isLocked ? '#94A3B8' : '#64748B') }}>
+                                  {s.label}
+                                </span>
+                              </div>
+                              {s.ok && (
+                                <span style={{ fontSize: '0.70rem', color: '#94A3B8' }} title="Ubah tanggal">
+                                  ✎
+                                </span>
+                              )}
+                            </div>
 
-                            {s.ok && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditStageDate(row, s.key, s.date || '');
-                                }}
-                                style={{
-                                  border: 'none',
-                                  background: 'transparent',
-                                  cursor: 'pointer',
-                                  fontSize: '0.68rem',
-                                  color: s.color,
-                                  padding: '2px',
-                                  borderRadius: '4px',
-                                }}
-                                title="Ubah tanggal"
-                              >
-                                ✎
-                              </button>
-                            )}
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', minHeight: '18px' }}>
-                            <span
+                            <div
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (s.ok) handleEditStageDate(row, s.key, s.date || '');
                               }}
                               style={{
-                                fontSize: '0.68rem',
+                                fontSize: '0.70rem',
                                 fontFamily: 'monospace',
-                                color: s.ok ? s.color : '#94A3B8',
-                                fontWeight: s.ok ? 700 : 500,
+                                color: s.ok ? '#475569' : '#94A3B8',
+                                fontWeight: s.ok ? 600 : 500,
+                                marginTop: '4px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
                                 cursor: s.ok ? 'pointer' : 'default',
                               }}
+                              title={s.ok ? "Klik untuk ubah tanggal" : undefined}
                             >
-                              {s.ok ? (s.date || getTodayFormatted()) : 'Belum'}
-                            </span>
-
-                            {s.key === 'kirim' && st.noResi && (
-                              <span
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openKirimModal(row);
-                                }}
-                                style={{
-                                  fontSize: '0.62rem',
-                                  fontWeight: 700,
-                                  color: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#1E40AF' : '#6D28D9',
-                                  backgroundColor: (st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#EFF6FF' : '#EDE9FE',
-                                  border: `1px solid ${(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara')) ? '#BFDBFE' : '#DDD6FE'}`,
-                                  padding: '1px 5px',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  maxWidth: '85px',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                                title={st.noResi}
-                              >
-                                ✈️ {st.noResi}
-                              </span>
-                            )}
+                              {s.ok ? `📅 ${s.date || getTodayFormatted()}` : 'Belum'}
+                            </div>
                           </div>
+                        ))}
+                      </div>
+
+                      {/* Baris Khusus Nomor Resi / Serah Terima Bandara */}
+                      {st.noResi && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openKirimModal(row);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: '#F8FAFC',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '8px',
+                            padding: '7px 10px',
+                            marginTop: '6px',
+                            cursor: 'pointer',
+                          }}
+                          title="Klik untuk ubah nomor resi atau serah terima bandara"
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '0.82rem' }}>✈️</span>
+                            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Resi:</span>
+                            <span style={{ fontSize: '0.74rem', color: '#0F172A', fontWeight: 700, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', backgroundColor: '#FFFFFF', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
+                              {st.noResi}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.68rem', color: '#2563EB', fontWeight: 700, flexShrink: 0, paddingLeft: '6px' }}>
+                            Ubah ✎
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
 
-                {/* Tombol Aksi: Buka Rincian & Tolak/Pulihkan */}
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
+                {/* Tombol Aksi: Buka Rincian & Tolak/Pulihkan (Simetris 50:50) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
                   <button
                     type="button"
-                    className="btn btn-primary"
                     onClick={() => onSelectPengajuan(row.id)}
                     style={{
-                      flex: 2,
-                      padding: '8px 12px',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
+                      height: '38px',
+                      backgroundColor: '#2563EB',
+                      color: '#FFFFFF',
+                      border: 'none',
                       borderRadius: '8px',
+                      fontSize: '0.80rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px',
+                      gap: '5px',
+                      boxShadow: '0 2px 4px rgba(37, 99, 235, 0.18)',
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>visibility</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>visibility</span>
                     <span>Buka Rincian</span>
                   </button>
 
@@ -3500,19 +3711,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       type="button"
                       onClick={() => handleTolakPengajuan(row)}
                       style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        fontSize: '0.78rem',
-                        borderRadius: '8px',
+                        height: '38px',
                         backgroundColor: '#F1F5F9',
                         border: '1px solid #CBD5E1',
                         color: '#334155',
+                        borderRadius: '8px',
+                        fontSize: '0.80rem',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        display: 'inline-flex',
+                        display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '4px',
+                        gap: '5px',
                       }}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
@@ -3523,23 +3733,29 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       type="button"
                       onClick={() => handleTolakPengajuan(row)}
                       style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        fontSize: '0.78rem',
-                        borderRadius: '8px',
-                        backgroundColor: '#FEF2F2',
-                        border: '1px solid #FECACA',
+                        height: '38px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.22)',
                         color: '#DC2626',
+                        borderRadius: '8px',
+                        fontSize: '0.80rem',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        display: 'inline-flex',
+                        display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '4px',
+                        gap: '5px',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.16)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
                       }}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
-                      <span>Tolak</span>
+                      <span>Tolak Berkas</span>
                     </button>
                   )}
                 </div>

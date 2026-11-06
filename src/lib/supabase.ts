@@ -130,7 +130,7 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   };
 
   const rawTglMasuk = normalizeDate(db.tgl_sampai) || (found ? normalizeDate(found.tglBerkasMasuk) : '');
-  const rawTglApply = normalizeDate(db.tgl_proses) || (found ? normalizeDate(found.tglApply) : rawTglMasuk);
+  const rawTglApply = normalizeDate(db.tgl_proses) || (found ? normalizeDate(found.tglApply) : '');
   const rawTglSelesai = normalizeDate(db.tgl_selesai) || (found ? normalizeDate(found.tglSelesai || found.tglEstimasiSelesai) : '');
   const rawTglKirim = normalizeDate(db.tgl_kirim) || (found ? normalizeDate(found.tglKirim) : '');
 

@@ -1,5 +1,5 @@
-import logoHitam from '../assets/mapahtrip_logo_hitam.png';
-import { handleImageFallback, getLogoHitamFallbacks } from '../utils/imageFallbacks';
+import logomark1 from '../assets/logomark_1.png';
+import { handleImageFallback, getLogomarkFallbacks } from '../utils/imageFallbacks';
 import React from 'react';
 import type { StaffMaster } from '../types';
 
@@ -38,6 +38,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   isCollapsed = false,
 }) => {
+  // Deteksi ukuran layar mobile
+  const [isMobileScreen, setIsMobileScreen] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 900;
+  });
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobileScreen(window.innerWidth <= 900);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Di layar HP / Mobile, navigasi adalah modal drawer yang HARUS selalu terbuka penuh
+  // (memiliki logo, tombol tutup ✕, teks menu lengkap, badge angka, dan profil staf).
+  // Mode ciut (collapsed icon rail) HANYA untuk layar desktop / laptop.
+  const effectiveCollapsed = isMobileScreen ? false : isCollapsed;
+
   const allMenuItems: {
     key: NavItemKey;
     label: string;
@@ -68,65 +87,82 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className={`sidebar ${isCollapsed ? 'is-collapsed' : ''} ${isMobileOpen ? 'is-mobile-open' : ''}`}>
+    <aside className={`sidebar ${effectiveCollapsed ? 'is-collapsed' : ''} ${isMobileScreen && isMobileOpen ? 'is-mobile-open' : ''}`}>
       <div>
         {/* Logo and Brand */}
         <div
           style={{
-            height: '68px',
-            padding: isCollapsed ? '0' : '0 20px',
+            height: '72px',
+            padding: effectiveCollapsed ? '0' : '0 20px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: isCollapsed ? 'center' : 'space-between',
+            justifyContent: effectiveCollapsed ? 'center' : 'space-between',
             borderBottom: '1px solid rgba(195, 198, 214, 0.25)',
-            transition: 'all 0.2s ease',
+            overflow: 'hidden',
+            position: 'relative',
           }}
         >
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              gap: '10px',
-              width: isCollapsed ? '100%' : 'auto',
+              justifyContent: effectiveCollapsed ? 'center' : 'flex-start',
+              gap: '12px',
+              width: effectiveCollapsed ? '100%' : 'auto',
             }}
           >
             <img
-              src={logoHitam}
+              src={logomark1}
               alt="Logo MapahTrip"
-              onError={(e) => handleImageFallback(e, getLogoHitamFallbacks())}
+              onError={(e) => handleImageFallback(e, getLogomarkFallbacks())}
               style={{
-                width: '34px',
-                height: '34px',
+                width: effectiveCollapsed ? '36px' : '38px',
+                height: effectiveCollapsed ? '36px' : '38px',
                 objectFit: 'contain',
                 flexShrink: 0,
               }}
               title="MapahTrip"
             />
-            {!isCollapsed && (
-              <span
-                className="font-serif"
-                style={{
-                  fontSize: '1.25rem',
-                  fontWeight: 700,
-                  letterSpacing: '-0.01em',
-                  color: 'var(--on-surface)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                MapahTrip
-              </span>
+
+            {!effectiveCollapsed && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span
+                  style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 800,
+                    letterSpacing: '-0.02em',
+                    color: '#0F172A',
+                    lineHeight: 1.15,
+                  }}
+                >
+                  MapahTrip
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    color: '#0284C7',
+                    textTransform: 'uppercase',
+                    marginTop: '2px',
+                  }}
+                >
+                  Visa Jepang Specialist
+                </span>
+              </div>
             )}
           </div>
 
           {/* Tombol Tutup Sidebar Khusus Layar HP (hidden on desktop) */}
-          {!isCollapsed && (
+          {!effectiveCollapsed && (
             <button
               type="button"
               className="mobile-sidebar-close"
               onClick={onCloseMobile}
               aria-label="Tutup menu navigasi"
               style={{
+                position: 'absolute',
+                right: '12px',
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -144,14 +180,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* Section Heading with Accent Dot (hanya tampil saat menu terbuka) */}
+        {!effectiveCollapsed && (
+          <div
+            style={{
+              padding: '16px 18px 8px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              color: '#64748B',
+              textTransform: 'uppercase',
+            }}
+          >
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                backgroundColor: '#F97316',
+                display: 'inline-block',
+                flexShrink: 0,
+              }}
+            />
+            <span>{isOwner ? 'DASHBOARD UTAMA' : 'MENU OPERASIONAL'}</span>
+          </div>
+        )}
+
         {/* Navigation list */}
         <nav
           style={{
-            padding: isCollapsed ? '14px 10px' : '12px 14px',
+            padding: effectiveCollapsed ? '14px 10px' : '6px 12px',
             display: 'flex',
             flexDirection: 'column',
-            gap: isCollapsed ? '8px' : '4px',
-            alignItems: isCollapsed ? 'center' : 'stretch',
+            gap: effectiveCollapsed ? '8px' : '6px',
+            alignItems: effectiveCollapsed ? 'center' : 'stretch',
           }}
         >
           {menuItems.map((item) => {
@@ -161,35 +226,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.key}
                 onClick={() => handleItemClick(item)}
-                title={isCollapsed ? `${item.label}${item.badge !== undefined ? ` (${item.badge})` : ''}` : undefined}
+                title={effectiveCollapsed ? `${item.label}${item.badge !== undefined ? ` (${item.badge})` : ''}` : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: isCollapsed ? 'center' : 'space-between',
-                  padding: isCollapsed ? '10px' : '10px 16px',
-                  borderRadius: isCollapsed ? '12px' : '9999px',
+                  justifyContent: effectiveCollapsed ? 'center' : 'space-between',
+                  padding: effectiveCollapsed ? '6px' : '6px 10px',
+                  borderRadius: '12px',
                   border: 'none',
-                  background: isActive ? 'var(--primary-container)' : 'transparent',
-                  color: isActive ? 'var(--on-primary)' : 'var(--on-surface-variant)',
+                  background: isActive ? '#EFF6FF' : 'transparent',
+                  color: isActive ? '#1D4ED8' : '#334155',
                   fontWeight: isActive ? 600 : 500,
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  textAlign: isCollapsed ? 'center' : 'left',
-                  width: isCollapsed ? '48px' : '100%',
-                  height: isCollapsed ? '48px' : 'auto',
+                  transition: 'background-color 0.15s ease, color 0.15s ease',
+                  textAlign: effectiveCollapsed ? 'center' : 'left',
+                  width: effectiveCollapsed ? '48px' : '100%',
+                  height: '48px',
                   position: 'relative',
+                  overflow: 'hidden',
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = 'var(--surface-container)';
-                    e.currentTarget.style.color = 'var(--on-surface)';
+                    e.currentTarget.style.background = '#F8FAFC';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
                     e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--on-surface-variant)';
                   }
                 }}
               >
@@ -197,32 +261,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    gap: isCollapsed ? 0 : '12px',
+                    justifyContent: effectiveCollapsed ? 'center' : 'flex-start',
+                    gap: effectiveCollapsed ? 0 : '12px',
                     minWidth: 0,
-                    width: isCollapsed ? '100%' : 'auto',
+                    width: effectiveCollapsed ? '100%' : 'auto',
                   }}
                 >
-                  <span
-                    className="material-symbols-outlined"
+                  {/* Rounded icon box matching reference design */}
+                  <div
                     style={{
-                      fontSize: isCollapsed ? '22px' : '20px',
-                      width: '22px',
-                      height: '22px',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isActive ? '#DBEAFE' : '#F1F5F9',
+                      color: isActive ? '#1D4ED8' : '#475569',
                       flexShrink: 0,
+                      transition: 'background-color 0.15s ease, color 0.15s ease',
                     }}
                   >
-                    {item.icon}
-                  </span>
-                  {!isCollapsed && (
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: '20px' }}
+                    >
+                      {item.icon}
+                    </span>
+                  </div>
+
+                  {!effectiveCollapsed && (
+                    <span
+                      style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        fontSize: '0.875rem',
+                        fontWeight: isActive ? 600 : 500,
+                        color: isActive ? '#1D4ED8' : '#334155',
+                      }}
+                    >
                       {item.label}
                     </span>
                   )}
                 </div>
 
-                {item.badge !== undefined && (
-                  isCollapsed ? (
+                {/* Right side: Badge pill OR subtle chevron > */}
+                {item.badge !== undefined ? (
+                  effectiveCollapsed ? (
                     <span
                       style={{
                         position: 'absolute',
@@ -231,8 +317,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         minWidth: '16px',
                         height: '16px',
                         borderRadius: '8px',
-                        background: isActive ? '#FFFFFF' : 'var(--secondary)',
-                        color: isActive ? 'var(--primary-container)' : '#FFFFFF',
+                        background: '#2563EB',
+                        color: '#FFFFFF',
                         fontSize: '0.62rem',
                         fontWeight: 800,
                         display: 'flex',
@@ -250,13 +336,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       style={{
                         padding: '2px 8px',
                         borderRadius: '9999px',
-                        background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--secondary)',
+                        background: isActive ? '#2563EB' : '#0284C7',
                         color: '#ffffff',
                         fontSize: '0.725rem',
                         fontWeight: 700,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                       }}
                     >
                       {item.badge}
+                    </span>
+                  )
+                ) : (
+                  !effectiveCollapsed && (
+                    <span
+                      className="material-symbols-outlined"
+                      style={{
+                        fontSize: '18px',
+                        color: isActive ? '#3B82F6' : '#94A3B8',
+                        opacity: 0.8,
+                      }}
+                    >
+                      chevron_right
                     </span>
                   )
                 )}
@@ -269,15 +369,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* User Profile Bar (Staff vs Owner) */}
       <div
         style={{
-          padding: isCollapsed ? '8px 4px' : '12px',
-          margin: isCollapsed ? '12px 8px' : '12px',
+          padding: effectiveCollapsed ? '8px 4px' : '12px',
+          margin: effectiveCollapsed ? '12px 8px' : '12px',
           borderRadius: '12px',
           background: '#FFFFFF',
           border: '1px solid #E2E8F0',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         }}
       >
-        {isCollapsed ? (
+        {effectiveCollapsed ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
             <div
               style={{

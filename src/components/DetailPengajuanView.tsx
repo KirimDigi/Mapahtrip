@@ -431,17 +431,36 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
 
                   {pengajuan.status === 'Ditolak' ? (
                     <span
-                      className="badge badge-error"
                       style={{
-                        background: '#FEE2E2',
-                        color: '#B91C1C',
-                        border: '1px solid #FECACA',
-                        fontWeight: 700,
-                        padding: '3px 10px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                        border: '1px solid rgba(239, 68, 68, 0.22)',
+                        padding: '4px 10px',
                         borderRadius: '6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.80rem',
                       }}
                     >
-                      ⛔ Ditolak: {pengajuan.alasanPenolakan || 'Di Awal'}
+                      <span
+                        style={{
+                          color: '#DC2626',
+                          fontWeight: 800,
+                          fontSize: '0.72rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#DC2626' }}>cancel</span>
+                        Ditolak
+                      </span>
+                      <span style={{ color: '#334155', fontWeight: 600 }}>
+                        {pengajuan.alasanPenolakan || 'Di Awal'}
+                      </span>
                     </span>
                   ) : (
                     <span className="badge badge-info">{pengajuan.status}</span>

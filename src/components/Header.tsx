@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Pengajuan, StaffMaster } from '../types';
-import logoHitam from '../assets/mapahtrip_logo_hitam.png';
-import { handleImageFallback, getLogoHitamFallbacks } from '../utils/imageFallbacks';
+import logomark1 from '../assets/logomark_1.png';
+import { handleImageFallback, getLogomarkFallbacks } from '../utils/imageFallbacks';
 
 interface HeaderProps {
   searchQuery?: string;
@@ -14,6 +14,7 @@ interface HeaderProps {
   currentStaff?: StaffMaster | null;
   activeTab?: string;
   onToggleMobileMenu?: () => void;
+  isMobileMenuOpen?: boolean;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentStaff = null,
   activeTab = 'dashboard',
   onToggleMobileMenu,
+  isMobileMenuOpen = false,
   isSidebarCollapsed = false,
   onToggleSidebar,
 }) => {
@@ -195,18 +197,33 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="top-header">
-      {/* Sisi Kiri: Tombol Menu Hamburger Desktop & Mobile, serta Brand Logo Khusus Mobile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {/* Tombol Hamburger Khusus Mobile (Membuka drawer mobile) */}
+      {/* Sisi Kiri: Brand Logo Khusus Mobile, serta Tombol Menu Hamburger Desktop & Mobile */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Brand Logo Khusus Mobile (Tampil di posisi paling kiri, diikuti tombol strip 3) */}
+        <div className="mobile-header-brand">
+          <img
+            src={logomark1}
+            alt="Logo MapahTrip"
+            onError={(e) => handleImageFallback(e, getLogomarkFallbacks())}
+            style={{
+              width: '32px',
+              height: '32px',
+              objectFit: 'contain',
+              flexShrink: 0,
+            }}
+          />
+        </div>
+
+        {/* Tombol Hamburger Khusus Mobile (Membuka / Menutup drawer mobile) */}
         <button
           type="button"
           className="mobile-menu-btn"
           onClick={onToggleMobileMenu}
-          title="Buka Menu Navigasi"
-          aria-label="Buka Menu Navigasi"
+          title={isMobileMenuOpen ? "Tutup Menu Navigasi" : "Buka Menu Navigasi"}
+          aria-label={isMobileMenuOpen ? "Tutup Menu Navigasi" : "Buka Menu Navigasi"}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
-            menu
+            {isMobileMenuOpen ? 'close' : 'menu'}
           </span>
         </button>
 
@@ -244,21 +261,6 @@ export const Header: React.FC<HeaderProps> = ({
             {isSidebarCollapsed ? 'close' : 'menu'}
           </span>
         </button>
-
-        <div className="mobile-header-brand">
-          <img
-            src={logoHitam}
-            alt="Logo MapahTrip"
-            onError={(e) => handleImageFallback(e, getLogoHitamFallbacks())}
-            style={{ width: '28px', height: '28px', objectFit: 'contain' }}
-          />
-          <span
-            className="font-serif"
-            style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--on-surface)' }}
-          >
-            MapahTrip
-          </span>
-        </div>
       </div>
 
       {/* Spacer Tengah */}

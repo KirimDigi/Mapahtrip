@@ -7298,7 +7298,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                             <strong style={{ fontSize: '0.78rem' }}>{s.label}</strong>
-                            <span style={{ fontSize: '0.70rem', fontWeight: 800 }}>{s.ok ? '✓ Selesai' : '○ Belum'}</span>
+                            <span style={{ fontSize: '0.70rem', fontWeight: 800 }}>{s.ok ? '✓ Selesai' : 'Belum'}</span>
                           </div>
                           <div style={{ fontSize: '0.68rem', opacity: 0.9, fontFamily: 'monospace', fontWeight: 700 }}>
                             Tgl: {s.ok ? (s.date || getTodayFormatted()) : '-'}
