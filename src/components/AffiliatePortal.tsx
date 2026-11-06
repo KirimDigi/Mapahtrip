@@ -4977,30 +4977,46 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
               }}
             >
-              <div style={{ width: '100%', overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.80rem' }}>
+              <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.80rem' }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontWeight: 700 }}>
-                      <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '75px' }}>No. &amp; ID</th>
-                      <th style={{ padding: '10px 8px', minWidth: '130px' }}>Nama Pemohon / Kandidat</th>
-                      <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '95px' }}>No. Paspor</th>
-                      <th style={{ padding: '10px 8px', whiteSpace: 'nowrap', width: '105px' }}>Program Visa</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '380px' }}>
-                        <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <tr style={{ backgroundColor: '#F8FAFC', color: '#64748B', fontWeight: 700 }}>
+                      <th
+                        style={{
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 3,
+                          backgroundColor: '#F8FAFC',
+                          padding: '12px 14px',
+                          whiteSpace: 'nowrap',
+                          width: '85px',
+                          minWidth: '85px',
+                          borderBottom: '2px solid #CBD5E1',
+                          borderRight: '1px solid #E2E8F0',
+                          boxShadow: '2px 0 5px rgba(0,0,0,0.03)',
+                        }}
+                      >
+                        No. &amp; ID
+                      </th>
+                      <th style={{ padding: '12px 10px', minWidth: '130px', borderBottom: '2px solid #CBD5E1' }}>Nama Pemohon / Kandidat</th>
+                      <th style={{ padding: '12px 8px', whiteSpace: 'nowrap', width: '90px', borderBottom: '2px solid #CBD5E1' }}>No. Paspor</th>
+                      <th style={{ padding: '12px 8px', whiteSpace: 'nowrap', width: '100px', borderBottom: '2px solid #CBD5E1' }}>Program Visa</th>
+                      <th style={{ padding: '8px 8px', textAlign: 'center', minWidth: '230px', borderBottom: '2px solid #CBD5E1' }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.80rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                           <span>Status Pengajuan</span>
                           <span style={{ fontSize: '0.68rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
                             🔒 Dikelola Tim Staf
                           </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
-                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Sampai</span>
-                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Proses</span>
-                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Selesai</span>
-                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 4px', borderRadius: '4px' }}>Kirim</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', fontSize: '0.68rem', color: '#475569', fontWeight: 700, width: '100%', minWidth: '220px' }}>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Sampai</span>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Proses</span>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Selesai</span>
+                          <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Kirim</span>
                         </div>
                       </th>
-                      <th style={{ padding: '10px 8px', minWidth: '130px' }}>Resi / Pengiriman</th>
-                      <th style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap', width: '80px' }}>Aksi</th>
+                      <th style={{ padding: '12px 10px', minWidth: '120px', borderBottom: '2px solid #CBD5E1' }}>Resi / Pengiriman</th>
+                      <th style={{ padding: '12px 10px', textAlign: 'center', whiteSpace: 'nowrap', width: '75px', borderBottom: '2px solid #CBD5E1' }}>Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -5058,13 +5074,36 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             borderBottom: '1px solid #F1F5F9',
                             transition: 'background-color 0.15s',
                           }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#F8FAFC';
+                            const firstCell = e.currentTarget.querySelector('.sticky-col-id') as HTMLElement;
+                            if (firstCell) firstCell.style.backgroundColor = '#F8FAFC';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            const firstCell = e.currentTarget.querySelector('.sticky-col-id') as HTMLElement;
+                            if (firstCell) firstCell.style.backgroundColor = '#FFFFFF';
+                          }}
                         >
-                          {/* ID */}
-                          <td style={{ padding: '10px 8px', color: '#64748B', fontWeight: 600, fontSize: '0.78rem' }}>
-                            <div>{item.noPengajuan}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>#{idx + 1}</div>
+                          {/* ID (Sticky Left) */}
+                          <td
+                            className="sticky-col-id"
+                            style={{
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: 2,
+                              backgroundColor: '#FFFFFF',
+                              padding: '10px 14px',
+                              color: '#64748B',
+                              fontWeight: 600,
+                              fontSize: '0.78rem',
+                              borderBottom: '1px solid #F1F5F9',
+                              borderRight: '1px solid #E2E8F0',
+                              boxShadow: '2px 0 5px rgba(0,0,0,0.03)',
+                            }}
+                          >
+                            <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>{item.noPengajuan}</div>
+                            <div style={{ fontSize: '0.70rem', color: '#94A3B8' }}>#{idx + 1}</div>
                           </td>
 
                           {/* Nama */}
@@ -5096,7 +5135,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                 { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
                               ];
                               return (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', minWidth: '360px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', width: '100%', minWidth: '220px' }}>
                                   {stageItems.map((s) => (
                                     <div
                                       key={s.key}
@@ -5107,8 +5146,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                         backgroundColor: s.ok ? s.bg : '#F8FAFC',
                                         border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
                                         borderRadius: '6px',
-                                        padding: '4px 3px',
+                                        padding: '4px 2px',
                                         transition: 'all 0.15s ease',
+                                        minWidth: 0,
                                       }}
                                     >
                                       <div
@@ -5120,19 +5160,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                           alignItems: 'center',
                                           justifyContent: 'center',
                                           gap: '2px',
-                                          fontSize: '0.73rem',
+                                          fontSize: '0.70rem',
                                           fontWeight: 800,
                                           color: s.ok ? s.color : '#94A3B8',
                                           padding: '2px 0',
                                           userSelect: 'none',
                                         }}
                                       >
-                                        <span>{s.ok ? '✓' : '○'}</span>
-                                        <span>{s.label}</span>
+                                        <span>{s.ok ? '✓ ' : ''}{s.label}</span>
                                       </div>
                                       <span
                                         style={{
-                                          fontSize: '0.67rem',
+                                          fontSize: '0.62rem',
                                           fontFamily: 'monospace',
                                           color: s.ok ? s.color : '#CBD5E1',
                                           fontWeight: s.ok ? 700 : 500,
@@ -5312,7 +5351,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             }}
                           >
                             <span style={{ fontSize: '0.72rem', fontWeight: 800, color: s.ok ? s.color : '#94A3B8' }}>
-                              {s.ok ? '✓' : '○'} {s.label}
+                              {s.ok ? '✓ ' : ''}{s.label}
                             </span>
                           </div>
                         ))}
