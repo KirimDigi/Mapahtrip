@@ -405,7 +405,7 @@ export function App() {
     }
   };
 
-  const handleUpdatePengajuan = (updatedItem: Pengajuan) => {
+  const handleUpdatePengajuan = async (updatedItem: Pengajuan) => {
     setPengajuanList((prev) =>
       prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
     );
@@ -420,6 +420,32 @@ export function App() {
       }
       localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(list));
     } catch {}
+
+    const numId = Number(updatedItem.id);
+    if (!isNaN(numId)) {
+      try {
+        await supabase
+          .from('pengajuan_visa')
+          .update({
+            nama: updatedItem.namaPemohon,
+            no_paspor: updatedItem.noPaspor,
+            no_wa: updatedItem.noTelp,
+            program: updatedItem.program,
+            paket: updatedItem.paket,
+            konsjen: updatedItem.konsjen,
+            staff_pic: updatedItem.staffPic,
+            status: updatedItem.status,
+            nominal_dibayar: updatedItem.dibayarPemohon,
+            nominal_keluar: updatedItem.nominalKeluar,
+            cashback: updatedItem.cashback,
+            fee_bersih: updatedItem.feeBersih,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', numId);
+      } catch (err) {
+        console.error('Failed to sync updatedItem to Supabase:', err);
+      }
+    }
   };
 
   // Handler pendaftaran mandiri dari Halaman Customer
