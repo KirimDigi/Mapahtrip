@@ -149,6 +149,7 @@ export interface AffiliateUser {
   fotoDiri?: string;
   isProfileComplete?: boolean;
   totalBonus?: number;
+  isDemo?: boolean;
 }
 
 export interface StaffFeedback {

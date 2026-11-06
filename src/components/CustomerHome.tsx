@@ -6451,6 +6451,39 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 >
                   <span>Masuk Akun</span>
                 </a>
+
+                <a
+                  href="#affiliate-demo"
+                  style={{
+                    backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#FFFBEB',
+                    color: isDarkMode ? '#FCD34D' : '#B45309',
+                    border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid #FDE68A',
+                    padding: '12px 20px',
+                    borderRadius: '9999px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    textDecoration: 'none',
+                    boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(180, 83, 9, 0.08)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#FFFBEB';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#D97706' }}>
+                    visibility
+                  </span>
+                  <span>Coba Demo Dashboard</span>
+                </a>
               </div>
             </div>
           </div>

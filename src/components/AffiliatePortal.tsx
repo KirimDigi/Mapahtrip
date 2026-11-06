@@ -197,6 +197,194 @@ const BANK_INDONESIA_GROUPS = [
   },
 ];
 
+export const DEMO_MITRA_USER: AffiliateUser = {
+  id: 'aff_demo',
+  nama: 'LPK Nusantara Mandiri (Demo)',
+  email: 'demo@mapahtrip.id',
+  noWa: '081234567890',
+  affiliateCode: 'DEMO-LPK',
+  kategori: 'LPK',
+  statusMitra: 'LPK (Lembaga Pelatihan Kerja ke Jepang)',
+  lembaga: 'LPK Nusantara Mandiri',
+  alamat: 'Jl. Merdeka No. 45, Jakarta Selatan',
+  provinsi: 'DKI Jakarta',
+  namaBank: 'Bank Central Asia (BCA)',
+  nomorRekening: '8830129841',
+  atasNamaRekening: 'LPK NUSANTARA MANDIRI',
+  createdAt: '2026-01-15T08:00:00Z',
+  isProfileComplete: true,
+  isDemo: true,
+};
+
+export const DEMO_APPLICANTS: Pengajuan[] = [
+  {
+    id: 'demo-1',
+    noPengajuan: 'MT-0205',
+    namaPemohon: 'Dimas Arya Pratama',
+    noPaspor: 'E8291044',
+    maskedPaspor: 'E82***44',
+    noTelp: '081298765432',
+    konsjen: 'Jakarta',
+    staffPic: 'Nanami Kay',
+    program: 'Tokutei Ginou (SSW)',
+    paket: 'Reguler',
+    tglBerkasMasuk: '2026-10-18',
+    tglApply: '2026-10-20',
+    tglEstimasiSelesai: '2026-10-27',
+    tglSelesai: '2026-10-27',
+    tglKirim: '2026-10-28',
+    status: 'Selesai',
+    noResi: 'JN-88392019283 (Terkirim)',
+    affiliateCode: 'DEMO-LPK',
+    dibayarPemohon: 1650000,
+    nominalKeluar: 1100000,
+    cashback: 100000,
+    feeBersih: 450000,
+    referralFee: 100000,
+    statusPembayaran: 'Lunas',
+    berkas: {
+      formVisa: true,
+      ktp: true,
+      ektln: true,
+      coe: true,
+      foto: true,
+      pasporFisik: true,
+    },
+    catatan: 'Handover di kantor pusat atau ekspedisi aman JNE YES.',
+  },
+  {
+    id: 'demo-2',
+    noPengajuan: 'MT-0206',
+    namaPemohon: 'Siti Nurhaliza',
+    noPaspor: 'E9382103',
+    maskedPaspor: 'E93***03',
+    noTelp: '085712349876',
+    konsjen: 'Surabaya',
+    staffPic: 'Nanami Kay',
+    program: 'Tokutei Ginou (Kaigo)',
+    paket: 'Premium',
+    tglBerkasMasuk: '2026-10-25',
+    tglApply: '2026-10-27',
+    tglEstimasiSelesai: '2026-11-03',
+    tglSelesai: '2026-11-03',
+    tglKirim: '',
+    status: 'Siap Ambil',
+    noResi: 'Jadwal Handover Soetta T3 (12 Nov 2026)',
+    affiliateCode: 'DEMO-LPK',
+    dibayarPemohon: 2200000,
+    nominalKeluar: 1500000,
+    cashback: 100000,
+    feeBersih: 600000,
+    referralFee: 100000,
+    statusPembayaran: 'Lunas',
+    berkas: {
+      formVisa: true,
+      ktp: true,
+      ektln: true,
+      coe: true,
+      foto: true,
+      pasporFisik: true,
+    },
+    catatan: 'Visa terbit, menunggu jadwal keberangkatan & handover bandara.',
+  },
+  {
+    id: 'demo-3',
+    noPengajuan: 'MT-0207',
+    namaPemohon: 'Rendy Aditya Kurniawan',
+    noPaspor: 'B4729108',
+    maskedPaspor: 'B47***08',
+    noTelp: '082188992211',
+    konsjen: 'Jakarta',
+    staffPic: 'Nanami Kay',
+    program: 'Engineer / Specialist in Humanities',
+    paket: 'Reguler',
+    tglBerkasMasuk: '2026-10-28',
+    tglApply: '2026-10-30',
+    tglEstimasiSelesai: '2026-11-08',
+    status: 'Sedang Diproses',
+    affiliateCode: 'DEMO-LPK',
+    dibayarPemohon: 1650000,
+    nominalKeluar: 1100000,
+    cashback: 100000,
+    feeBersih: 450000,
+    referralFee: 100000,
+    statusPembayaran: 'Lunas',
+    berkas: {
+      formVisa: true,
+      ktp: true,
+      ektln: false,
+      coe: true,
+      foto: true,
+      pasporFisik: true,
+    },
+    catatan: 'Dokumen sedang dalam verifikasi Kedutaan Jepang di Jakarta.',
+  },
+  {
+    id: 'demo-4',
+    noPengajuan: 'MT-0208',
+    namaPemohon: 'Farhan Maulana',
+    noPaspor: 'E1049283',
+    maskedPaspor: 'E10***83',
+    noTelp: '081377889900',
+    konsjen: 'Jakarta',
+    staffPic: 'Nanami Kay',
+    program: 'Tokutei Ginou (Konstruksi)',
+    paket: 'Reguler',
+    tglBerkasMasuk: '2026-11-02',
+    tglApply: '',
+    tglEstimasiSelesai: '2026-11-12',
+    status: 'Sedang Diproses',
+    affiliateCode: 'DEMO-LPK',
+    dibayarPemohon: 1650000,
+    nominalKeluar: 1100000,
+    cashback: 100000,
+    feeBersih: 450000,
+    referralFee: 100000,
+    statusPembayaran: 'Lunas',
+    berkas: {
+      formVisa: true,
+      ktp: true,
+      ektln: true,
+      coe: true,
+      foto: true,
+      pasporFisik: true,
+    },
+    catatan: 'Berkas fisik sudah tiba di kantor MapahTrip, dijadwalkan submit JVAC.',
+  },
+  {
+    id: 'demo-5',
+    noPengajuan: 'MT-0209',
+    namaPemohon: 'Bella Anatasya',
+    noPaspor: 'B3901924',
+    maskedPaspor: 'B39***24',
+    noTelp: '087811223344',
+    konsjen: 'Jakarta',
+    staffPic: 'Nanami Kay',
+    program: 'Tokutei Ginou (Pertanian)',
+    paket: 'Reguler',
+    tglBerkasMasuk: '',
+    tglApply: '',
+    tglEstimasiSelesai: '2026-11-15',
+    status: 'Menunggu Verifikasi',
+    affiliateCode: 'DEMO-LPK',
+    dibayarPemohon: 1650000,
+    nominalKeluar: 1100000,
+    cashback: 100000,
+    feeBersih: 450000,
+    referralFee: 100000,
+    statusPembayaran: 'Menunggu Pembayaran',
+    berkas: {
+      formVisa: true,
+      ktp: true,
+      ektln: true,
+      coe: true,
+      foto: true,
+      pasporFisik: false,
+    },
+    catatan: 'Menunggu pengiriman paspor fisik dari pemohon.',
+  },
+];
+
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   pengajuanList,
   onSwitchMode,
@@ -212,13 +400,21 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
   // Authentication State
   const [currentUser, setCurrentUser] = useState<AffiliateUser | null>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (hash.includes('demo') || search.includes('demo')) {
+        return DEMO_MITRA_USER;
+      }
+    }
     try {
       const saved = localStorage.getItem('mapahtrip_current_affiliate');
       if (saved) {
         const parsed = JSON.parse(saved);
         if ((parsed.id === 'aff_demo' || parsed.email === 'demo@mapahtrip.id') && !parsed.affiliateCode) {
-          parsed.affiliateCode = 'MPH425MI';
+          parsed.affiliateCode = 'DEMO-LPK';
           parsed.isProfileComplete = true;
+          parsed.isDemo = true;
         }
         return parsed;
       }
@@ -240,15 +436,20 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     return 'register';
   });
 
-  // Sync authMode when hash changes in URL
+  // Sync authMode & demo mode when hash changes in URL
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.toLowerCase();
       const search = window.location.search.toLowerCase();
-      if (hash.includes('login') || hash.includes('masuk') || search.includes('login')) {
+      if (hash.includes('demo') || search.includes('demo')) {
+        setCurrentUser(DEMO_MITRA_USER);
+        setOnboardingView('dashboard');
+      } else if (hash.includes('login') || hash.includes('masuk') || search.includes('login')) {
+        setCurrentUser((prev) => (prev?.isDemo || prev?.id === 'aff_demo' ? null : prev));
         setAuthMode('login');
         setAuthError('');
       } else if (hash.includes('register') || hash.includes('daftar')) {
+        setCurrentUser((prev) => (prev?.isDemo || prev?.id === 'aff_demo' ? null : prev));
         setAuthMode('register');
         setAuthError('');
       }
@@ -256,6 +457,12 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
+
+  const handleStartDemoMode = () => {
+    setCurrentUser(DEMO_MITRA_USER);
+    setOnboardingView('dashboard');
+    window.location.hash = '#affiliate-demo';
+  };
 
   // Form State
   const [regName, setRegName] = useState('');
@@ -957,17 +1164,23 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   // Active Affiliate Referral Code (dengan fallback otomatis untuk Demo)
   const activeAffiliateCode = useMemo(() => {
     if (!currentUser) return '';
+    if (currentUser.isDemo || currentUser.id === 'aff_demo' || currentUser.email === 'demo@mapahtrip.id') {
+      return currentUser.affiliateCode || 'DEMO-LPK';
+    }
     if (currentUser.affiliateCode && currentUser.affiliateCode.trim()) {
       return currentUser.affiliateCode.trim().toUpperCase();
-    }
-    if (currentUser.id === 'aff_demo' || currentUser.email === 'demo@mapahtrip.id') {
-      return 'MPH425MI';
     }
     return '';
   }, [currentUser]);
 
   // Handle Logout
   const handleLogout = () => {
+    if (currentUser?.isDemo || currentUser?.id === 'aff_demo') {
+      setCurrentUser(null);
+      onSwitchMode('customer');
+      window.location.hash = '';
+      return;
+    }
     if (window.confirm('Apakah Anda yakin ingin keluar dari akun mitra?')) {
       setCurrentUser(null);
       setAuthMode('login');
@@ -978,6 +1191,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   // 1. Data Pemohon Khusus Milik Mitra Ini Saja (Berdasarkan Kode Referral Pribadi)
   const affiliateCandidates = useMemo(() => {
     if (!currentUser) return [];
+    if (currentUser.isDemo || currentUser.id === 'aff_demo' || currentUser.email === 'demo@mapahtrip.id') {
+      return DEMO_APPLICANTS;
+    }
     const code = (activeAffiliateCode || '').trim().toUpperCase();
     if (!code) return [];
 
@@ -2849,6 +3065,40 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   Masuk di sini
                 </button>
               </div>
+
+              {/* Coba Demo Link */}
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed #E2E8F0', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleStartDemoMode}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #FDE68A',
+                    color: '#B45309',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '999px',
+                    backgroundColor: '#FFFBEB',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FEF3C7';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FFFBEB';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#D97706' }}>
+                    visibility
+                  </span>
+                  <span>Coba Demo Dashboard (Tanpa Mendaftar) ➔</span>
+                </button>
+              </div>
             </div>
           ) : (
             /* ================= LOGIN VIEW ================= */
@@ -3035,6 +3285,40 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   }}
                 >
                   Daftar Akun Baru
+                </button>
+              </div>
+
+              {/* Coba Demo Link */}
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed #E2E8F0', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleStartDemoMode}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #FDE68A',
+                    color: '#B45309',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '999px',
+                    backgroundColor: '#FFFBEB',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FEF3C7';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FFFBEB';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#D97706' }}>
+                    visibility
+                  </span>
+                  <span>Coba Demo Dashboard (Tanpa Mendaftar) ➔</span>
                 </button>
               </div>
             </div>
@@ -4084,6 +4368,116 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
         {/* Right Main Content Area */}
         <main className="affiliate-portal-main" style={{ flex: 1, minWidth: 0, padding: '20px 20px', overflowY: 'auto', overflowX: 'hidden' }}>
+          {(currentUser?.isDemo || currentUser?.id === 'aff_demo') && (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #1E293B, #0F172A)',
+                color: '#FFFFFF',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                flexWrap: 'wrap',
+                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FBBF24',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
+                    visibility
+                  </span>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: '0.98rem', color: '#FFFFFF' }}>
+                      Mode Demo Dashboard Mitra (Simulasi Interaktif)
+                    </strong>
+                    <span
+                      style={{
+                        backgroundColor: '#F59E0B',
+                        color: '#78350F',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                      }}
+                    >
+                      PRATINJAU
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#CBD5E1', lineHeight: 1.4 }}>
+                    Anda sedang melihat simulasi pelacakan berkas siswa &amp; komisi transfer <strong>Rp 100.000 / visa terbit</strong>. Dapatkan kode referral resmi Anda sendiri sekarang!
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentUser(null);
+                    setAuthMode('register');
+                    window.location.hash = '#affiliate-register';
+                  }}
+                  style={{
+                    backgroundColor: '#10B981',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '9px 18px',
+                    borderRadius: '999px',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>Daftar Akun Resmi Sekarang</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_forward</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentUser(null);
+                    onSwitchMode('customer');
+                    window.location.hash = '';
+                  }}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    color: '#CBD5E1',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    padding: '9px 14px',
+                    borderRadius: '999px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Keluar Demo
+                </button>
+              </div>
+            </div>
+          )}
           {portalTab === 'dasbor' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
         {/* Banner Welcome & Search */}
