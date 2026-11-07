@@ -4369,108 +4369,57 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         {/* Right Main Content Area */}
         <main className="affiliate-portal-main" style={{ flex: 1, minWidth: 0, padding: '20px 20px', overflowY: 'auto', overflowX: 'hidden' }}>
           {(currentUser?.isDemo || currentUser?.id === 'aff_demo') && (
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #1E293B, #0F172A)',
-                color: '#FFFFFF',
-                padding: '16px 20px',
-                borderRadius: '16px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '16px',
-                flexWrap: 'wrap',
-                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                    border: '1px solid rgba(245, 158, 11, 0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FBBF24',
-                    flexShrink: 0,
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
-                    visibility
-                  </span>
+            <div className="portal-demo-banner">
+              <div className="portal-demo-main-row">
+                <div className="portal-demo-icon">
+                  <span className="material-symbols-outlined">visibility</span>
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <strong style={{ fontSize: '0.98rem', color: '#FFFFFF' }}>
-                      Mode Demo Dashboard Mitra (Simulasi Interaktif)
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <strong className="portal-demo-title">
+                      Mode Demo Dashboard
                     </strong>
                     <span
                       style={{
                         backgroundColor: '#F59E0B',
                         color: '#78350F',
-                        fontSize: '0.7rem',
+                        fontSize: '0.65rem',
                         fontWeight: 800,
-                        padding: '2px 8px',
+                        padding: '1px 6px',
                         borderRadius: '999px',
+                        letterSpacing: '0.5px',
                       }}
                     >
-                      PRATINJAU
+                      SIMULASI
                     </span>
                   </div>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#CBD5E1', lineHeight: 1.4 }}>
-                    Anda sedang melihat simulasi pelacakan berkas siswa &amp; komisi transfer <strong>Rp 100.000 / visa terbit</strong>. Dapatkan kode referral resmi Anda sendiri sekarang!
+                  <p className="portal-demo-desc">
+                    Simulasi pelacakan berkas siswa &amp; komisi transfer <strong>Rp 100.000 / visa terbit</strong>. Dapatkan kode referral resmi Anda sendiri sekarang!
                   </p>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div className="portal-demo-actions">
                 <button
                   type="button"
+                  className="portal-demo-btn-daftar"
                   onClick={() => {
                     setCurrentUser(null);
                     setAuthMode('register');
                     window.location.hash = '#affiliate-register';
                   }}
-                  style={{
-                    backgroundColor: '#10B981',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    padding: '9px 18px',
-                    borderRadius: '999px',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
                 >
-                  <span>Daftar Akun Resmi Sekarang</span>
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_forward</span>
+                  <span>Daftar Akun Resmi</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>arrow_forward</span>
                 </button>
 
                 <button
                   type="button"
+                  className="portal-demo-btn-keluar"
                   onClick={() => {
                     setCurrentUser(null);
                     onSwitchMode('customer');
                     window.location.hash = '';
-                  }}
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    color: '#CBD5E1',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    padding: '9px 14px',
-                    borderRadius: '999px',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
                   }}
                 >
                   Keluar Demo
@@ -5001,14 +4950,14 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       <th style={{ padding: '12px 10px', minWidth: '130px', borderBottom: '2px solid #CBD5E1' }}>Nama Pemohon / Kandidat</th>
                       <th style={{ padding: '12px 8px', whiteSpace: 'nowrap', width: '90px', borderBottom: '2px solid #CBD5E1' }}>No. Paspor</th>
                       <th style={{ padding: '12px 8px', whiteSpace: 'nowrap', width: '100px', borderBottom: '2px solid #CBD5E1' }}>Program Visa</th>
-                      <th style={{ padding: '8px 8px', textAlign: 'center', minWidth: '230px', borderBottom: '2px solid #CBD5E1' }}>
+                      <th style={{ padding: '8px 8px', textAlign: 'center', width: '350px', minWidth: '350px', borderBottom: '2px solid #CBD5E1' }}>
                         <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.80rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                           <span>Status Pengajuan</span>
                           <span style={{ fontSize: '0.68rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
                             🔒 Dikelola Tim Staf
                           </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', fontSize: '0.68rem', color: '#475569', fontWeight: 700, width: '100%', minWidth: '220px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.68rem', color: '#475569', fontWeight: 700, width: '100%', minWidth: '340px' }}>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Sampai</span>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Proses</span>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Selesai</span>
@@ -5135,7 +5084,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                 { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
                               ];
                               return (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', width: '100%', minWidth: '220px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', width: '100%', minWidth: '340px' }}>
                                   {stageItems.map((s) => (
                                     <div
                                       key={s.key}
@@ -5143,12 +5092,14 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'center',
+                                        justifyContent: 'center',
                                         backgroundColor: s.ok ? s.bg : '#F8FAFC',
                                         border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
-                                        borderRadius: '6px',
-                                        padding: '4px 2px',
+                                        borderRadius: '7px',
+                                        padding: '5px 2px',
                                         transition: 'all 0.15s ease',
-                                        minWidth: 0,
+                                        boxSizing: 'border-box',
+                                        minWidth: '80px',
                                       }}
                                     >
                                       <div
@@ -5159,24 +5110,30 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
-                                          gap: '2px',
-                                          fontSize: '0.70rem',
+                                          gap: '3px',
+                                          fontSize: '0.72rem',
                                           fontWeight: 800,
                                           color: s.ok ? s.color : '#94A3B8',
-                                          padding: '2px 0',
+                                          whiteSpace: 'nowrap',
+                                          lineHeight: 1.2,
                                           userSelect: 'none',
                                         }}
                                       >
-                                        <span>{s.ok ? '✓ ' : ''}{s.label}</span>
+                                        {s.ok && <span style={{ fontSize: '0.74rem', fontWeight: 900 }}>✓</span>}
+                                        <span>{s.label}</span>
                                       </div>
                                       <span
                                         style={{
                                           fontSize: '0.62rem',
-                                          fontFamily: 'monospace',
+                                          fontFamily: 'inherit',
                                           color: s.ok ? s.color : '#CBD5E1',
                                           fontWeight: s.ok ? 700 : 500,
                                           lineHeight: 1.2,
-                                          marginTop: '1px',
+                                          marginTop: '3px',
+                                          whiteSpace: 'nowrap',
+                                          wordBreak: 'keep-all',
+                                          letterSpacing: '-0.3px',
+                                          display: 'inline-block',
                                         }}
                                       >
                                         {s.ok ? (s.date || getTodayFormatted()) : '-'}
@@ -5650,7 +5607,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 }}
               >
                 <span style={{ fontSize: '15px' }}>🏆</span>
-                <span>Peringkat Mitra</span>
+                <span>Peringkat<span className="mpc-tab-word-mitra"> Mitra</span></span>
               </button>
             </div>
 
@@ -5753,13 +5710,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 <div
                   className="mpc-leaderboard-banner"
                   style={{
-                    background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                    backgroundColor: '#FFFFFF',
                     borderRadius: '16px',
                     padding: '20px 24px',
-                    color: '#FFFFFF',
+                    color: '#0F172A',
                     marginBottom: '20px',
-                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
-                    border: '1px solid #334155',
+                    boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+                    border: '1.5px solid #E2E8F0',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -5768,17 +5725,35 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   }}
                 >
                   <div className="mpc-leaderboard-content" style={{ flex: '1 1 280px', minWidth: 0 }}>
-                    <div className="mpc-winner-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#F59E0B', color: '#78350F', fontSize: '0.72rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', marginBottom: '8px', flexWrap: 'wrap', maxWidth: '100%', lineHeight: 1.3 }}>
-                      <span>👑 JUARA 1 REAL: RIZKY MUHAMMAD E</span>
-                      <span style={{ backgroundColor: '#B45309', color: '#FEF3C7', padding: '1px 6px', borderRadius: '6px', fontSize: '0.68rem', whiteSpace: 'nowrap' }}>
+                    <div
+                      className="mpc-winner-badge"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        backgroundColor: '#FEF3C7',
+                        border: '1px solid #FDE68A',
+                        color: '#B45309',
+                        fontSize: '0.73rem',
+                        fontWeight: 800,
+                        padding: '4px 12px',
+                        borderRadius: '999px',
+                        marginBottom: '8px',
+                        lineHeight: 1.3,
+                        boxShadow: '0 1px 2px rgba(245, 158, 11, 0.08)',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.9rem' }}>🏆</span>
+                      <span>Top 1 Mitra: <strong>Rizky Muhammad E</strong></span>
+                      <span style={{ backgroundColor: '#B45309', color: '#FEF3C7', padding: '1px 6px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 800, marginLeft: '2px' }}>
                         Rp 1.300.000
                       </span>
                     </div>
-                    <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 800, color: '#F8FAFC', lineHeight: 1.35 }}>
+                    <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.35 }}>
                       Lihat Peringkat &amp; Penghasilan Nyata 61 Mitra MapahTrip
                     </h3>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#94A3B8', maxWidth: '520px', lineHeight: 1.5 }}>
-                      Data transparan dari rekapan resmi. Mitra aktif telah berhasil mengantongi jutaan rupiah dari komisi visa Jepang. Mulai sekarang dan jadilah juara berikutnya!
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748B', maxWidth: '540px', lineHeight: 1.5 }}>
+                      Data transparan dari rekapan resmi. Mitra aktif telah berhasil mengantongi jutaan rupiah dari komisi visa Jepang. Mulai sekarang dan raih posisi teratas!
                     </p>
                   </div>
 
@@ -5787,10 +5762,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     onClick={() => setPartnerSubTab('peringkat')}
                     className="mpc-leaderboard-btn"
                     style={{
-                      backgroundColor: '#10B981',
+                      backgroundColor: '#0F172A',
                       color: '#FFFFFF',
                       border: 'none',
-                      padding: '10px 18px',
+                      padding: '10px 20px',
                       borderRadius: '10px',
                       fontSize: '0.84rem',
                       fontWeight: 800,
@@ -5798,17 +5773,17 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '8px',
-                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
                       transition: 'all 0.2s ease',
                       whiteSpace: 'nowrap',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1E293B')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0F172A')}
                   >
-                    <span>Buka Peringkat Mitra</span>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                      trending_up
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#FBBF24' }}>
+                      trophy
                     </span>
+                    <span>Buka Peringkat Mitra</span>
                   </button>
                 </div>
 
@@ -6107,8 +6082,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     </div>
                   </div>
 
-                  {/* Table View Ramping */}
-                  <div style={{ overflowX: 'auto' }}>
+                  {/* Table View Ramping (Desktop) */}
+                  <div className="riwayat-desktop-table" style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.78rem' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -6246,10 +6221,123 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Card View (Langsung Nampil Tanpa Scroll Horizontal) */}
+                  <div className="riwayat-mobile-cards">
+                    {filteredRiwayatTransfer.length === 0 ? (
+                      <div
+                        style={{
+                          padding: '24px 16px',
+                          textAlign: 'center',
+                          color: '#64748B',
+                          backgroundColor: '#F8FAFC',
+                          borderRadius: '12px',
+                          border: '1px solid #E2E8F0',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '28px', color: '#CBD5E1', display: 'block', marginBottom: '4px' }}>
+                          receipt_long
+                        </span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>Belum Ada Riwayat Transfer</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                          Riwayat transfer insentif akan otomatis tercatat setiap kali visa selesai diproses.
+                        </div>
+                      </div>
+                    ) : (
+                      filteredRiwayatTransfer.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            borderRadius: '12px',
+                            border: '1px solid #E2E8F0',
+                            padding: '12px 14px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: '0.78rem' }}>
+                              {item.noRef}
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                backgroundColor: item.status === 'Berhasil Ditransfer' ? '#DCFCE7' : '#FEF3C7',
+                                color: item.status === 'Berhasil Ditransfer' ? '#15803D' : '#B45309',
+                                border: `1px solid ${item.status === 'Berhasil Ditransfer' ? '#BBF7D0' : '#FDE68A'}`,
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>
+                                {item.status === 'Berhasil Ditransfer' ? 'check_circle' : 'hourglass_empty'}
+                              </span>
+                              <span>{item.status === 'Berhasil Ditransfer' ? 'Ditransfer' : 'Menunggu'}</span>
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.86rem', lineHeight: 1.3 }}>
+                                {item.namaPemohon}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: '2px', fontWeight: 600 }}>
+                                {item.programVisa} &bull; {item.konsulat}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '2px' }}>
+                                {item.tanggalTransfer}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 800, color: '#10B981', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                                {formatRupiah(item.nominal)}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '2px' }}>
+                                {item.namaBank}
+                              </div>
+                            </div>
+                          </div>
+
+                          {item.status === 'Berhasil Ditransfer' && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '6px', borderTop: '1px dashed #F1F5F9' }}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBuktiTransfer(item)}
+                                style={{
+                                  backgroundColor: '#F0FDF4',
+                                  color: '#047857',
+                                  border: '1px solid #86EFAC',
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>receipt</span>
+                                <span>Lihat Struk Transfer</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 {/* SECTION: PENGISIAN BANK / E-WALLET PENCAIRAN INSENTIF */}
                 <div
+                  className="rekening-outer-wrapper"
                   style={{
                     backgroundColor: '#FFFFFF',
                     border: currentUser?.isProfileComplete ? '1px solid #86EFAC' : '1px dashed #CBD5E1',
@@ -6261,7 +6349,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     overflow: 'hidden',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div className="rekening-outer-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div
                         style={{
@@ -6273,6 +6361,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          flexShrink: 0,
                         }}
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
@@ -6289,26 +6378,55 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       </div>
                     </div>
 
-                    {/* Status Badge */}
-                    {currentUser?.namaBank && currentUser?.nomorRekening ? (
-                      <span
-                        style={{
-                          backgroundColor: '#DCFCE7',
-                          color: '#15803D',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          padding: '4px 12px',
-                          borderRadius: '9999px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          border: '1px solid #86EFAC',
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>verified</span>
-                        Rekening Terdaftar &bull; Siap Dicairkan
-                      </span>
-                    ) : currentUser?.isProfileComplete ? (
+                    {/* Status Badge & Ubah Button */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {currentUser?.namaBank && currentUser?.nomorRekening ? (
+                        <>
+                          <span
+                            style={{
+                              backgroundColor: '#DCFCE7',
+                              color: '#15803D',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              padding: '3px 8px',
+                              borderRadius: '9999px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              border: '1px solid #86EFAC',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>verified</span>
+                            <span>Siap Dicairkan</span>
+                          </span>
+
+                          {!isEditingBank && (
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingBank(true)}
+                              className="rekening-btn-ubah"
+                              style={{
+                                backgroundColor: '#FFFFFF',
+                                color: '#0F172A',
+                                border: '1.5px solid #CBD5E1',
+                                padding: '3px 9px',
+                                borderRadius: '7px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#005BB5' }}>edit</span>
+                              <span>Ubah</span>
+                            </button>
+                          )}
+                        </>
+                      ) : currentUser?.isProfileComplete ? (
                       <span
                         style={{
                           backgroundColor: '#FEF3C7',
@@ -6346,8 +6464,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       </span>
                     )}
                   </div>
+                </div>
 
-                  {/* KONDISI 1: JIKA BELUM ISI FORMULIR MITRA */}
+                {/* KONDISI 1: JIKA BELUM ISI FORMULIR MITRA */}
                   {!currentUser?.isProfileComplete ? (
                     <div>
                       {/* Alert Box Terkunci */}
@@ -6454,7 +6573,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       </div>
                     </div>
                   ) : currentUser?.namaBank && currentUser?.nomorRekening && !isEditingBank ? (
-                    /* KONDISI 2A: REKENING SUDAH DISIMPAN & TERVERIFIKASI (KARTU ELEGAN) */
+                    /* KONDISI 2A: REKENING SUDAH DISIMPAN & TERVERIFIKASI (BERSIH & KOMPAK) */
                     <div>
                       {bankSavedMsg && (
                         <div
@@ -6462,169 +6581,114 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             backgroundColor: '#DCFCE7',
                             border: '1px solid #86EFAC',
                             color: '#15803D',
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            fontSize: '0.82rem',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
                             fontWeight: 700,
-                            marginBottom: '14px',
+                            marginBottom: '10px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '6px',
                           }}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check_circle</span>
                           <span>{bankSavedMsg}</span>
                         </div>
                       )}
 
+                      {/* Kartu Ramping Detail Rekening Pencairan (Lebar Penuh, Tanpa Patah Baris) */}
                       <div
+                        className="rekening-digital-card"
                         style={{
-                          backgroundColor: '#F0FDF4',
-                          border: '1.5px solid #86EFAC',
-                          borderRadius: '14px',
-                          padding: '18px 20px',
-                          boxShadow: '0 4px 15px rgba(16, 185, 129, 0.08)',
+                          backgroundColor: '#F8FAFC',
+                          border: '1.5px solid #BBF7D0',
+                          borderRadius: '12px',
+                          padding: '12px 14px',
+                          marginBottom: '10px',
+                          boxShadow: '0 1px 4px rgba(16, 185, 129, 0.05)',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', borderBottom: '1px solid #BBF7D0', paddingBottom: '14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div
-                              style={{
-                                width: '38px',
-                                height: '38px',
-                                borderRadius: '10px',
-                                backgroundColor: '#10B981',
-                                color: '#FFFFFF',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                                {pencairanKategori === 'ewallet' ? 'smartphone' : 'account_balance'}
-                              </span>
+                        {/* Baris 1: Nama Bank & Jenis Pencairan */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', paddingBottom: '8px', borderBottom: '1px dashed #CBD5E1', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                              {pencairanKategori === 'ewallet' ? 'smartphone' : 'account_balance'}
+                            </span>
+                            <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.88rem' }}>
+                              {currentUser.namaBank}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              backgroundColor: '#E0F2FE',
+                              color: '#0369A1',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {pencairanKategori === 'ewallet' ? 'E-Wallet' : 'Bank Transfer'}
+                          </span>
+                        </div>
+
+                        {/* Baris 2: Nomor Rekening (Lebar Penuh, Tidak Patah) + Tombol Salin */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                          <div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              {pencairanKategori === 'ewallet' ? 'Nomor HP Akun' : 'Nomor Rekening'}
                             </div>
-                            <div>
-                              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#065F46', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span>Rekening Pencairan Terdaftar</span>
-                                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>verified</span>
-                              </div>
-                              <div style={{ fontSize: '0.74rem', color: '#047857' }}>
-                                Tujuan transfer insentif resmi Rp 100.000 / visa terbit
-                              </div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0F172A', fontFamily: 'monospace', letterSpacing: '0.8px', whiteSpace: 'nowrap', marginTop: '1px' }}>
+                              {currentUser.nomorRekening}
                             </div>
                           </div>
 
                           <button
                             type="button"
-                            onClick={() => setIsEditingBank(true)}
+                            onClick={() => {
+                              if (currentUser.nomorRekening) {
+                                navigator.clipboard.writeText(currentUser.nomorRekening);
+                                setBankCopied(true);
+                                setTimeout(() => setBankCopied(false), 2000);
+                              }
+                            }}
+                            title="Salin nomor rekening"
                             style={{
-                              backgroundColor: '#FFFFFF',
-                              color: '#0F172A',
-                              border: '1.5px solid #CBD5E1',
-                              padding: '8px 16px',
-                              borderRadius: '9px',
-                              fontSize: '0.8rem',
+                              backgroundColor: bankCopied ? '#DCFCE7' : '#FFFFFF',
+                              color: bankCopied ? '#15803D' : '#334155',
+                              border: `1px solid ${bankCopied ? '#86EFAC' : '#CBD5E1'}`,
+                              padding: '5px 10px',
+                              borderRadius: '7px',
+                              fontSize: '0.74rem',
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                              transition: 'all 0.2s ease',
+                              gap: '4px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                              transition: 'all 0.15s ease',
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#005BB5' }}>edit</span>
-                            <span>Ubah Data Rekening</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px', color: bankCopied ? '#16A34A' : '#64748B' }}>
+                              {bankCopied ? 'check' : 'content_copy'}
+                            </span>
+                            <span>{bankCopied ? 'Tersalin' : 'Salin'}</span>
                           </button>
                         </div>
 
-                        {/* Grid 4 Kolom Detail Rekening Tersimpan */}
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                            gap: '12px',
-                            marginBottom: '14px',
-                          }}
-                        >
-                          {/* 1. Jenis Pencairan */}
-                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
-                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              Jenis Pencairan
-                            </div>
-                            <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>
-                              {pencairanKategori === 'ewallet' ? '📱 Dompet Digital (E-Wallet)' : '🏦 Bank Transfer'}
-                            </div>
-                          </div>
-
-                          {/* 2. Nama Bank / E-Wallet */}
-                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
-                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              {pencairanKategori === 'ewallet' ? 'Nama E-Wallet' : 'Nama Bank'}
-                            </div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#005BB5' }}>
-                              {currentUser.namaBank}
-                            </div>
-                          </div>
-
-                          {/* 3. Nomor Rekening / No. HP */}
-                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
-                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              {pencairanKategori === 'ewallet' ? 'Nomor HP Akun' : 'Nomor Rekening Bank'}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                              <span style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A', letterSpacing: '0.5px', fontFamily: 'monospace' }}>
-                                {currentUser.nomorRekening}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (currentUser.nomorRekening) {
-                                    navigator.clipboard.writeText(currentUser.nomorRekening);
-                                    setBankCopied(true);
-                                    setTimeout(() => setBankCopied(false), 2000);
-                                  }
-                                }}
-                                title="Salin nomor"
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: '4px 6px',
-                                  cursor: 'pointer',
-                                  borderRadius: '6px',
-                                  color: bankCopied ? '#10B981' : '#64748B',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '2px',
-                                  backgroundColor: bankCopied ? '#DCFCE7' : '#F1F5F9',
-                                }}
-                              >
-                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-                                  {bankCopied ? 'check' : 'content_copy'}
-                                </span>
-                                <span>{bankCopied ? 'Tersalin' : 'Salin'}</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* 4. Nama Pemilik (Atas Nama) */}
-                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #D1FAE5' }}>
-                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              Nama Pemilik (Atas Nama)
-                            </div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A' }}>
-                              {currentUser.atasNamaRekening || currentUser.nama}
-                            </div>
-                          </div>
+                        {/* Baris 3: Atas Nama Rekening */}
+                        <div style={{ fontSize: '0.74rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', paddingTop: '4px' }}>
+                          <span style={{ color: '#64748B' }}>Atas Nama:</span>
+                          <strong style={{ color: '#0F172A', fontWeight: 800 }}>{currentUser.atasNamaRekening || currentUser.nama}</strong>
                         </div>
+                      </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem', color: '#047857', fontWeight: 600 }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#10B981' }}>verified_user</span>
-                          <span>Rekening ini siap menerima pencairan insentif otomatis saat visa pemohon yang Anda ajak disetujui.</span>
-                        </div>
+                      <div className="rekening-note-footer" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: '#047857', fontWeight: 600 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#10B981', flexShrink: 0 }}>verified_user</span>
+                        <span>Rekening aktif &bull; siap menerima transfer otomatis komisi Rp 100.000 / visa terbit.</span>
                       </div>
                     </div>
                   ) : (
@@ -6894,23 +6958,34 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </div>
 
                 {/* Format Kode Referral Info */}
-                <div style={{
-                  backgroundColor: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '14px',
-                  padding: '16px 20px',
-                  marginBottom: '26px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '14px'
-                }}>
-                  <div style={{ fontSize: '1.8rem' }}>🏷️</div>
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>
+                <div
+                  className="mpc-referral-format-card"
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                  }}
+                >
+                  <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>🏷️</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.3 }}>
                       Format Kode Referral Otomatis Resmi
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '2px' }}>
-                      Mengikuti standar spreadsheet: <code style={{ backgroundColor: '#E2E8F0', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, color: '#0F172A' }}>MPH + (3 Digit Terakhir No. WA) + (2 Huruf Nama Depan)</code>. Contoh: WA akhiran 433 &amp; nama Elen = <strong>MPH433EL</strong>.
+                    <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '3px', lineHeight: 1.4 }}>
+                      Formula standar:
+                      <div style={{ marginTop: '2px' }}>
+                        <span style={{ backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, fontFamily: 'monospace', fontSize: '0.72rem', display: 'inline-block', whiteSpace: 'nowrap' }}>
+                          MPH + (3 Digit WA) + (2 Huruf Nama)
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: '4px', fontWeight: 600 }}>
+                      Contoh: WA akhiran <strong style={{ color: '#0F172A' }}>433</strong> &bull; nama <strong style={{ color: '#0F172A' }}>Elen</strong> &rarr; <span style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>MPH433EL</span>
                     </div>
                   </div>
                 </div>
@@ -6920,19 +6995,21 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   <button
                     type="button"
                     onClick={() => setOnboardingView('form')}
+                    className="mpc-register-now-btn"
                     style={{
                       backgroundColor: '#10B981',
                       color: '#FFFFFF',
                       border: 'none',
-                      padding: '14px 28px',
-                      borderRadius: '12px',
-                      fontSize: '0.95rem',
+                      padding: '11px 22px',
+                      borderRadius: '10px',
+                      fontSize: '0.88rem',
                       fontWeight: 800,
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '10px',
-                      boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.28)',
+                      transition: 'all 0.2s ease',
                     }}
                   >
                     <span>Daftar Sekarang</span>
@@ -6967,9 +7044,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   </div>
                 </div>
 
-                {/* PODIUM TOP 3 JUARA (1, 2, 3) */}
+                {/* PODIUM TOP 3 JUARA - DESKTOP VERSION (OLYMPIC 2 - 1 - 3) */}
                 <div
-                  className="mpc-podium-grid"
+                  className="mpc-podium-grid mpc-podium-desktop"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -7002,7 +7079,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace', marginBottom: '8px' }}>
                       KODE: <strong>{currentUser?.affiliateCode === 'MPH555DE' ? 'MPH555DE' : 'MPH555***'}</strong>
                     </div>
-                    <div style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
+                    <div className="podium-nominal" style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
                       Rp 600.000
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, backgroundColor: '#F8FAFC', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
@@ -7036,7 +7113,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     <div style={{ fontSize: '0.74rem', color: '#005BB5', fontFamily: 'monospace', fontWeight: 700, marginBottom: '8px' }}>
                       KODE: <strong>{currentUser?.affiliateCode === 'MPH458RI' ? 'MPH458RI' : 'MPH458***'}</strong>
                     </div>
-                    <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#005BB5', margin: '4px 0' }}>
+                    <div className="podium-nominal" style={{ fontSize: '1.65rem', fontWeight: 900, color: '#005BB5', margin: '4px 0' }}>
                       Rp 1.300.000
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#005BB5', fontWeight: 800, backgroundColor: '#EFF6FF', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
@@ -7069,11 +7146,176 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace', marginBottom: '8px' }}>
                       KODE: <strong>{currentUser?.affiliateCode === 'MPH630AL' ? 'MPH630AL' : 'MPH630***'}</strong>
                     </div>
-                    <div style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
+                    <div className="podium-nominal" style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
                       Rp 600.000
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, backgroundColor: '#F8FAFC', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
                       ✓ 6 Visa Berhasil Terbit
+                    </div>
+                  </div>
+                </div>
+
+                {/* PODIUM TOP 3 JUARA - MOBILE VERSION (3 BARIS SERAGAM & PROPORSIONAL TANPA GEDE SENDIRI) */}
+                <div className="mpc-podium-mobile">
+                  {/* Juara 1 */}
+                  <div
+                    style={{
+                      backgroundColor: '#EFF6FF',
+                      border: '1px solid #93C5FD',
+                      borderRadius: '12px',
+                      padding: '9px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      boxShadow: '0 1px 4px rgba(0, 91, 181, 0.08)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥇</span>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: '#DBEAFE',
+                          color: '#005BB5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          flexShrink: 0,
+                          border: '1.5px solid #005BB5',
+                        }}
+                      >
+                        R
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Rizky Muhammad E
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: '#005BB5', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {currentUser?.affiliateCode === 'MPH458RI' ? 'MPH458RI' : 'MPH458***'} &bull; 13 Visa
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontWeight: 900, color: '#005BB5', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                        Rp 1.300.000
+                      </div>
+                      <span style={{ fontSize: '0.62rem', backgroundColor: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        Top 1
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Juara 2 */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '9px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥈</span>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: '#F1F5F9',
+                          color: '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          flexShrink: 0,
+                          border: '1.5px solid #CBD5E1',
+                        }}
+                      >
+                        D
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Derryl
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {currentUser?.affiliateCode === 'MPH555DE' ? 'MPH555DE' : 'MPH555***'} &bull; 6 Visa
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontWeight: 900, color: '#0F172A', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                        Rp 600.000
+                      </div>
+                      <span style={{ fontSize: '0.62rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        Top 2
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Juara 3 */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '9px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥉</span>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: '#F1F5F9',
+                          color: '#64748B',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          flexShrink: 0,
+                          border: '1.5px solid #CBD5E1',
+                        }}
+                      >
+                        A
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Albert Lazuardy
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {currentUser?.affiliateCode === 'MPH630AL' ? 'MPH630AL' : 'MPH630***'} &bull; 6 Visa
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontWeight: 900, color: '#0F172A', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                        Rp 600.000
+                      </div>
+                      <span style={{ fontSize: '0.62rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        Top 3
+                      </span>
                     </div>
                   </div>
                 </div>

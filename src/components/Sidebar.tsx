@@ -64,13 +64,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     badge?: number | string;
     isOwnerOnly?: boolean;
   }[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { key: 'pengajuan', label: 'Pengajuan', icon: 'description', badge: totalPengajuanCount },
-    { key: 'keuangan', label: 'Keuangan', icon: 'account_balance_wallet', isOwnerOnly: true },
-    { key: 'rekap', label: 'Rekap', icon: 'bar_chart', isOwnerOnly: true },
-    { key: 'affiliate', label: 'Affiliate', icon: 'group', badge: totalAffiliateCount },
-    { key: 'pengaturan', label: 'Pengaturan', icon: 'settings' },
-  ];
+      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { key: 'pengajuan', label: 'Pengajuan', icon: 'description', badge: totalPengajuanCount },
+      { key: 'keuangan', label: 'Keuangan', icon: 'account_balance_wallet', isOwnerOnly: true },
+      { key: 'rekap', label: 'Rekap', icon: 'bar_chart', isOwnerOnly: true },
+      { key: 'affiliate', label: 'Affiliate', icon: 'group', badge: totalAffiliateCount },
+      { key: 'pengaturan', label: 'Pengaturan', icon: 'settings' },
+    ];
 
   // Completely hide Keuangan & Rekap when in Staff mode so staff cannot see or click them
   const menuItems = allMenuItems.filter((item) => !item.isOwnerOnly || isOwner);

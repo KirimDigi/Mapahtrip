@@ -2082,7 +2082,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
           <h2 className="font-serif" style={{ fontSize: '2.2rem', fontWeight: 700, color: '#0F172A', marginTop: '6px' }}>
             Cek Status Pengajuan Paspor Anda
           </h2>
-          <p style={{ color: '#64748B', fontSize: '0.95rem', marginTop: '6px' }}>
+          <p className="tracking-subtitle" style={{ color: '#64748B', fontSize: '0.95rem', marginTop: '6px' }}>
             Masukkan nomor paspor (contoh: <code>E68291049</code>) atau nomor pengajuan untuk mengecek status berkas secara langsung.
           </p>
 
@@ -3099,7 +3099,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
           <h2 className="font-serif" style={{ fontSize: '2.4rem', fontWeight: 700, color: '#0F172A', marginTop: '6px' }}>
             Jenis Visa Jepang yang Kami Tangani
           </h2>
-          <p style={{ color: '#64748B', fontSize: '1rem', marginTop: '6px', maxWidth: '640px', margin: '6px auto 0' }}>
+          <p className="jenis-visa-subtitle" style={{ color: '#64748B', fontSize: '1rem', marginTop: '6px', maxWidth: '640px', margin: '6px auto 0' }}>
             Layanan pengajuan resmi sesuai standar Kedutaan Besar Jepang &amp; VFS JVAC dengan pendampingan dokumen lengkap sampai approved.
           </p>
 
@@ -3275,14 +3275,16 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
                     {/* Description (Strictly Aligned) */}
                     <p
+                      className="visa-card-desc"
                       style={{
                         fontSize: '0.82rem',
                         color: '#475569',
                         lineHeight: 1.5,
                         marginBottom: '16px',
                         minHeight: '56px',
-                        display: 'flex',
-                        alignItems: 'flex-start',
+                        display: 'block',
+                        textAlign: 'justify',
+                        textJustify: 'inter-word',
                       }}
                     >
                       {item.desc}
@@ -5708,18 +5710,20 @@ Pantau & kelola pengajuan di Dashboard Owner:
             <span>CARA KERJA</span>
           </div>
           <h2
-            className="font-serif"
+            className="font-serif alur-heading"
             style={{
-              fontSize: 'clamp(1.9rem, 3.4vw, 2.6rem)',
+              fontSize: 'clamp(1.75rem, 3.4vw, 2.6rem)',
               fontWeight: 800,
               color: '#0B1220',
               letterSpacing: '-0.025em',
               margin: '0 0 12px',
+              textWrap: 'balance',
             }}
           >
-            4 Langkah, Visa Jepang Jadi.
+            <span>4 Langkah,</span> <span style={{ whiteSpace: 'nowrap' }}>Visa Jepang Jadi.</span>
           </h2>
           <p
+            className="alur-subtitle"
             style={{
               fontSize: '1rem',
               color: '#64748B',
@@ -5966,6 +5970,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
               Pertanyaan yang Sering Diajukan
             </h2>
             <p
+              className="faq-subtitle"
               style={{
                 fontSize: '0.94rem',
                 color: '#64748B',
@@ -6103,6 +6108,8 @@ Pantau & kelola pengajuan di Dashboard Owner:
                       lineHeight: 1.6,
                       borderTop: isDarkMode ? '1px dashed #334155' : '1px dashed #F1F5F9',
                       paddingTop: '12px',
+                      textAlign: 'justify',
+                      textJustify: 'inter-word',
                     }}
                   >
                     {item.a}
@@ -6181,26 +6188,20 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
                 {/* Title */}
                 <h3
+                  className="duo-card-title"
                   style={{
                     color: isDarkMode ? '#FFFFFF' : '#0F172A',
-                    fontSize: '1.45rem',
-                    fontWeight: 800,
-                    margin: '0 0 10px',
-                    lineHeight: 1.3,
-                    letterSpacing: '-0.02em',
                   }}
                 >
-                  Siap Berangkat ke Jepang?<br />
+                  <span>Siap Berangkat ke Jepang?</span><br />
                   <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Chat Japan Expert Sekarang.</span>
                 </h3>
 
                 {/* Subtitle */}
                 <p
+                  className="duo-card-desc"
                   style={{
-                    margin: '0 0 16px',
-                    fontSize: '0.88rem',
                     color: isDarkMode ? '#94A3B8' : '#475569',
-                    lineHeight: 1.5,
                   }}
                 >
                   Konsultasikan jadwal proses, verifikasi dokumen, dan slot kuota VFS JVAC langsung dengan konsultan kami.
@@ -6223,7 +6224,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="duo-card-actions">
                 <a
                   href="https://wa.me/6281401735648?text=Halo%20MapahTrip,%20saya%20siap%20berangkat%20ke%20Jepang%20dan%20ingin%20konsultasi%20visa"
                   target="_blank"
@@ -6351,26 +6352,20 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
                 {/* Title */}
                 <h3
+                  className="duo-card-title"
                   style={{
                     color: isDarkMode ? '#FFFFFF' : '#0F172A',
-                    fontSize: '1.45rem',
-                    fontWeight: 800,
-                    margin: '0 0 10px',
-                    lineHeight: 1.3,
-                    letterSpacing: '-0.02em',
                   }}
                 >
-                  Punya Rekan atau Siswa LPK?<br />
-                  <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Resmi via Transfer.</span>
+                  <span>Punya Rekan atau Siswa LPK?</span><br />
+                  <span style={{ color: isDarkMode ? '#93C5FD' : '#005BB5' }}>Dapatkan Komisi Resmi <span style={{ whiteSpace: 'nowrap' }}>via Transfer.</span></span>
                 </h3>
 
                 {/* Subtitle */}
                 <p
+                  className="duo-card-desc"
                   style={{
-                    margin: '0 0 16px',
-                    fontSize: '0.88rem',
                     color: isDarkMode ? '#94A3B8' : '#475569',
-                    lineHeight: 1.5,
                   }}
                 >
                   Daftar akun mitra &amp; miliki kode referral resmi. Dapatkan komisi transfer <strong style={{ color: isDarkMode ? '#60A5FA' : '#005BB5', whiteSpace: 'nowrap' }}>Rp 100.000</strong> per visa terbit.
@@ -6386,9 +6381,10 @@ Pantau & kelola pengajuan di Dashboard Owner:
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="duo-card-actions duo-card-actions-mitra">
                 <a
                   href="#affiliate-register"
+                  className="duo-btn-primary"
                   style={{
                     backgroundColor: '#005BB5',
                     color: '#FFFFFF',
@@ -6420,70 +6416,75 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   </span>
                 </a>
 
-                <a
-                  href="#affiliate-login"
-                  style={{
-                    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
-                    color: isDarkMode ? '#FFFFFF' : '#334155',
-                    border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
-                    padding: '12px 20px',
-                    borderRadius: '9999px',
-                    fontSize: '0.88rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    textDecoration: 'none',
-                    boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
-                    e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
-                    e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }}
-                >
-                  <span>Masuk Akun</span>
-                </a>
+                <div className="duo-btn-subgroup">
+                  <a
+                    href="#affiliate-login"
+                    style={{
+                      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#334155',
+                      border: isDarkMode ? '1px solid #475569' : '1px solid #CBD5E1',
+                      padding: '12px 20px',
+                      borderRadius: '9999px',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      textDecoration: 'none',
+                      boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#F1F5F9';
+                      e.currentTarget.style.borderColor = isDarkMode ? '#64748B' : '#94A3B8';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
+                      e.currentTarget.style.borderColor = isDarkMode ? '#475569' : '#CBD5E1';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <span>Masuk Akun</span>
+                  </a>
 
-                <a
-                  href="#affiliate-demo"
-                  style={{
-                    backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#FFFBEB',
-                    color: isDarkMode ? '#FCD34D' : '#B45309',
-                    border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid #FDE68A',
-                    padding: '12px 20px',
-                    borderRadius: '9999px',
-                    fontSize: '0.88rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    textDecoration: 'none',
-                    boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(180, 83, 9, 0.08)',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#FFFBEB';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#D97706' }}>
-                    visibility
-                  </span>
-                  <span>Coba Demo Dashboard</span>
-                </a>
+                  <a
+                    href="#affiliate-demo"
+                    style={{
+                      backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#FFFBEB',
+                      color: isDarkMode ? '#FCD34D' : '#B45309',
+                      border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid #FDE68A',
+                      padding: '12px 20px',
+                      borderRadius: '9999px',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      textDecoration: 'none',
+                      boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(180, 83, 9, 0.08)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#FFFBEB';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#D97706' }}>
+                      visibility
+                    </span>
+                    <span>
+                      <span className="duo-text-mobile">Coba Demo</span>
+                      <span className="duo-text-desktop">Coba Demo Dashboard</span>
+                    </span>
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -6567,7 +6568,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 </span>
               </div>
             </div>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6, marginTop: '8px', maxWidth: '440px' }}>
+            <p className="footer-brand-desc" style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6, marginTop: '8px', maxWidth: '440px' }}>
               Layanan jasa pengurusan visa Jepang independen &amp; profesional. Fokus 100% visa Jepang: Tourist, Waiver, e-Visa, Bisnis, Kunjungan Keluarga, Pelajar, Transit, dan Dependent.
             </p>
             <div style={{ marginTop: '14px' }}>
@@ -6849,7 +6850,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
             gap: '20px',
           }}
         >
-          <div style={{ maxWidth: '720px', fontSize: '0.74rem', color: '#64748B', lineHeight: 1.6, textAlign: 'left' }}>
+          <div style={{ maxWidth: '720px', fontSize: '0.74rem', color: '#64748B', lineHeight: 1.6, textAlign: 'justify', textJustify: 'inter-word' }}>
             Disclaimer: Mapahtrip.id adalah penyedia jasa bantuan pengurusan visa Jepang independen dan tidak berafiliasi dengan Kedutaan Besar Jepang, JVAC, atau VFS Global. Keputusan pemberian visa sepenuhnya kewenangan Kedutaan Besar Jepang. Kami membantu menyiapkan dokumen sesuai standar terbaru 2026.
           </div>
           <div style={{ fontSize: '0.8rem', color: '#64748B', whiteSpace: 'nowrap', textAlign: 'right' }}>

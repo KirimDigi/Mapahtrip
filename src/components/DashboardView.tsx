@@ -197,47 +197,97 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             backgroundColor: '#F0FDF4',
             border: '1px solid #BBF7D0',
             borderRadius: '14px',
-            padding: '14px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
+            padding: '12px 16px',
             boxShadow: '0 2px 6px rgba(22, 101, 52, 0.05)',
+            marginBottom: '18px',
           }}
         >
-          <div className="staff-achievement-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-            <div
+          {/* Bagian Atas: Ikon, Judul, Angka Selesai & Badge */}
+          <div className="staff-achievement-top" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+              <div
+                className="staff-achievement-icon"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: '#DCFCE7',
+                  border: '1px solid #86EFAC',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#16A34A',
+                  flexShrink: 0,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>workspace_premium</span>
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Pencapaian Wilayah Anda
+                </div>
+                <div className="staff-achievement-title" style={{ fontSize: '0.94rem', fontWeight: 800, color: '#166534', lineHeight: 1.25 }}>
+                  {countVisaTerbit + countSudahKirim} Paspor Selesai
+                </div>
+              </div>
+            </div>
+
+            <span
+              className="staff-achievement-badge"
               style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '10px',
                 backgroundColor: '#DCFCE7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#16A34A',
+                color: '#15803D',
+                border: '1px solid #86EFAC',
+                padding: '3px 8px',
+                borderRadius: '999px',
+                fontSize: '0.70rem',
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
                 flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>workspace_premium</span>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span>Pencapaian Wilayah Anda: {countVisaTerbit + countSudahKirim} Paspor Selesai</span>
-                <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '12px', fontSize: '0.70rem', fontWeight: 700 }}>
-                  Tingkat Sukses 100% 🏆 (0 Ditolak)
-                </span>
-              </div>
-              <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: '2px' }}>
-                Luar biasa! Seluruh pengajuan visa pemohon di wilayah konsulat Anda tertangani dengan cepat, rapi, dan tepat waktu.
-              </div>
-            </div>
+              <span>100% Sukses</span>
+              <span>🏆</span>
+            </span>
           </div>
-          <div className="staff-achievement-eval" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="staff-achievement-eval-text" style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.66rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status Evaluasi</div>
-              <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A' }}>🌟 Staff PIC Teladan</div>
+
+          {/* Bagian Bawah: Ringkasan Catatan & Status Evaluasi */}
+          <div
+            className="staff-achievement-bottom"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              paddingTop: '8px',
+              marginTop: '8px',
+              borderTop: '1px dashed #BBF7D0',
+            }}
+          >
+            <div style={{ fontSize: '0.73rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#16A34A', flexShrink: 0 }}>check_circle</span>
+              <span>Seluruh berkas tertangani rapi (0 ditolak)</span>
+            </div>
+
+            <div
+              className="staff-achievement-eval-pill"
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #BBF7D0',
+                color: '#0F172A',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontSize: '0.70rem',
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              }}
+            >
+              🌟 Staff PIC Teladan
             </div>
           </div>
         </div>

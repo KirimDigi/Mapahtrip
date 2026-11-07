@@ -1334,6 +1334,8 @@ html, body, #root {
     border-top: 1px dashed #E2E8F0 !important;
     margin-top: 0 !important;
     box-sizing: border-box !important;
+    text-align: justify !important;
+    text-justify: inter-word !important;
   }
 }
 
@@ -1465,6 +1467,47 @@ html, body, #root {
   align-items: stretch;
   width: 100%;
 }
+/* Duo Bento Grid Action Buttons & Typography Responsive */
+.duo-card-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin: 0 0 10px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+.duo-card-desc {
+  margin: 0 0 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  text-align: justify;
+  text-justify: inter-word;
+}
+.faq-answer-content {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+}
+.duo-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.duo-card-actions-mitra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.duo-card-actions-mitra .duo-btn-subgroup {
+  display: contents;
+}
+.duo-text-mobile {
+  display: none;
+}
+.duo-text-desktop {
+  display: inline;
+}
+
 @media (max-width: 768px) {
   .duo-bento-grid {
     grid-template-columns: 1fr !important;
@@ -1473,6 +1516,65 @@ html, body, #root {
   }
   .duo-bento-grid > div {
     padding: 24px 18px !important;
+  }
+
+  .duo-card-title {
+    font-size: 1.18rem !important;
+    line-height: 1.35 !important;
+    margin-bottom: 12px !important;
+  }
+  .duo-card-desc {
+    font-size: 0.84rem !important;
+    line-height: 1.55 !important;
+    text-align: justify !important;
+    text-justify: inter-word !important;
+  }
+
+  .duo-card-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .duo-card-actions > a {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+
+  .duo-card-actions-mitra {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .duo-card-actions-mitra .duo-btn-primary {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+  .duo-card-actions-mitra .duo-btn-subgroup {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .duo-card-actions-mitra .duo-btn-subgroup > a {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+    padding: 11px 6px !important;
+    font-size: 0.82rem !important;
+    white-space: nowrap !important;
+  }
+  .duo-text-mobile {
+    display: inline !important;
+  }
+  .duo-text-desktop {
+    display: none !important;
   }
   /* Compact Sleek Customer Footer for Mobile */
   /* Mobile Footer: Rapi, simetris, modern, dan nyaman dilihat */
@@ -1494,16 +1596,17 @@ html, body, #root {
     color: #94a3b8 !important;
   }
   .footer-wa-link {
-    display: flex !important;
-    width: 100% !important;
+    display: inline-flex !important;
+    width: auto !important;
+    max-width: fit-content !important;
     justify-content: center !important;
     align-items: center !important;
     gap: 8px !important;
     background: linear-gradient(135deg, #16a34a, #15803d) !important;
     color: #ffffff !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    padding: 11px 16px !important;
-    border-radius: 12px !important;
+    padding: 10px 18px !important;
+    border-radius: 9999px !important;
     font-size: 0.88rem !important;
     font-weight: 700 !important;
     box-shadow: 0 4px 14px rgba(22, 163, 74, 0.28) !important;
@@ -1710,7 +1813,8 @@ html, body, #root {
     align-items: flex-start !important;
   }
   .footer-bottom-bar > div:first-child {
-    text-align: left !important;
+    text-align: justify !important;
+    text-justify: inter-word !important;
     font-size: 0.72rem !important;
     line-height: 1.6 !important;
     color: #64748b !important;
@@ -2763,6 +2867,28 @@ html, body, #root {
   #kenapa-kami {
     padding: 44px 16px !important;
   }
+
+  /* Subtitles, Penjelasan, & Isi Konten: Rata Kanan dan Kiri on Mobile */
+  .tracking-subtitle,
+  .jenis-visa-subtitle,
+  .alur-subtitle,
+  .faq-subtitle,
+  .footer-brand-desc,
+  .visa-card-desc,
+  .visa-card-item p,
+  .faq-answer-content,
+  .duo-card-desc {
+    text-align: justify !important;
+    text-justify: inter-word !important;
+    display: block !important;
+  }
+
+  /* Alur Title Mobile: no orphan words like "Jadi." */
+  .alur-heading {
+    font-size: 1.85rem !important;
+    line-height: 1.25 !important;
+    text-wrap: balance !important;
+  }
 }
 
 /* ======================================================== */
@@ -2800,6 +2926,86 @@ html, body, #root {
   display: flex !important;
   align-items: center !important;
   flex-shrink: 0 !important;
+}
+
+/* Portal Demo Banner Desktop */
+.portal-demo-banner {
+  background: linear-gradient(135deg, #1E293B, #0F172A);
+  color: #FFFFFF;
+  padding: 12px 18px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+}
+
+.portal-demo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FBBF24;
+  flex-shrink: 0;
+}
+
+.portal-demo-icon .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.portal-demo-title {
+  font-size: 0.95rem;
+  color: #FFFFFF;
+  font-weight: 800;
+}
+
+.portal-demo-desc {
+  margin: 3px 0 0;
+  font-size: 0.80rem;
+  color: #CBD5E1;
+  line-height: 1.35;
+}
+
+.portal-demo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.portal-demo-btn-daftar {
+  background-color: #10B981;
+  color: #FFFFFF;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.portal-demo-btn-keluar {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #CBD5E1;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.80rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
@@ -2963,6 +3169,62 @@ html, body, #root {
     border-radius: 9px !important;
   }
 
+  /* Demo Banner Mobile: Ultra-compact slim bar (not giant) */
+  .portal-demo-banner {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+    margin-bottom: 12px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .portal-demo-main-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .portal-demo-icon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 7px !important;
+  }
+
+  .portal-demo-icon .material-symbols-outlined {
+    font-size: 16px !important;
+  }
+
+  .portal-demo-title {
+    font-size: 0.82rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+
+  .portal-demo-desc {
+    display: none !important; /* Hide long paragraph on phone so it doesn't take half the screen */
+  }
+
+  .portal-demo-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .portal-demo-btn-daftar {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 7px 12px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .portal-demo-btn-keluar {
+    padding: 7px 12px !important;
+    font-size: 0.76rem !important;
+    flex-shrink: 0 !important;
+  }
+
   /* Partner Metrics Grid on Mobile: Card 1 as Full Summary Header, Cards 2-5 as 2x2 Grid */
   .partner-metrics-grid {
     display: grid !important;
@@ -3049,25 +3311,72 @@ html, body, #root {
     width: 100% !important;
   }
 
-  /* MPC Subtabs Mobile: Rapi, scrollable horizontal jika sempit, tanpa radio circle */
+  /* Riwayat Transfer Desktop Table vs Mobile Cards */
+  .riwayat-desktop-table {
+    display: none !important;
+  }
+
+  .riwayat-mobile-cards {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* MPC Subtabs Mobile: Rapi, 3 tab pas sebaris tanpa terpotong */
   .mpc-subtabs-nav {
     display: flex !important;
-    gap: 6px !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-    padding-bottom: 2px !important;
+    gap: 4px !important;
+    width: 100% !important;
     border-bottom: 1px solid #E2E8F0 !important;
-    margin-bottom: 20px !important;
+    margin-bottom: 16px !important;
+    overflow-x: visible !important;
   }
   .mpc-subtabs-nav::-webkit-scrollbar {
     display: none !important;
   }
   .mpc-subtab-btn {
-    padding: 8px 10px 10px !important;
-    font-size: 0.82rem !important;
+    flex: 1 1 0 !important;
+    justify-content: center !important;
+    padding: 8px 4px 10px !important;
+    font-size: 0.80rem !important;
     white-space: nowrap !important;
-    flex-shrink: 0 !important;
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+  .mpc-subtab-btn:focus,
+  .mpc-subtab-btn:focus-visible {
+    outline: none !important;
+  }
+  .mpc-tab-word-mitra {
+    display: none !important;
+  }
+
+  /* Rekening Pencairan Terdaftar Mobile Optimization (Kartu Ramping Digital) */
+  .rekening-outer-wrapper {
+    padding: 12px 12px !important;
+    border-radius: 12px !important;
+    margin-bottom: 14px !important;
+  }
+  .rekening-outer-header {
+    margin-bottom: 10px !important;
+    gap: 8px !important;
+  }
+  .rekening-digital-card {
+    padding: 10px 12px !important;
+    border-radius: 10px !important;
+    margin-bottom: 8px !important;
+  }
+  .rekening-note-footer {
+    font-size: 0.68rem !important;
+    gap: 5px !important;
+  }
+
+  /* Format Kode Referral Info Mobile */
+  .mpc-referral-format-card {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    margin-bottom: 14px !important;
   }
 
   /* MPC Sync Badge Mobile */
@@ -3078,40 +3387,16 @@ html, body, #root {
     margin-top: 4px !important;
   }
 
-  /* MPC Podium Mobile: Swipe horizontal ke samping (Juara 1 -> Juara 2 -> Juara 3) */
-  .mpc-podium-grid {
-    display: flex !important;
-    flex-direction: row !important;
-    overflow-x: auto !important;
-    scroll-snap-type: x mandatory !important;
-    -webkit-overflow-scrolling: touch !important;
-    gap: 14px !important;
-    padding: 18px 4px 12px !important; /* padding atas untuk badge Juara melayang */
-    margin-top: 4px !important;
-    margin-bottom: 20px !important;
-    scrollbar-width: none !important;
-  }
-  .mpc-podium-grid::-webkit-scrollbar {
+  /* MPC Podium Mobile: 3 Baris Ramping Seimbang Tanpa Gede Sendiri */
+  .mpc-podium-desktop {
     display: none !important;
   }
-  .podium-card {
-    flex: 0 0 260px !important;
-    min-width: 260px !important;
-    max-width: 280px !important;
-    scroll-snap-align: start !important;
-    box-sizing: border-box !important;
-  }
-  .podium-card-1 {
-    order: 1 !important; /* Juara 1 di kartu pertama */
-    flex: 0 0 270px !important;
-    min-width: 270px !important;
-    box-shadow: 0 8px 24px rgba(0, 91, 181, 0.18) !important;
-  }
-  .podium-card-2 {
-    order: 2 !important; /* Juara 2 di kartu kedua */
-  }
-  .podium-card-3 {
-    order: 3 !important; /* Juara 3 di kartu ketiga */
+  .mpc-podium-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-bottom: 16px !important;
   }
 
   /* Leaderboard Filter Pills Mobile 3-Kolom Rapi */
@@ -3345,6 +3630,10 @@ html, body, #root {
     height: 40px !important;
   }
   .mpc-leaderboard-banner {
+    background: #FFFFFF !important;
+    border: 1.5px solid #E2E8F0 !important;
+    color: #0F172A !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
     padding: 16px 14px !important;
     border-radius: 14px !important;
     flex-direction: column !important;
@@ -3362,23 +3651,33 @@ html, body, #root {
     height: auto !important;
   }
   .mpc-winner-badge {
+    background-color: #FEF3C7 !important;
+    border: 1px solid #FDE68A !important;
+    color: #B45309 !important;
+    border-radius: 999px !important;
     font-size: 0.69rem !important;
-    padding: 3px 8px !important;
+    padding: 3px 10px !important;
     gap: 5px !important;
     line-height: 1.35 !important;
     margin-bottom: 6px !important;
+    display: inline-flex !important;
   }
   .mpc-leaderboard-banner h3 {
+    color: #0F172A !important;
     font-size: 0.98rem !important;
     line-height: 1.35 !important;
     margin-bottom: 6px !important;
   }
   .mpc-leaderboard-banner p {
+    color: #64748B !important;
     font-size: 0.78rem !important;
     line-height: 1.45 !important;
     margin-bottom: 0 !important;
   }
   .mpc-leaderboard-btn {
+    background-color: #0F172A !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15) !important;
     width: 100% !important;
     justify-content: center !important;
     padding: 11px 18px !important;
@@ -3410,20 +3709,24 @@ html, body, #root {
     padding: 11px 16px !important;
   }
   .staff-achievement-card {
-    padding: 12px 14px !important;
-    gap: 10px !important;
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+    margin-bottom: 14px !important;
   }
-  .staff-achievement-eval {
-    text-align: left !important;
-    width: 100% !important;
-    padding-top: 8px !important;
-    border-top: 1px dashed #BBF7D0 !important;
+  .staff-achievement-top {
     display: flex !important;
-    justify-content: space-between !important;
     align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
   }
-  .staff-achievement-eval-text {
-    text-align: left !important;
+  .staff-achievement-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    padding-top: 7px !important;
+    margin-top: 7px !important;
   }
   .staff-pipeline-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -4140,11 +4443,41 @@ html, body, #root {
   display: block;
 }
 
+/* Riwayat Transfer Desktop Table vs Mobile Cards Base Styles */
+.riwayat-mobile-cards {
+  display: none;
+}
+
+.riwayat-desktop-table {
+  display: block;
+}
+
 /* Leaderboard Desktop Table vs Mobile List Base Styles (Desktop 100% Aman) */
 .leaderboard-desktop-table {
   display: block;
 }
 .leaderboard-mobile-list {
+  display: none;
+}
+
+/* MPC Subtabs Base Styles */
+.mpc-subtab-btn {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mpc-subtab-btn:focus,
+.mpc-subtab-btn:focus-visible {
+  outline: none !important;
+}
+.mpc-tab-word-mitra {
+  display: inline;
+}
+
+/* MPC Podium Desktop vs Mobile Base Styles */
+.mpc-podium-desktop {
+  display: grid;
+}
+.mpc-podium-mobile {
   display: none;
 }
 
