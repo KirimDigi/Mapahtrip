@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { NavItemKey } from './components/Sidebar';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -17,7 +17,10 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { OwnerLoginModal } from './components/OwnerLoginModal';
 import { mockPengajuan, mockStaff } from './data/mockData';
 import type { Pengajuan, StatusPengajuan, StaffMaster } from './types';
-import { fetchAllPengajuanFromDB, fetchAllMitraFromDB, supabase } from './lib/supabase';
+import { fetchAllPengajuanFromDB, fetchAllMitraFromDB, deletePengajuanInDB, supabase, mapDBToPengajuan, type PengajuanVisaDB } from './lib/supabase';
+import { fetchVisaPricingFromDB } from './utils/visaPricing';
+import { isApplicantAssignedToStaff } from './utils/staffAssignment';
+import { removeApplicantFromWAOutbox } from './whatsapp';
 
 export type AppMode = 'customer' | 'affiliate' | 'staff' | 'owner';
 
@@ -52,9 +55,16 @@ export function App() {
         const parsed: StaffMaster[] = JSON.parse(saved);
         return parsed.map((p) => {
           const defaultStaff = mockStaff.find((ms) => ms.id === p.id);
+          const isUlla = p.nama.toLowerCase().includes('ulla') || p.nama.toLowerCase().includes('ulya');
           return {
             ...p,
+            konsjenTugas: isUlla && defaultStaff?.konsjenTugas ? defaultStaff.konsjenTugas : p.konsjenTugas,
+            role: isUlla && defaultStaff?.role ? defaultStaff.role : p.role,
             noWa: p.noWa || defaultStaff?.noWa || '',
+            bankName: p.bankName || defaultStaff?.bankName || 'BCA',
+            noRekening: p.noRekening || defaultStaff?.noRekening || '6240866950',
+            atasNamaRekening: p.atasNamaRekening || defaultStaff?.atasNamaRekening || p.nama,
+            defaultFeePerPaspor: p.defaultFeePerPaspor || defaultStaff?.defaultFeePerPaspor || 50000,
           };
         });
       }
@@ -176,6 +186,8 @@ export function App() {
     }
   }, []);
 
+  const isOwnerMode = currentMode === 'owner' && isOwnerAuth;
+
   const [activeTab, setActiveTab] = useState<NavItemKey>(() => {
     if (isMobileDeviceOrScreen()) {
       return 'pengajuan';
@@ -233,6 +245,13 @@ export function App() {
       const raw = localStorage.getItem('mapahtrip_local_registrations');
       if (raw) {
         localList = JSON.parse(raw);
+        localList = localList.map((item) => {
+          const numId = Number(item.id);
+          if ((isNaN(numId) || numId > 299) && (item.program || '').toLowerCase().includes('kunjungan')) {
+            return { ...item, staffPic: 'Ulla' as any };
+          }
+          return item;
+        });
       }
     } catch {}
 
@@ -252,8 +271,147 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [affiliateCount, setAffiliateCount] = useState<number>(63);
+  const [livePendingPayoutCount, setLivePendingPayoutCount] = useState<number | null>(null);
 
-  // Dengarkan event storage agar saat pemohon mendaftar di tab pelanggan, tab staf & mitra langsung terupdate otomatis
+  // Hitung jumlah antrean payout yang belum dibayar (komisi mitra + fee staf)
+  const calculatedPendingPayoutCount = useMemo(() => {
+    let mitraStored: Record<string, any> = {};
+    try {
+      const raw = localStorage.getItem('mapahtrip_affiliate_payouts');
+      if (raw) mitraStored = JSON.parse(raw);
+    } catch {}
+
+    let staffStored: Record<string, any> = {};
+    try {
+      const raw = localStorage.getItem('mapahtrip_staff_payouts');
+      if (raw) staffStored = JSON.parse(raw);
+    } catch {}
+
+    let count = 0;
+    pengajuanList.forEach((p) => {
+      const isVisaSelesai = p.status === 'Selesai' || Boolean(p.tglSelesai && p.tglSelesai !== '-');
+      if (!isVisaSelesai) return;
+
+      // 1. Antrean Payout Mitra (Hanya untuk Owner)
+      if (isOwnerMode) {
+        const code = (p.affiliateCode || '').trim().toUpperCase();
+        const hasAffiliate = Boolean(code && code !== 'MAPAHTRIP');
+        const isSelfReg = Boolean(p.catatan && (p.catatan.includes('Website Mapahtrip') || p.catatan.includes('Pendaftaran mandiri') || p.catatan.includes('Portal Staf')));
+        const isSpreadsheet = Boolean(p.catatan && (p.catatan.includes('Spreadsheet') || p.catatan.includes('Data_Apply')));
+        const numPeng = Number((p.noPengajuan || '').replace(/\D/g, ''));
+        const isHistorical = !isSelfReg && (isSpreadsheet || (!isNaN(numPeng) && numPeng > 0 && numPeng <= 225));
+
+        if (hasAffiliate && !isHistorical && p.payoutStatus !== 'Berhasil Ditransfer' && !mitraStored[p.id]) {
+          count++;
+        }
+      }
+
+      // 2. Antrean Payout Fee Staf PIC
+      const prog = (p.program || '').toLowerCase();
+      const isWaiver = prog.includes('waiver') || prog.includes('e-visa') || prog.includes('evisa');
+      if (!isWaiver && p.staffPic && p.staffPayoutStatus !== 'Berhasil Ditransfer' && !staffStored[p.id]) {
+        // Hanya hitung jika berkas memang memiliki fee staf > 0 (tidak memotong laba / Rp 0)
+        const feeAmount = p.staffFee !== undefined
+          ? p.staffFee
+          : (p.cashback !== undefined ? p.cashback : 0);
+
+        if (feeAmount > 0) {
+          if (!isOwnerMode && currentStaff) {
+            if (isApplicantAssignedToStaff(p, currentStaff)) {
+              count++;
+            }
+          } else if (isOwnerMode) {
+            count++;
+          }
+        }
+      }
+    });
+
+    return count;
+  }, [pengajuanList, isOwnerMode, currentStaff]);
+
+  const effectivePendingPayoutCount = livePendingPayoutCount !== null ? livePendingPayoutCount : calculatedPendingPayoutCount;
+
+  // Hitung jumlah pengajuan aktif / belum tertangani (belum selesai & belum dikirim)
+  const [liveActivePengajuanCount, setLiveActivePengajuanCount] = useState<number | null>(null);
+
+  const calculatedActivePengajuanCount = useMemo(() => {
+    return pengajuanList.filter((p) => {
+      if (!isOwnerMode && currentStaff?.konsjenTugas && currentStaff.konsjenTugas.length > 0) {
+        // Khusus Staf Wilayah: Visa Waiver / e-Visa tidak masuk antrean tugas staf wilayah (karena 100% online dihandle Owner/Pusat)
+        const prog = (p.program || '').toLowerCase();
+        if (prog.includes('waiver') || prog.includes('e-visa') || prog.includes('evisa')) return false;
+        if (!currentStaff.konsjenTugas.includes(p.konsjen)) return false;
+      }
+      const st = (p.status || '').toLowerCase().trim();
+      if (st === 'selesai' || st === 'ditolak' || st.includes('selesai') || st.includes('terbit') || st.includes('kirim') || st.includes('tolak')) {
+        return false;
+      }
+      if (p.tglSelesai && p.tglSelesai !== '-' && p.tglSelesai.trim() !== '') return false;
+      if (p.tglKirim && p.tglKirim !== '-' && p.tglKirim.trim() !== '') return false;
+      return true;
+    }).length;
+  }, [pengajuanList, isOwnerMode, currentStaff]);
+
+  const effectiveActivePengajuanCount = liveActivePengajuanCount !== null ? liveActivePengajuanCount : calculatedActivePengajuanCount;
+
+  // Live Toast Notification Data State
+  const [liveToast, setLiveToast] = useState<{
+    id: string;
+    nama: string;
+    program: string;
+    konsjen: string;
+    noPengajuan?: string;
+    waktu: string;
+  } | null>(null);
+
+  // Auto dismiss live toast setelah 8.5 detik
+  useEffect(() => {
+    if (!liveToast) return;
+    const timer = setTimeout(() => {
+      setLiveToast(null);
+    }, 8500);
+    return () => clearTimeout(timer);
+  }, [liveToast]);
+
+  // Listener Notifikasi WhatsApp Terkirim Otomatis dari Antrean Outbox (Auto-Retry)
+  useEffect(() => {
+    // Bersihkan otomatis sisa antrean pesan dari data uji coba "test1" / "test" yang telah dihapus
+    try {
+      removeApplicantFromWAOutbox({ namaPemohon: 'test1' });
+      removeApplicantFromWAOutbox({ namaPemohon: 'test' });
+    } catch {}
+
+    const handleWASent = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.applicantName) {
+        setLiveToast({
+          id: 'wa-sent',
+          nama: `WhatsApp Terkirim: ${detail.applicantName}`,
+          program: `Notifikasi Tahap ${detail.stage || 'Pengajuan'}`,
+          konsjen: `No: ${detail.nomorTujuan}`,
+          noPengajuan: 'WA Outbox Auto-Sent',
+          waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
+    };
+    window.addEventListener('mapahtrip_wa_sent', handleWASent);
+    return () => window.removeEventListener('mapahtrip_wa_sent', handleWASent);
+  }, []);
+
+  // Fungsi reload otomatis data pengajuan langsung dari Supabase Database saat ada pendaftar baru
+  const reloadLivePengajuan = async () => {
+    try {
+      const liveData = await fetchAllPengajuanFromDB();
+      if (liveData && liveData.length > 0) {
+        setPengajuanList(deduplicatePengajuanList(liveData));
+      }
+    } catch (err) {
+      console.warn('[Realtime Reload] Fallback reload:', err);
+    }
+  };
+
+  // Dengarkan event storage & custom event agar saat pemohon mendaftar di tab pelanggan, tab staf & mitra langsung terupdate & reload otomatis
   useEffect(() => {
     const handleStorageChange = () => {
       try {
@@ -263,15 +421,89 @@ export function App() {
           setPengajuanList((prev) => deduplicatePengajuanList([...locals, ...prev]));
         }
       } catch {}
+      reloadLivePengajuan();
+    };
+
+    // Listener custom event lokal saat pendaftaran baru disubmit di sesi ini
+    const handleLocalNewApplicant = (e: any) => {
+      const applicant: Pengajuan = e.detail;
+      if (applicant) {
+        setPengajuanList((prev) => deduplicatePengajuanList([applicant, ...prev]));
+        setLiveToast({
+          id: String(applicant.id),
+          nama: applicant.namaPemohon,
+          program: applicant.program,
+          konsjen: applicant.konsjen || 'Jakarta',
+          noPengajuan: applicant.noPengajuan,
+          waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
+      reloadLivePengajuan();
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('mapahtrip:new_applicant', handleLocalNewApplicant);
+
+    // Supabase Realtime Channel: Mendengarkan perubahan data langsung dari cloud (otomatis reload database saat ada pendaftar baru)
+    const channel = supabase
+      .channel('mapahtrip_realtime_pengajuan_channel')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'pengajuan_visa' },
+        (payload) => {
+          console.log('[Supabase Realtime] Event INSERT terdeteksi:', payload.new);
+          try {
+            const newRecord = mapDBToPengajuan(payload.new as PengajuanVisaDB);
+            setPengajuanList((prev) => deduplicatePengajuanList([newRecord, ...prev]));
+            setLiveToast({
+              id: String(newRecord.id),
+              nama: newRecord.namaPemohon,
+              program: newRecord.program,
+              konsjen: newRecord.konsjen || 'Jakarta',
+              noPengajuan: newRecord.noPengajuan,
+              waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            });
+          } catch (e) {
+            console.warn('[Realtime] Gagal memetakan pendaftar baru:', e);
+          }
+          // Otomatis reload data penuh dari database
+          reloadLivePengajuan();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'pengajuan_visa' },
+        (payload) => {
+          console.log('[Supabase Realtime] Event UPDATE terdeteksi:', payload.new);
+          try {
+            const updated = mapDBToPengajuan(payload.new as PengajuanVisaDB);
+            setPengajuanList((prev) =>
+              prev.map((item) => (String(item.id) === String(updated.id) ? { ...item, ...updated } : item))
+            );
+          } catch (e) {
+            console.warn('[Realtime] Gagal memetakan update pendaftar:', e);
+          }
+          // Otomatis reload data penuh dari database
+          reloadLivePengajuan();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Supabase Realtime] Status langganan channel:', status);
+      });
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('mapahtrip:new_applicant', handleLocalNewApplicant);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Load live data from Supabase Cloud on mount
   useEffect(() => {
     async function loadData() {
+      // 1. Sinkronisasi master tarif visa dari Supabase Cloud
+      fetchVisaPricingFromDB().catch(() => {});
+
       try {
         const liveData = await fetchAllPengajuanFromDB();
         if (liveData && liveData.length > 0) {
@@ -279,23 +511,40 @@ export function App() {
           setPengajuanList(uniqueData);
           console.log(`[Supabase] Loaded ${uniqueData.length} records into MapahTrip.`);
 
-          // Sinkronisasi pembersihan cache localStorage: jika data sudah dihapus di Supabase, hapus juga dari cache lokal
+          // Sinkronisasi pembersihan cache localStorage: jika data sudah ada di Supabase, selaraskan nomor pengajuan dan hapus data usang
           try {
             const raw = localStorage.getItem('mapahtrip_local_registrations');
             if (raw) {
               const localList: Pengajuan[] = JSON.parse(raw);
-              const liveIds = new Set(uniqueData.map((d) => String(d.id)));
-              const liveNos = new Set(uniqueData.map((d) => d.noPengajuan).filter(Boolean));
+              const liveMap = new Map(uniqueData.map((d) => [String(d.id), d]));
 
-              const cleaned = localList.filter((item) => {
-                const hasOfficialId = !isNaN(Number(item.id)) || (item.noPengajuan && item.noPengajuan.startsWith('MT-'));
-                if (hasOfficialId) {
-                  return liveIds.has(String(item.id)) || (item.noPengajuan && liveNos.has(item.noPengajuan));
-                }
-                return true;
-              });
+              // Pastikan noPengajuan & staffPic di cache lokal selalu identik 100% dengan database resmi Supabase
+              const syncedLocal = localList
+                .map((item) => {
+                  const live = liveMap.get(String(item.id));
+                  if (live) {
+                    return {
+                      ...item,
+                      noPengajuan: live.noPengajuan,
+                      staffPic: live.staffPic,
+                      statusPembayaran: live.statusPembayaran,
+                    };
+                  }
+                  const numId = Number(item.id);
+                  if ((isNaN(numId) || numId > 299) && (item.program || '').toLowerCase().includes('kunjungan')) {
+                    return { ...item, staffPic: 'Ulla' as any };
+                  }
+                  return item;
+                })
+                .filter((item) => {
+                  const hasOfficialId = !isNaN(Number(item.id)) || (item.noPengajuan && item.noPengajuan.startsWith('MT-'));
+                  if (hasOfficialId) {
+                    return liveMap.has(String(item.id));
+                  }
+                  return true;
+                });
 
-              localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(deduplicatePengajuanList(cleaned)));
+              localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(deduplicatePengajuanList(syncedLocal)));
             }
           } catch {}
         }
@@ -424,6 +673,83 @@ export function App() {
     const numId = Number(updatedItem.id);
     if (!isNaN(numId)) {
       try {
+        // Ambil keterangan lama dari Supabase jika ada format JSON (foto, berkas)
+        const { data: row } = await supabase
+          .from('pengajuan_visa')
+          .select('keterangan')
+          .eq('id', numId)
+          .maybeSingle();
+
+        let parsed: any = {};
+        if (row?.keterangan && row.keterangan.startsWith('{') && row.keterangan.endsWith('}')) {
+          try {
+            parsed = JSON.parse(row.keterangan);
+          } catch {}
+        } else if (row?.keterangan) {
+          parsed = { note: row.keterangan };
+        }
+
+        parsed.note = updatedItem.catatan !== undefined ? updatedItem.catatan : (parsed.note || '');
+        if (updatedItem.staffFee !== undefined) {
+          parsed.staffFee = updatedItem.staffFee;
+        }
+        if (updatedItem.referralFee !== undefined) {
+          parsed.referralFee = updatedItem.referralFee;
+        }
+        if (updatedItem.staffPayoutStatus !== undefined) {
+          parsed.staffPayoutStatus = updatedItem.staffPayoutStatus;
+        }
+        if (updatedItem.staffPayoutTanggal !== undefined) {
+          parsed.staffPayoutTanggal = updatedItem.staffPayoutTanggal;
+        }
+        if (updatedItem.staffPayoutNoRef !== undefined) {
+          parsed.staffPayoutNoRef = updatedItem.staffPayoutNoRef;
+        }
+        if (updatedItem.staffPayoutBuktiUrl) {
+          parsed.staffPayoutBuktiUrl = updatedItem.staffPayoutBuktiUrl;
+        } else {
+          delete parsed.staffPayoutBuktiUrl;
+        }
+        if (updatedItem.staffPayoutBy !== undefined) {
+          parsed.staffPayoutBy = updatedItem.staffPayoutBy;
+        }
+        if (updatedItem.staffPayoutCatatan !== undefined) {
+          parsed.staffPayoutCatatan = updatedItem.staffPayoutCatatan;
+        }
+
+        if (updatedItem.payoutStatus !== undefined) {
+          parsed.payoutStatus = updatedItem.payoutStatus;
+        }
+        if (updatedItem.payoutTanggal !== undefined) {
+          parsed.payoutTanggal = updatedItem.payoutTanggal;
+        }
+        if (updatedItem.payoutNoRef !== undefined) {
+          parsed.payoutNoRef = updatedItem.payoutNoRef;
+        }
+        if (updatedItem.payoutBuktiUrl) {
+          parsed.payoutBuktiUrl = updatedItem.payoutBuktiUrl;
+        } else {
+          delete parsed.payoutBuktiUrl;
+        }
+        if (updatedItem.payoutBy !== undefined) {
+          parsed.payoutBy = updatedItem.payoutBy;
+        }
+        if (updatedItem.payoutCatatan !== undefined) {
+          parsed.payoutCatatan = updatedItem.payoutCatatan;
+        }
+
+        if (updatedItem.statusPembayaran !== undefined) {
+          parsed.statusPembayaran = updatedItem.statusPembayaran;
+        }
+        if (updatedItem.metodePembayaran !== undefined) {
+          parsed.metodePembayaran = updatedItem.metodePembayaran;
+        }
+        if (updatedItem.tglBayarPemohon !== undefined) {
+          parsed.tglBayarPemohon = updatedItem.tglBayarPemohon;
+        }
+
+        const updatedKeterangan = JSON.stringify(parsed);
+
         await supabase
           .from('pengajuan_visa')
           .update({
@@ -439,12 +765,44 @@ export function App() {
             nominal_keluar: updatedItem.nominalKeluar,
             cashback: updatedItem.cashback,
             fee_bersih: updatedItem.feeBersih,
+            keterangan: updatedKeterangan,
             updated_at: new Date().toISOString(),
           })
           .eq('id', numId);
       } catch (err) {
         console.error('Failed to sync updatedItem to Supabase:', err);
       }
+    }
+  };
+
+  const handleDeletePengajuan = async (id: string) => {
+    // Bersihkan seluruh pesan WhatsApp pending dari pemohon ini di antrean outbox (customer, staf, owner, mitra)
+    const targetItem = pengajuanList.find((item) => String(item.id) === String(id));
+    if (targetItem) {
+      removeApplicantFromWAOutbox({
+        namaPemohon: targetItem.namaPemohon,
+        noPengajuan: targetItem.noPengajuan,
+        noTelp: targetItem.noTelp,
+      });
+    }
+
+    setPengajuanList((prev) => {
+      const updated = prev.filter((item) => String(item.id) !== String(id));
+      try {
+        const raw = localStorage.getItem('mapahtrip_local_registrations');
+        if (raw) {
+          const locals: Pengajuan[] = JSON.parse(raw);
+          const filteredLocals = locals.filter((item) => String(item.id) !== String(id));
+          localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(filteredLocals));
+        }
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await deletePengajuanInDB(id);
+    } catch (err) {
+      console.warn('Gagal menghapus pengajuan dari Supabase:', err);
     }
   };
 
@@ -491,17 +849,16 @@ export function App() {
 
     // Sync insert to Supabase untuk modal staf
     try {
-      let ketString = 'Input Pemohon Baru via Portal Staf';
-      if (newItem.fotoBase64 || newItem.uploadedDocs) {
-        ketString = JSON.stringify({
-          note: 'Input Pemohon Baru via Portal Staf',
-          fotoBase64: newItem.fotoBase64,
-          originalSizeKB: newItem.fotoSizeKB,
-          compressedSizeKB: newItem.fotoSizeKB,
-          uploadedDocs: newItem.uploadedDocs || {},
-          uploadedAt: new Date().toISOString(),
-        });
-      }
+      const isLunas = newItem.statusPembayaran === 'Lunas';
+      const ketString = JSON.stringify({
+        note: 'Input Pemohon Baru via Portal Staf',
+        fotoBase64: newItem.fotoBase64,
+        originalSizeKB: newItem.fotoSizeKB,
+        compressedSizeKB: newItem.fotoSizeKB,
+        uploadedDocs: newItem.uploadedDocs || {},
+        statusPembayaran: newItem.statusPembayaran || 'Menunggu Pembayaran',
+        uploadedAt: new Date().toISOString(),
+      });
 
       const { data, error } = await supabase.from('pengajuan_visa').insert({
         nama: newItem.namaPemohon,
@@ -512,6 +869,7 @@ export function App() {
         konsjen: newItem.konsjen,
         staff_pic: newItem.staffPic,
         status: newItem.status,
+        payment_status: isLunas,
         nominal_dibayar: newItem.dibayarPemohon,
         nominal_keluar: newItem.nominalKeluar,
         cashback: newItem.cashback,
@@ -526,6 +884,24 @@ export function App() {
       }).select().single();
 
       if (data && !error) {
+        if (!data.no_urut && data.id) {
+          try {
+            const { data: maxRow } = await supabase
+              .from('pengajuan_visa')
+              .select('no_urut')
+              .not('no_urut', 'is', null)
+              .order('no_urut', { ascending: false })
+              .limit(1)
+              .single();
+
+            const nextNoUrut = maxRow?.no_urut ? Number(maxRow.no_urut) + 1 : Number(data.id);
+            await supabase.from('pengajuan_visa').update({ no_urut: nextNoUrut }).eq('id', data.id);
+            data.no_urut = nextNoUrut;
+          } catch {
+            await supabase.from('pengajuan_visa').update({ no_urut: data.id }).eq('id', data.id);
+            data.no_urut = data.id;
+          }
+        }
         const realId = String(data.id);
         const realNo = `MT-${String(data.no_urut || data.id).padStart(4, '0')}`;
         setPengajuanList((prev) =>
@@ -625,7 +1001,6 @@ export function App() {
   };
 
   const selectedPengajuan = pengajuanList.find((p) => p.id === selectedPengajuanId);
-  const isOwnerMode = currentMode === 'owner' && isOwnerAuth;
 
   // 1. Customer Mode (Landing Page Pelanggan)
   if (currentMode === 'customer') {
@@ -709,12 +1084,9 @@ export function App() {
       <Sidebar
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
-        totalPengajuanCount={
-          isOwnerMode || !currentStaff?.konsjenTugas
-            ? pengajuanList.length
-            : pengajuanList.filter((p) => currentStaff.konsjenTugas.includes(p.konsjen)).length
-        }
+        totalPengajuanCount={effectiveActivePengajuanCount}
         totalAffiliateCount={affiliateCount}
+        pendingPayoutCount={effectivePendingPayoutCount}
         isOwner={isOwnerMode}
         currentStaff={currentStaff}
         onRequestOwnerLogin={() => setIsAdminLoginOpen(true)}
@@ -785,6 +1157,8 @@ export function App() {
                   initialStatusTab={pengajuanInitialTab}
                   onUpdateStage={handleUpdateStage}
                   onUpdatePengajuan={handleUpdatePengajuan}
+                  onDeletePengajuan={handleDeletePengajuan}
+                  onActiveCountChange={setLiveActivePengajuanCount}
                 />
               )}
             </>
@@ -801,6 +1175,8 @@ export function App() {
           {activeTab === 'affiliate' && (
             <AffiliateView
               pengajuanList={pengajuanList}
+              staffList={staffList}
+              currentStaff={currentStaff}
               onUpdatePengajuan={handleUpdatePengajuan}
               onNavigateToPengajuan={(refCode) => {
                 setSearchQuery(refCode);
@@ -809,6 +1185,8 @@ export function App() {
               }}
               isOwner={isOwnerMode}
               onAffiliatesCountChange={setAffiliateCount}
+              onPendingPayoutCountChange={setLivePendingPayoutCount}
+              onRefresh={reloadLivePengajuan}
             />
           )}
 
@@ -818,6 +1196,13 @@ export function App() {
               staffList={staffList}
               currentStaff={currentStaff}
               onUpdateStaffList={handleUpdateStaffList}
+              pengajuanList={pengajuanList}
+              onUpdatePengajuanList={(newList) => {
+                setPengajuanList(newList);
+                try {
+                  localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(newList));
+                } catch {}
+              }}
             />
           )}
         </main>
@@ -860,6 +1245,134 @@ export function App() {
           window.location.hash = '';
         }}
       />
+
+      {/* Floating Live Real-time Notification Toast (Chime + Instant Card) */}
+      {liveToast && (currentMode === 'staff' || currentMode === 'owner') && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 999999,
+            maxWidth: '380px',
+            width: 'calc(100vw - 40px)',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1.5px solid #38BDF8',
+            boxShadow: '0 20px 40px rgba(14, 165, 233, 0.25), 0 4px 12px rgba(0,0,0,0.08)',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            animation: 'fadeIn 0.25s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: '#E0F2FE',
+                  border: '1px solid #BAE6FD',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#0284C7',
+                  flexShrink: 0,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                  notifications_active
+                </span>
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0F172A' }}>
+                    Pemohon Baru Masuk! 🇯🇵
+                  </span>
+                  <span
+                    style={{
+                      backgroundColor: '#DCFCE7',
+                      color: '#15803D',
+                      fontSize: '0.62rem',
+                      fontWeight: 800,
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    LIVE
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.70rem', color: '#64748B' }}>
+                  {liveToast.noPengajuan || 'Pendaftaran Online'} • {liveToast.waktu}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLiveToast(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                fontSize: '18px',
+                padding: '2px',
+                lineHeight: 1,
+              }}
+              title="Tutup Notifikasi"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              border: '1px solid #F1F5F9',
+              fontSize: '0.78rem',
+            }}
+          >
+            <div style={{ fontWeight: 800, color: '#0F172A' }}>
+              {liveToast.nama}
+            </div>
+            <div style={{ color: '#475569', fontSize: '0.72rem', marginTop: '2px' }}>
+              {liveToast.program} • Konsjen {liveToast.konsjen}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => {
+                handleSelectPengajuan(liveToast.id);
+                setLiveToast(null);
+              }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                backgroundColor: '#0284C7',
+                border: 'none',
+                color: '#FFFFFF',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+              }}
+            >
+              <span>Lihat Detail Pengajuan</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

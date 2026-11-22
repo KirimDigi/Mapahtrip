@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import type { Pengajuan, StaffMaster } from '../types';
+import { getEffectiveFeeBersih, getEffectiveReferralFee, getEffectiveStaffFee } from '../utils/financialCalculations';
+import { isApplicantAssignedToStaff } from '../utils/staffAssignment';
 
 interface DashboardViewProps {
   pengajuanList: Pengajuan[];
@@ -18,12 +20,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   staffName,
   currentStaff = null,
 }) => {
-  // Jika staf operasional login, sesuaikan seluruh metrik dan daftar pengajuan dengan wilayah tugasnya
+  // Jika staf operasional login, sesuaikan seluruh metrik dan daftar pengajuan HANYA dengan pemohon yang ditugaskan kepada staf tersebut
   const effectiveList = useMemo(() => {
-    if (isOwner || !currentStaff?.konsjenTugas || currentStaff.konsjenTugas.length === 0) {
+    if (isOwner || !currentStaff) {
       return pengajuanList;
     }
-    return pengajuanList.filter((p) => currentStaff.konsjenTugas.includes(p.konsjen));
+    return pengajuanList.filter((p) => isApplicantAssignedToStaff(p, currentStaff));
   }, [pengajuanList, isOwner, currentStaff]);
 
   // Hitung angka riil akurat 100% dari data yang ada
@@ -58,6 +60,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   });
 
+  // Hitung metrik keuangan owner (Hanya menghitung pemohon yang sudah Lunas agar pendaftaran belum bayar / batal tidak masuk hitungan omzet & laba)
+  const lunasList = effectiveList.filter((p) => p.statusPembayaran !== 'Menunggu Pembayaran');
+  const totalPemasukan = lunasList.reduce((acc, p) => acc + (p.dibayarPemohon || 0), 0);
+  const totalPengeluaran = lunasList.reduce((acc, p) => acc + (p.nominalKeluar || 0), 0);
+  const totalReferralFee = lunasList
+    .filter((p) => p.status !== 'Ditolak')
+    .reduce((acc, p) => acc + getEffectiveReferralFee(p), 0);
+  const totalStaffFee = lunasList.reduce((acc, p) => acc + getEffectiveStaffFee(p), 0);
+  const totalKomisi = totalReferralFee + totalStaffFee;
+  const totalFeeBersih = lunasList.reduce((acc, p) => acc + getEffectiveFeeBersih(p), 0);
+
   // 1. Pengajuan yang butuh tindakan staf segera (Pendaftaran baru belum diverifikasi)
   const tugasPerluTindakan = effectiveList.filter((p) => {
     const isKirim = Boolean((p.tglKirim && p.tglKirim !== '-') || (p.noResi && p.noResi !== '-'));
@@ -87,7 +100,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="dashboard-main-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* 1. Header Salam & Informasi Ringkas */}
       <div
         className="staff-header-row"
@@ -100,40 +113,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           paddingBottom: '4px',
         }}
       >
-        <div>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '8px',
-              backgroundColor: isOwner ? '#F0F9FF' : '#F1F5F9',
-              padding: '4px 12px',
-              borderRadius: '9999px',
-              border: `1px solid ${isOwner ? '#BAE6FD' : '#E2E8F0'}`,
-            }}
-          >
-            <span
-              style={{
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                backgroundColor: isOwner ? '#0284C7' : '#2563EB',
-              }}
-            />
-            <span
-              style={{
-                fontSize: '0.74rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: isOwner ? '#0369A1' : '#475569',
-              }}
-            >
-              {isOwner ? 'Overview Operasional & Pengajuan' : 'Ringkasan Kerja Staf Operasional'}
-            </span>
-          </div>
-
+        <div className="staff-header-info">
           <h1
             className="staff-header-title"
             style={{
@@ -146,7 +126,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             {isOwner ? 'Selamat Datang di MapahTrip 👋' : `Halo, ${staffName ? staffName.split(' ')[0] : 'Rizky'} 👋`}
           </h1>
-          <p style={{ color: '#64748B', fontSize: '0.88rem', margin: 0 }}>
+          <p className="staff-header-desc" style={{ color: '#64748B', fontSize: '0.88rem', margin: 0 }}>
             {isOwner
               ? 'Pantau alur pemrosesan berkas visa, rekap operasional, dan performa konsulat secara real-time.'
               : 'Berikut ringkasan tugas pengajuan visa dan agenda kerja Anda hari ini.'}
@@ -288,6 +268,117 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
             >
               🌟 Staff PIC Teladan
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Ringkasan Finansial Owner: Pemasukan vs Modal Keluar vs Fee Bersih */}
+      {isOwner && (
+        <div className="owner-finance-grid">
+          {/* Card Finansial 1: Total Pemasukan / Pendapatan */}
+          <div
+            className="owner-finance-card"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            <div className="owner-finance-top">
+              <span className="owner-finance-label" style={{ color: '#64748B' }}>
+                Total Pemasukan (Omzet)
+              </span>
+              <div className="owner-finance-icon" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+                <span className="material-symbols-outlined">payments</span>
+              </div>
+            </div>
+            <div className="owner-finance-val" style={{ color: '#0F172A' }}>
+              Rp {totalPemasukan.toLocaleString('id-ID')}
+            </div>
+            <div className="owner-finance-sub" style={{ color: '#64748B' }}>
+              <span className="material-symbols-outlined" style={{ color: '#94A3B8' }}>trending_up</span>
+              <span>{lunasList.length} transaksi lunas</span>
+              {effectiveList.length > lunasList.length && (
+                <span style={{ color: '#94A3B8' }}>
+                  &bull; {effectiveList.length - lunasList.length} blm bayar
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Card Finansial 2: Total Modal Keluar (Pengeluaran Konsulat) */}
+          <div
+            className="owner-finance-card"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            <div className="owner-finance-top">
+              <span className="owner-finance-label" style={{ color: '#64748B' }}>
+                Total Pengeluaran (Modal)
+              </span>
+              <div className="owner-finance-icon" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>
+                <span className="material-symbols-outlined">output</span>
+              </div>
+            </div>
+            <div className="owner-finance-val" style={{ color: '#DC2626' }}>
+              Rp {totalPengeluaran.toLocaleString('id-ID')}
+            </div>
+            <div className="owner-finance-sub" style={{ color: '#64748B' }}>
+              <span className="material-symbols-outlined" style={{ color: '#94A3B8' }}>receipt_long</span>
+              <span>Biaya konsulat &amp; operasional</span>
+            </div>
+          </div>
+
+          {/* Card Finansial 3: Total Komisi Mitra & Fee Staf */}
+          <div
+            className="owner-finance-card"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            <div className="owner-finance-top">
+              <span className="owner-finance-label" style={{ color: '#64748B' }}>
+                Total Komisi Mitra &amp; Staf
+              </span>
+              <div className="owner-finance-icon" style={{ backgroundColor: '#FFFBEB', color: '#D97706' }}>
+                <span className="material-symbols-outlined">handshake</span>
+              </div>
+            </div>
+            <div className="owner-finance-val" style={{ color: '#D97706' }}>
+              Rp {totalKomisi.toLocaleString('id-ID')}
+            </div>
+            <div className="owner-finance-sub" style={{ color: '#64748B' }}>
+              <span className="material-symbols-outlined" style={{ color: '#94A3B8' }}>share</span>
+              <span className="finance-sub-desktop">Mitra: Rp {totalReferralFee.toLocaleString('id-ID')} &bull; Staf: Rp {totalStaffFee.toLocaleString('id-ID')}</span>
+              <span className="finance-sub-mobile">Alokasi mitra &amp; fee staf</span>
+            </div>
+          </div>
+
+          {/* Card Finansial 4: Total Fee Bersih (Laba Bersih) */}
+          <div
+            className="owner-finance-card"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            <div className="owner-finance-top">
+              <span className="owner-finance-label" style={{ color: '#64748B' }}>
+                Total Fee Bersih (Laba)
+              </span>
+              <div className="owner-finance-icon" style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>
+                <span className="material-symbols-outlined">account_balance_wallet</span>
+              </div>
+            </div>
+            <div className="owner-finance-val" style={{ color: '#059669' }}>
+              Rp {totalFeeBersih.toLocaleString('id-ID')}
+            </div>
+            <div className="owner-finance-sub" style={{ color: '#64748B' }}>
+              <span className="material-symbols-outlined" style={{ color: '#059669' }}>verified</span>
+              <span>Laba bersih riil terverifikasi</span>
             </div>
           </div>
         </div>
@@ -642,19 +733,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   return (
                     <div
                       key={item.id}
-                      className="staff-task-item"
+                      className="staff-task-item is-tindakan"
                       onClick={() => onSelectPengajuan(item.id)}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: '12px',
-                        backgroundColor: '#F8FAFC',
-                        border: '1px solid #E2E8F0',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = '#EFF6FF';
                         e.currentTarget.style.borderColor = '#BFDBFE';
@@ -664,7 +744,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         e.currentTarget.style.borderColor = '#E2E8F0';
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <div className="staff-task-main">
                         {item.fotoBase64 ? (
                           <img
                             src={item.fotoBase64}
@@ -702,40 +782,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               .join('')}
                           </div>
                         )}
-                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              color: '#0F172A',
-                              whiteSpace: 'nowrap',
-                              textOverflow: 'ellipsis',
-                              overflow: 'hidden',
-                            }}
-                          >
+                        <div className="staff-task-text">
+                          <div className="staff-task-name">
                             {item.namaPemohon}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                          <div className="staff-task-sub">
                             Konsjen {item.konsjen} &bull; PIC: {item.staffPic ? item.staffPic.split(' ')[0] : '-'}
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <div className="staff-task-meta">
                         <span
+                          className="staff-task-badge"
                           style={{
                             backgroundColor: badge.bg,
                             color: badge.color,
                             border: `1px solid ${badge.border}`,
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
                           }}
                         >
                           {badge.label}
                         </span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#94A3B8' }}>
+                        <span className="material-symbols-outlined staff-task-chevron">
                           chevron_right
                         </span>
                       </div>
@@ -856,17 +924,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     key={item.id}
                     className="staff-task-item"
                     onClick={() => onSelectPengajuan(item.id)}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = '#F8FAFC';
                       e.currentTarget.style.borderColor = '#CBD5E1';
@@ -876,7 +933,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       e.currentTarget.style.borderColor = '#E2E8F0';
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <div className="staff-task-main">
                       {item.fotoBase64 ? (
                         <img
                           src={item.fotoBase64}
@@ -914,46 +971,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             .join('')}
                         </div>
                       )}
-                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            fontSize: '0.86rem',
-                            color: '#0F172A',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
-                            overflow: 'hidden',
-                          }}
-                        >
+                      <div className="staff-task-text">
+                        <div className="staff-task-name">
                           {item.namaPemohon}
                         </div>
-                        <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                        <div className="staff-task-sub">
                           <span style={{ fontWeight: 600, color: '#334155' }}>{item.noPengajuan || 'MT-REG'}</span> &bull; {item.program} &bull; Konsjen {item.konsjen}
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <div className="staff-task-meta">
                       {isOwner && (
-                        <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#15803D', whiteSpace: 'nowrap', backgroundColor: '#F0FDF4', padding: '3px 8px', borderRadius: '6px', border: '1px solid #BBF7D0' }}>
-                          Rp {(item.feeBersih || 0).toLocaleString('id-ID')}
+                        <span className="staff-task-price">
+                          Rp {getEffectiveFeeBersih(item).toLocaleString('id-ID')}
                         </span>
                       )}
                       <span
+                        className="staff-task-badge"
                         style={{
                           backgroundColor: badge.bg,
                           color: badge.color,
                           border: `1px solid ${badge.border}`,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          whiteSpace: 'nowrap',
                         }}
                       >
                         {badge.label}
                       </span>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#94A3B8' }}>
+                      <span className="material-symbols-outlined staff-task-chevron">
                         chevron_right
                       </span>
                     </div>

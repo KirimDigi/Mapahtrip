@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import type { Pengajuan, StatusPengajuan } from '../types';
-import { supabase, updatePengajuanPaymentInDB } from '../lib/supabase';
-import { kirimPesanWA } from '../whatsapp';
-import { getApplicantAccessKey } from '../utils/accessKey';
+import type { Pengajuan, StatusPengajuan, PaketVisa } from '../types';
+import { supabase, updatePengajuanPaymentInDB, findAffiliateByCode } from '../lib/supabase';
+import { kirimPesanWA, removeApplicantFromWAOutbox } from '../whatsapp';
+import { getVisaPrice } from '../utils/visaPricing';
+import { kirimNotifikasiLunasKeStaff, kirimNotifikasiLunasKeCustomer } from '../utils/staffPaymentNotification';
+import { isApplicantAssignedToStaff } from '../utils/staffAssignment';
 
 import type { StaffMaster } from '../types';
 
@@ -29,6 +31,8 @@ interface PengajuanViewProps {
     }
   ) => void;
   onUpdatePengajuan?: (updatedItem: Pengajuan) => void;
+  onDeletePengajuan?: (id: string) => void;
+  onActiveCountChange?: (count: number) => void;
 }
 
 export const PengajuanView: React.FC<PengajuanViewProps> = ({
@@ -41,6 +45,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   initialStatusTab = 'Semua',
   onUpdateStage,
   onUpdatePengajuan,
+  onDeletePengajuan,
+  onActiveCountChange,
 }) => {
   const [activeStatusTab, setActiveStatusTab] = useState<string>(initialStatusTab || 'Semua');
 
@@ -80,11 +86,40 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   const [ekspedisiResi, setEkspedisiResi] = useState<string>('');
   const [soettaFlight, setSoettaFlight] = useState<string>('ANA NH836');
   const [soettaTanggalJam, setSoettaTanggalJam] = useState<string>('');
+  const [soettaDate, setSoettaDate] = useState<string>('');
+  const [soettaTime, setSoettaTime] = useState<string>('21:00');
   const [soettaTitikTemu, setSoettaTitikTemu] = useState<string>('Terminal 3 Keberangkatan Internasional Gate 1');
   const [kantorPengambil, setKantorPengambil] = useState<string>('Pemohon Sendiri');
   const [kirimKirimWA, setKirimKirimWA] = useState<boolean>(true);
   const [isSavingKirim, setIsSavingKirim] = useState<boolean>(false);
   const [showWAPreview, setShowWAPreview] = useState<boolean>(false);
+
+  // State Modal Ubah Paket Layanan Visa & Pengaturan Keuangan
+  const [editingPaketTarget, setEditingPaketTarget] = useState<Pengajuan | null>(null);
+  const [newSelectedPaket, setNewSelectedPaket] = useState<PaketVisa>('Reguler');
+  const [newNominalBiaya, setNewNominalBiaya] = useState<number>(0);
+  const [newNominalKeluar, setNewNominalKeluar] = useState<number>(0);
+  const [newStaffFee, setNewStaffFee] = useState<number>(50000);
+  const [newReferralFee, setNewReferralFee] = useState<number>(100000);
+  const [catatanPerubahanPaket, setCatatanPerubahanPaket] = useState<string>('');
+
+  // Handler tombol Esc / Escape untuk menutup modal secara instan
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (editingPaketTarget) {
+          setEditingPaketTarget(null);
+        } else if (selectedPreviewImage) {
+          setSelectedPreviewImage(null);
+        } else if (kirimModalItem && !isSavingKirim) {
+          setKirimModalItem(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editingPaketTarget, selectedPreviewImage, kirimModalItem, isSavingKirim]);
 
   // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
   const [localStageOverrides, setLocalStageOverrides] = useState<
@@ -122,10 +157,24 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     const tglSampai = ov.tglSampai !== undefined ? ov.tglSampai : (item.tglBerkasMasuk || '');
     const tglProses = ov.tglProses !== undefined ? ov.tglProses : (item.tglApply || '');
     const tglSelesai = ov.tglSelesai !== undefined ? ov.tglSelesai : (item.tglSelesai || '');
-    const tglKirim = ov.tglKirim !== undefined ? ov.tglKirim : (item.tglKirim || '');
+    let tglKirim = ov.tglKirim !== undefined ? ov.tglKirim : (item.tglKirim || '');
     const noResi = ov.noResi !== undefined ? ov.noResi : (item.noResi || '');
     const alasanPenolakan = ov.alasanPenolakan !== undefined ? ov.alasanPenolakan : (item.alasanPenolakan || item.catatan || '');
     const currentStatus = ov.status || item.status;
+
+    // Sinkronkan tglKirim dengan tanggal serah terima bandara jika ada keterangan di dalam noResi
+    if (noResi) {
+      const lower = noResi.toLowerCase();
+      if (lower.includes('soetta') || lower.includes('soehatta') || lower.includes('flight') || lower.includes('bandara')) {
+        const timeMatch = noResi.match(/\(([^)]+)\)/);
+        if (timeMatch && timeMatch[1]) {
+          const dmy = timeMatch[1].match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+          if (dmy) {
+            tglKirim = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+          }
+        }
+      }
+    }
 
     return {
       tglSampai,
@@ -142,33 +191,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     };
   };
 
-  const [copiedLinkRowId, setCopiedLinkRowId] = useState<string | null>(null);
-
-  const getCustomerUploadLink = (item: Pengajuan) => {
-    const code = item.noPengajuan || item.noPaspor || item.id;
-    const key = getApplicantAccessKey(item);
-    return `${window.location.origin}/?lacak=${encodeURIComponent(code)}&key=${encodeURIComponent(key)}`;
-  };
-
-  const handleCopyCustomerLink = (e: React.MouseEvent, item: Pengajuan) => {
-    e.stopPropagation();
-    try {
-      const link = getCustomerUploadLink(item);
-      navigator.clipboard.writeText(link);
-      setCopiedLinkRowId(item.id);
-      setTimeout(() => setCopiedLinkRowId(null), 2500);
-      alert(`🔗 Tautan upload mandiri untuk "${item.namaPemohon}" berhasil disalin:\n\n${link}\n\nAnda dapat mengirimkan link ini ke WhatsApp customer agar mereka dapat mengunggah berkas yang kurang langsung dari HP.`);
-    } catch {
-      // fallback
-    }
-  };
-
   const handleSendCustomerWALink = (e: React.MouseEvent, item: Pengajuan) => {
     e.stopPropagation();
-    const link = getCustomerUploadLink(item);
     const noWa = item.noTelp?.trim();
     if (!noWa) {
-      alert(`Nomor WhatsApp untuk pemohon "${item.namaPemohon}" belum tersedia. Silakan salin tautan secara manual.`);
+      alert(`Nomor WhatsApp untuk pemohon "${item.namaPemohon}" belum tersedia.`);
       return;
     }
 
@@ -187,9 +214,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
 `Pendaftaran pengajuan Visa Jepang Anda telah kami terima (*${item.noPengajuan || '-'}*).\n\n` +
 (missing ? `Berikut berkas persyaratan yang masih perlu Anda lengkapi:\n${missing}\n\n` : '') +
-`Silakan ambil foto / unggah berkas langsung dari HP melalui tautan resmi berikut:\n\n` +
-`${link}\n\n` +
-`Setelah Anda unggah, berkas akan otomatis terverifikasi di sistem staf kami tanpa perlu dikirim manual ke WhatsApp.\n\n` +
+`Silakan kirimkan foto / scan dokumen tersebut langsung dengan membalas pesan WhatsApp ini. Tim staf kami yang akan memverifikasi dan menginput kelengkapan berkas ke sistem.\n\n` +
 `Terima kasih.\n\n` +
 `Salam hangat,\n` +
 `*Tim Operasional MapahTrip (${item.konsjen || 'Indonesia'})*`;
@@ -334,6 +359,333 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
   };
 
+  const isRowFinanceInputted = (r: Pengajuan) => {
+    // 1. Seluruh data historis spreadsheet resmi (MT-0001 s/d MT-0299 atau catatan spreadsheet)
+    const numUrut = Number((r.noPengajuan || '').replace(/[^0-9]/g, ''));
+    const isHistorical = (!isNaN(numUrut) && numUrut > 0 && numUrut <= 299) || Boolean(r.catatan && r.catatan.includes('Spreadsheet'));
+    if (isHistorical) return true;
+
+    // 2. Program Japan e-Visa / Waiver (bebas biaya modal konsulat & tanpa fee staf konsulat)
+    const isW = (r.program || '').toLowerCase().includes('waiver');
+    if (isW) return true;
+
+    // 3. Untuk program visa konsulat/stiker lainnya (ada modal konsulat & fee staf):
+    // Fee bersih HANYA dihitung jika Owner sudah menginput modal keluar (> 0)
+    // ATAU sudah menginput fee staf / menyimpan rincian lewat tombol edit ✏️
+    const hasCatatanUbah = Boolean(r.catatan && r.catatan.includes('Ubah paket/keuangan'));
+    const hasModal = Boolean(r.nominalKeluar && r.nominalKeluar > 0);
+    const hasStaffFee = Boolean(r.staffFee && r.staffFee > 0);
+    return hasModal || hasStaffFee || hasCatatanUbah;
+  };
+
+  const getRowEffectiveFee = (r: Pengajuan) => {
+    if (!isRowFinanceInputted(r)) {
+      return 0;
+    }
+    const hasM = Boolean(r.affiliateCode && r.affiliateCode.trim() !== '' && r.affiliateCode.toUpperCase() !== 'MAPAHTRIP');
+    const refF = hasM ? (r.referralFee || 100000) : 0;
+    const isW = (r.program || '').toLowerCase().includes('waiver');
+    const stF = isW ? 0 : (r.staffFee !== undefined && r.staffFee !== null ? r.staffFee : (r.cashback !== undefined && r.cashback !== null ? r.cashback : 0));
+    return Math.max(0, (r.dibayarPemohon || 0) - (r.nominalKeluar || 0) - refF - stF);
+  };
+
+  const handleOpenEditPaket = (e: React.MouseEvent, item: Pengajuan) => {
+    e.stopPropagation();
+    setEditingPaketTarget(item);
+    const initialPaket = (item.paket as PaketVisa) || 'Reguler';
+    setNewSelectedPaket(initialPaket);
+    setNewNominalBiaya(item.dibayarPemohon || getVisaPrice(item.program, initialPaket));
+    setNewNominalKeluar(item.nominalKeluar || 0);
+    const currStaffFee = item.staffFee !== undefined && item.staffFee !== null
+      ? item.staffFee
+      : (item.cashback !== undefined && item.cashback !== null ? item.cashback : 0);
+    setNewStaffFee(currStaffFee);
+
+    const hasMitra = Boolean(
+      item.affiliateCode &&
+      item.affiliateCode.trim() !== '' &&
+      item.affiliateCode.toUpperCase() !== 'MAPAHTRIP'
+    );
+    const currRefFee = item.referralFee !== undefined && item.referralFee !== null
+      ? item.referralFee
+      : (hasMitra ? 100000 : 0);
+    setNewReferralFee(currRefFee);
+
+    setCatatanPerubahanPaket('');
+  };
+
+  const handleSelectNewPaket = (pkt: PaketVisa) => {
+    setNewSelectedPaket(pkt);
+    if (editingPaketTarget) {
+      const price = getVisaPrice(editingPaketTarget.program, pkt);
+      setNewNominalBiaya(price);
+    }
+  };
+
+  const handleSaveNewPaket = async () => {
+    if (!editingPaketTarget) return;
+
+    const oldPaket = editingPaketTarget.paket || 'Reguler';
+
+    // Hitung ulang fee bersih secara simpel & akurat: Dibayar - Modal Keluar - Referral Mitra - Fee Staf
+    const hasMitra = Boolean(
+      editingPaketTarget.affiliateCode &&
+      editingPaketTarget.affiliateCode.trim() !== '' &&
+      editingPaketTarget.affiliateCode.toUpperCase() !== 'MAPAHTRIP'
+    );
+    const refFee = hasMitra ? newReferralFee : 0;
+    const newFeeBersih = Math.max(0, newNominalBiaya - newNominalKeluar - refFee - newStaffFee);
+
+    const updatedItem: Pengajuan = {
+      ...editingPaketTarget,
+      paket: newSelectedPaket,
+      dibayarPemohon: newNominalBiaya,
+      nominalKeluar: newNominalKeluar,
+      staffFee: newStaffFee,
+      referralFee: refFee,
+      feeBersih: newFeeBersih,
+      catatan: catatanPerubahanPaket
+        ? `${editingPaketTarget.catatan ? editingPaketTarget.catatan + ' | ' : ''}Ubah paket/keuangan (${oldPaket} -> ${newSelectedPaket}): ${catatanPerubahanPaket}`
+        : `${editingPaketTarget.catatan ? editingPaketTarget.catatan + ' | ' : ''}Ubah paket/keuangan oleh Owner`,
+    };
+
+    if (onUpdatePengajuan) {
+      onUpdatePengajuan(updatedItem);
+    }
+
+    updatePengajuanPaymentInDB(editingPaketTarget.id, {
+      dibayarPemohon: newNominalBiaya,
+      nominalKeluar: newNominalKeluar,
+      staffFee: newStaffFee,
+      referralFee: refFee,
+      feeBersih: newFeeBersih,
+    }).catch((e) => console.warn('Supabase sync error:', e));
+
+    setEditingPaketTarget(null);
+  };
+
+  const handleKirimWAPaket = () => {
+    if (!editingPaketTarget || !editingPaketTarget.noTelp) {
+      alert(`Nomor WhatsApp untuk pemohon "${editingPaketTarget?.namaPemohon || ''}" belum tersedia.`);
+      return;
+    }
+
+    const oldBiaya = editingPaketTarget.dibayarPemohon || 0;
+    const selisih = newNominalBiaya - oldBiaya;
+
+    let benefitDesc = '';
+    if (newSelectedPaket === 'TAC') {
+      benefitDesc = '⚡ *Paket TAC (Total Assistance Care)*: Penanganan berkas komprehensif, asistensi pengisian form lengkap, dan prioritas konsultasi konsuler.';
+    } else if (newSelectedPaket === 'Premium') {
+      benefitDesc = '★ *Paket Premium*: Jalur cepat asistensi berkas, cross-check dokumen teliti oleh tim senior, dan prioritas update status.';
+    } else {
+      benefitDesc = '📋 *Paket Reguler*: Pemrosesan berkas standar sesuai jadwal antrean konsulat resmi.';
+    }
+
+    let infoBayar = `💰 *Biaya Layanan:* ${formatRupiah(newNominalBiaya)}`;
+    if (editingPaketTarget.statusPembayaran === 'Lunas' && selisih > 0) {
+      infoBayar += `\n⚠️ *Kekurangan Pembayaran:* ${formatRupiah(selisih)} (sebelumnya lunas ${formatRupiah(oldBiaya)})`;
+    } else if (editingPaketTarget.statusPembayaran === 'Lunas' && selisih < 0) {
+      infoBayar += `\nℹ️ *Kelebihan Pembayaran (Refund):* ${formatRupiah(Math.abs(selisih))} (akan dikembalikan oleh admin)`;
+    }
+
+    const pesanWA =
+`*PERUBAHAN PAKET LAYANAN VISA JEPANG - MAPAHTRIP* 🇯🇵✨\n\n` +
+`Halo Sdr/i *${editingPaketTarget.namaPemohon}*,\n` +
+`Paket layanan pengajuan visa Anda telah diperbarui di sistem kami:\n\n` +
+`📄 *No. Registrasi:* ${editingPaketTarget.noPengajuan || '-'}\n` +
+`🗾 *Program:* ${editingPaketTarget.program} (${editingPaketTarget.konsjen})\n` +
+`📦 *Paket Baru:* *${newSelectedPaket}*\n` +
+`${infoBayar}\n\n` +
+`${benefitDesc}\n` +
+(catatanPerubahanPaket ? `\n📝 *Catatan:* ${catatanPerubahanPaket}\n` : '') +
+`\nJika ada pertanyaan mengenai perubahan ini, silakan hubungi tim kami. Terima kasih atas kepercayaan Anda memilih MapahTrip! 🙏\n\n` +
+`*Tim Layanan MapahTrip*`;
+
+    const cleanNum = editingPaketTarget.noTelp.replace(/[^0-9]/g, '');
+    const finalPhone = cleanNum.startsWith('0') ? '62' + cleanNum.substring(1) : cleanNum.startsWith('62') ? cleanNum : '62' + cleanNum;
+    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(pesanWA)}`, '_blank');
+  };
+
+  // Notifikasi 1: Laporan Berkas Fisik Tiba di Kantor (HANYA dikirimkan ke OWNER saat tombol Sampai diklik)
+  // Dibuat singkat & to-the-point agar Owner cepat membaca status & langsung siap nagih
+  const getPesanWASampai = (item: Pengajuan, _dateStr: string) => {
+    return (
+      `*BERKAS SAMPAI (SIAP DITAGIH)* 👑📑\n\n` +
+      `Berkas fisik tiba di kantor & telah dicek Staf PIC:\n\n` +
+      `• *ID:* *${item.noPengajuan || '-'}*\n` +
+      `• *Nama:* ${item.namaPemohon}\n` +
+      `• *Program:* ${item.program || 'Visa Jepang'} (${item.paket || 'Reguler'})\n` +
+      `• *PIC:* ${item.staffPic || 'Staf Wilayah'} (${item.konsjen || '-'})\n` +
+      `• *WA:* ${item.noTelp || '-'}\n\n` +
+      `👉 Siap kirim tagihan di Dashboard Owner:\n` +
+      `🌐 https://mapahtrip.id/#owner`
+    );
+  };
+
+  // Notifikasi 2: Invoice & Tagihan Resmi (Dikirimkan oleh OWNER via tombol "Kirim Tagihan")
+  // Format ringkas, bersih, dan to-the-point agar pemohon langsung paham rincian pembayaran
+  const getPesanWATagihanResmi = (item: Pengajuan, nominalTagihan: number) => {
+    return (
+      `*INVOICE & TAGIHAN VISA JEPANG - MAPAHTRIP* 🇯🇵💳\n\n` +
+      `Halo Kak *${item.namaPemohon}*,\n` +
+      `Dokumen fisik Anda telah tiba di kantor kami dan selesai diverifikasi. ✅\n\n` +
+      `📋 *Rincian Pengajuan:*\n` +
+      `• ID: *${item.noPengajuan || '-'}*\n` +
+      `• Program: ${item.program || 'Visa Jepang'} (${item.paket || 'Reguler'})\n` +
+      `• Total Tagihan: *${formatRupiah(nominalTagihan)}*\n\n` +
+      `🏦 *Rekening Resmi Pembayaran:*\n` +
+      `*Bank BTN (Bank Tabungan Negara)*\n` +
+      `No. Rekening: *1190-0150-0015-870*\n` +
+      `A/N: *Tokyo Asia Connection*\n\n` +
+      `Mohon balas chat ini dengan melampirkan *foto bukti transfer* agar pembayaran langsung diverifikasi dan berkas segera diserahkan ke Konsulat / JVAC. 🙏\n\n` +
+      `Terima kasih! 🌸\n` +
+      `*MapahTrip*`
+    );
+  };
+
+  const getPesanWAProses = (item: Pengajuan, dateStr: string) => {
+    return (
+      `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
+      `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+      `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
+      `📋 *Rincian Pengajuan:*\n` +
+      `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+      `• Nama Pemohon: ${item.namaPemohon}\n` +
+      `• No. Paspor: ${item.noPaspor}\n` +
+      `• Program: ${item.program || 'Visa Jepang'}\n` +
+      `• Tanggal Apply: ${dateStr}\n` +
+      `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
+      `Estimasi waktu pemrosesan kedutaan sekitar 6 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
+      `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
+      `Salam hangat,\n` +
+      `*Tim Operasional MapahTrip*\n` +
+      `Website: https://mapahtrip.id`
+    );
+  };
+
+  const getPesanWASelesai = (item: Pengajuan, dateStr: string) => {
+    return (
+      `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
+      `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
+      `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
+      `📋 *Rincian Pengajuan:*\n` +
+      `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
+      `• Nama Pemohon: ${item.namaPemohon}\n` +
+      `• No. Paspor: ${item.noPaspor}\n` +
+      `• Program: ${item.program || 'Visa Jepang'}\n` +
+      `• Tanggal Selesai: ${dateStr}\n` +
+      `• Status: *SELESAI (Visa Terbit)*\n\n` +
+      `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi penyerahan langsung atau nomor resi pengiriman akan kami informasikan lebih lanjut.\n\n` +
+      `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
+      `Salam hangat,\n` +
+      `*Tim Operasional MapahTrip*\n` +
+      `Website: https://mapahtrip.id`
+    );
+  };
+
+  const handleKirimUlangWA = async (item: Pengajuan, stageName: 'sampai' | 'proses' | 'selesai') => {
+    if (!item.noTelp || !item.noTelp.trim()) {
+      alert(`Nomor WhatsApp untuk "${item.namaPemohon}" belum tersedia.`);
+      return;
+    }
+
+    const stages = getCandidateStages(item);
+    const dateStr = stageName === 'sampai' ? (stages.tglSampai || getTodayFormatted())
+      : stageName === 'proses' ? (stages.tglProses || getTodayFormatted())
+      : (stages.tglSelesai || getTodayFormatted());
+
+    const pesan = stageName === 'sampai' ? getPesanWASampai(item, dateStr)
+      : stageName === 'proses' ? getPesanWAProses(item, dateStr)
+      : getPesanWASelesai(item, dateStr);
+
+    const labelTahap = stageName === 'sampai' ? 'BERKAS FISIK TIBA'
+      : stageName === 'proses' ? 'SEDANG DIPROSES'
+      : 'SELESAI (VISA TERBIT)';
+
+    const res = await kirimPesanWA(item.noTelp, pesan, {
+      namaPemohon: item.namaPemohon,
+      tahap: labelTahap,
+    });
+
+    if (res && res.success) {
+      alert(`✅ SUKSES!\n\nNotifikasi WhatsApp (${labelTahap}) berhasil dikirimkan ulang ke ${item.namaPemohon} (${item.noTelp}).`);
+    } else {
+      alert(
+        `⚠️ GATEWAY SEDANG CONNECTING / OFFLINE!\n\n` +
+        `Notifikasi WhatsApp (${labelTahap}) untuk "${item.namaPemohon}" telah OTOMATIS DISIMPAN DI ANTREAN OUTBOX.\n\n` +
+        `Sistem akan langsung mengirimkannya otomatis begitu gateway online kembali.\n\n` +
+        `Anda juga dapat membuka pesan via WhatsApp Web melalui indikator [WA Gateway] di pojok kanan atas.`
+      );
+    }
+  };
+
+  // Handler Khusus Owner: Mengirimkan Tagihan Resmi & Rekening Transfer via WhatsApp
+  const handleKirimTagihanWA = async (item: Pengajuan) => {
+    if (!item.noTelp || !item.noTelp.trim()) {
+      alert(`Nomor WhatsApp untuk "${item.namaPemohon}" belum tersedia.`);
+      return;
+    }
+
+    const currentNominal = item.dibayarPemohon || 1650000;
+    const inputNominal = window.prompt(
+      `💳 KONFIRMASI & KIRIM TAGIHAN RESMI (KHUSUS OWNER)\n\n` +
+      `Pemohon: ${item.namaPemohon} (${item.noPengajuan || '-'})\n` +
+      `Program: ${item.program || 'Visa Jepang'} (${item.paket || 'Reguler'})\n` +
+      `No. WhatsApp: ${item.noTelp}\n\n` +
+      `Masukkan Total Nominal Tagihan Resmi untuk Customer (Rp):\n` +
+      `(Anda dapat menyesuaikan nominal ini jika ada biaya tambahan berkas penjamin/konsulat. Nominal ini yang akan dicatat di sistem dan dikirim ke WhatsApp customer beserta no rekening BTN)`,
+      String(currentNominal)
+    );
+
+    if (inputNominal === null) return; // Owner membatalkan
+
+    const parsed = parseInt(inputNominal.replace(/[^0-9]/g, ''), 10);
+    const nominalFinal = !isNaN(parsed) && parsed > 0 ? parsed : currentNominal;
+
+    // Jika nominal diubah oleh Owner, update data pemohon di Supabase DB dan state aplikasi
+    if (nominalFinal !== item.dibayarPemohon) {
+      const refFee = item.referralFee || 0;
+      const staffFee = item.staffFee || 0;
+      const modalKeluar = item.nominalKeluar || 0;
+      const newFeeBersih = Math.max(0, nominalFinal - modalKeluar - refFee - staffFee);
+
+      try {
+        await updatePengajuanPaymentInDB(item.id, {
+          dibayarPemohon: nominalFinal,
+          feeBersih: newFeeBersih,
+        });
+        if (onUpdatePengajuan) {
+          onUpdatePengajuan({
+            ...item,
+            dibayarPemohon: nominalFinal,
+            feeBersih: newFeeBersih,
+          });
+        }
+      } catch (err) {
+        console.warn('Gagal update nominal tagihan ke Supabase:', err);
+      }
+    }
+
+    const updatedItem = { ...item, dibayarPemohon: nominalFinal };
+    const pesanTagihan = getPesanWATagihanResmi(updatedItem, nominalFinal);
+
+    const res = await kirimPesanWA(item.noTelp, pesanTagihan, {
+      namaPemohon: item.namaPemohon,
+      tahap: 'Tagihan Resmi',
+    });
+
+    if (res && res.success) {
+      alert(`✅ TAGIHAN TERKIRIM!\n\nInvoice tagihan resmi sebesar ${formatRupiah(nominalFinal)} berhasil dikirimkan via WhatsApp ke ${item.namaPemohon} (${item.noTelp}).`);
+    } else {
+      alert(
+        `⚠️ GATEWAY SEDANG CONNECTING / OFFLINE!\n\n` +
+        `Pesan tagihan resmi sebesar ${formatRupiah(nominalFinal)} untuk "${item.namaPemohon}" telah OTOMATIS DISIMPAN DI ANTREAN OUTBOX.\n\n` +
+        `Sistem akan langsung mengirimkannya begitu koneksi gateway online kembali.`
+      );
+    }
+  };
+
   const handleToggleStage = async (
     item: Pengajuan,
     stage: 'sampai' | 'proses' | 'selesai' | 'kirim'
@@ -359,6 +711,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           return;
         }
 
+        const confirmAksi = window.confirm(
+          `ℹ️ TAHAPAN BERKAS SAMPAI SUDAH TERCATAT (${stages.tglSampai})!\n\n` +
+          `Pemohon: ${item.namaPemohon}\n` +
+          `No. WhatsApp: ${item.noTelp || '-'}\n\n` +
+          `PILIH AKSI:\n` +
+          `• Klik [OK] untuk KIRIM ULANG notifikasi WhatsApp & rincian tagihan ke customer.\n` +
+          `• Klik [Cancel] jika Anda ingin opsi MEMBATALKAN / MERESET status sampai.`
+        );
+
+        if (confirmAksi) {
+          handleKirimUlangWA(item, 'sampai');
+          return;
+        }
+
         const confirmBatal = window.confirm(
           `⚠️ Batalkan Status Berkas Sampai?\n\nApakah Anda yakin ingin membatalkan status berkas fisik sampai untuk pengajuan atas nama "${item.namaPemohon}"?`
         );
@@ -370,14 +736,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       } else {
         const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
         const konfirmasi = window.confirm(
-          `⚠️ KONFIRMASI BERKAS FISIK SAMPAI DI KANTOR (TAHAP 1)\n\n` +
-          `Anda akan menandai bahwa berkas fisik & paspor asli telah SAMPAI di kantor MapahTrip:\n` +
+          `📦 KONFIRMASI PENERIMAAN BERKAS FISIK (TAHAP 1)\n\n` +
+          `Tandai bahwa paspor & dokumen fisik telah TIBA di kantor konsulat:\n` +
           `• Nama Pemohon : ${item.namaPemohon}\n` +
           `• No. Paspor   : ${item.noPaspor}\n` +
           `• No. WhatsApp : ${noWa}\n\n` +
-          `⚠️ PENTING:\n` +
-          `Setelah Anda klik OK, status berkas fisik akan ditandai "Sampai" dan notifikasi resmi bahwa berkas telah tiba beserta RINCIAN TAGIHAN & REKENING RESMI MAPAHTRIP akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
-          `Apakah Anda yakin berkas fisik sudah sampai dan ingin mengirim notifikasi & tagihan ke customer?`
+          `Setelah Anda klik OK:\n` +
+          `1. Status berkas ditandai "Sampai".\n` +
+          `2. Sistem otomatis mengirimkan laporan berkas tiba ke WhatsApp OWNER MapahTrip agar Owner mengetahui berkas sudah sampai dan Owner yang akan menerbitkan/mengirimkan tagihan resmi ke customer.\n\n` +
+          `(Catatan: Customer tidak menerima WA sekarang; customer akan menerima WA konfirmasi berkas tiba beserta invoice resmi saat Owner mengirim tagihan).\n\n` +
+          `Apakah Anda yakin berkas fisik sudah tiba di kantor?`
         );
         if (!konfirmasi) return;
 
@@ -400,6 +768,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           return;
         }
 
+        const confirmAksi = window.confirm(
+          `ℹ️ TAHAPAN PROSES SUDAH TERCATAT (${stages.tglProses})!\n\n` +
+          `Pemohon: ${item.namaPemohon}\n` +
+          `No. WhatsApp: ${item.noTelp || '-'}\n\n` +
+          `PILIH AKSI:\n` +
+          `• Klik [OK] untuk KIRIM ULANG notifikasi WhatsApp bahwa berkas sedang diproses di kedutaan.\n` +
+          `• Klik [Cancel] jika Anda ingin opsi MEMBATALKAN / MERESET tanggal proses.`
+        );
+
+        if (confirmAksi) {
+          handleKirimUlangWA(item, 'proses');
+          return;
+        }
+
         const confirmBatal = window.confirm(
           `⚠️ Batalkan Status Proses?\n\nApakah Anda yakin ingin membatalkan status SEDANG DIPROSES untuk pengajuan atas nama "${item.namaPemohon}"?`
         );
@@ -409,6 +791,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           newStatus = 'Menunggu Verifikasi';
         }
       } else {
+        // VALIDASI STATUS PEMBAYARAN: Staf dilarang proses berkas sebelum pembayaran lunas
+        const isBelumLunas = item.statusPembayaran === 'Menunggu Pembayaran';
+        if (!isOwner && isBelumLunas) {
+          alert(
+            `⛔ BERKAS DITAHAN (PEMBAYARAN BELUM LUNAS)!\n\n` +
+            `Pengajuan visa atas nama "${item.namaPemohon}" saat ini berstatus BELUM LUNAS (Menunggu Pembayaran).\n\n` +
+            `SOP Operasional MapahTrip:\n` +
+            `Berkas fisik ditahan di kantor dan staf TIDAK DAPAT mengajukan berkas ke JVAC/Kedutaan sebelum pembayaran diverifikasi lunas oleh Owner.`
+          );
+          return;
+        }
+
         // VALIDASI URUTAN: Tahap 1 (Sampai) harus selesai terlebih dahulu
         if (!stages.isSampai) {
           alert(
@@ -420,18 +814,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         }
 
         const noWa = item.noTelp && item.noTelp.trim() ? item.noTelp.trim() : 'Nomor belum tersedia';
-        const isBelumLunas = item.statusPembayaran === 'Menunggu Pembayaran';
-        const warningBayar = isBelumLunas
-          ? `\n\n⚠️ PERHATIAN STATUS PEMBAYARAN:\nStatus pemohon ini masih "Menunggu Pembayaran" (Belum Lunas).\nPastikan pembayaran telah dikonfirmasi kantor sebelum berkas diajukan ke JVAC/Kedutaan!`
-          : '';
         const konfirmasi = window.confirm(
           `⚠️ PERINGATAN KONFIRMASI: APAKAH YAKIN SUDAH DIPROSES? (TAHAP 2)\n\n` +
           `Anda akan menandai pengajuan visa ini sebagai SEDANG DIPROSES:\n` +
           `• Nama Pemohon : ${item.namaPemohon}\n` +
           `• No. Paspor   : ${item.noPaspor}\n` +
-          `• No. WhatsApp : ${noWa}` +
-          warningBayar +
-          `\n\n⚠️ PENTING:\n` +
+          `• No. WhatsApp : ${noWa}\n\n` +
+          `⚠️ PENTING:\n` +
           `Setelah Anda klik OK, status akan diubah menjadi "Sedang Diproses" dan notifikasi resmi bahwa berkas visa telah diajukan ke Kedutaan / JVAC akan OTOMATIS dikirimkan melalui WhatsApp ke nomor customer (${noWa}).\n\n` +
           `Apakah Anda yakin ingin melanjutkan kirim notifikasi WhatsApp ke customer?`
         );
@@ -453,6 +842,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           return;
         }
 
+        const confirmAksi = window.confirm(
+          `ℹ️ TAHAPAN SELESAI SUDAH TERCATAT (${stages.tglSelesai})!\n\n` +
+          `Pemohon: ${item.namaPemohon}\n` +
+          `No. WhatsApp: ${item.noTelp || '-'}\n\n` +
+          `PILIH AKSI:\n` +
+          `• Klik [OK] untuk KIRIM ULANG notifikasi WhatsApp bahwa visa telah terbit.\n` +
+          `• Klik [Cancel] jika Anda ingin opsi MEMBATALKAN / MERESET status selesai.`
+        );
+
+        if (confirmAksi) {
+          handleKirimUlangWA(item, 'selesai');
+          return;
+        }
+
         const confirmBatal = window.confirm(
           `⚠️ Batalkan Status Selesai?\n\nApakah Anda yakin ingin membatalkan status SELESAI untuk pengajuan atas nama "${item.namaPemohon}"?`
         );
@@ -462,6 +865,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
           newStatus = stages.isProses ? 'Sedang Diproses' : 'Menunggu Verifikasi';
         }
       } else {
+        // VALIDASI STATUS PEMBAYARAN: Staf dilarang menandai selesai sebelum lunas
+        const isBelumLunas = item.statusPembayaran === 'Menunggu Pembayaran';
+        if (!isOwner && isBelumLunas) {
+          alert(
+            `⛔ BERKAS DITAHAN (PEMBAYARAN BELUM LUNAS)!\n\n` +
+            `Pengajuan visa atas nama "${item.namaPemohon}" saat ini berstatus BELUM LUNAS.\n\n` +
+            `SOP Operasional MapahTrip:\n` +
+            `Staf tidak dapat menandai visa terbit/selesai sebelum pembayaran lunas.`
+          );
+          return;
+        }
+
         // VALIDASI URUTAN: Tahap 2 (Proses) harus selesai terlebih dahulu
         if (!stages.isProses) {
           alert(
@@ -499,6 +914,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         newStages.noResi = '';
         newStatus = 'Selesai';
       } else {
+        // VALIDASI STATUS PEMBAYARAN: Dilarang kirim paspor jika belum lunas
+        const isBelumLunas = item.statusPembayaran === 'Menunggu Pembayaran';
+        if (!isOwner && isBelumLunas) {
+          alert(
+            `⛔ PASPOR DITAHAN (PEMBAYARAN BELUM LUNAS)!\n\n` +
+            `Paspor atas nama "${item.namaPemohon}" TIDAK DAPAT dikirimkan atau diserahkan ke customer sebelum pembayaran diverifikasi lunas oleh Owner.`
+          );
+          return;
+        }
+
         // VALIDASI URUTAN: Tahap 3 (Selesai) harus selesai terlebih dahulu
         if (!stages.isSelesai) {
           alert(
@@ -592,86 +1017,74 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       console.warn('Sync stage to Supabase failed:', e);
     }
 
-    // Otomatis Kirim WhatsApp ke Customer jika Sampai (Tagihan Resmi) / Proses / Selesai
+    // Otomatis Kirim WhatsApp Laporan ke Owner saat Staf / Admin klik "Sampai"
+    // Customer TIDAK dikirimi WA saat ini agar tidak spam; customer baru dikirimi saat Owner klik "Kirim Tagihan".
     if (shouldSendWASampai) {
-      if (item.noTelp && item.noTelp.trim()) {
-        const nominalTagihan = item.dibayarPemohon || 1650000;
-        const pesanWASampai =
-          `*KONFIRMASI BERKAS FISIK TIBA & TAGIHAN RESMI - MAPAHTRIP* 🇯🇵📦\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Kabar baik! Berkas fisik dan dokumen paspor asli Anda telah *SAMPAI DENGAN AMAN* di kantor operasional MapahTrip dan telah diverifikasi oleh tim kami. ✅\n\n` +
-          `📋 *Rincian Pengajuan Visa:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Program: ${item.program || 'Visa Jepang'}\n` +
-          `• Tanggal Tiba: ${today}\n\n` +
-          `💳 *Rincian Tagihan Pembayaran:*\n` +
-          `• Total Biaya: *${formatRupiah(nominalTagihan)}*\n` +
-          `• Status: *Menunggu Pembayaran*\n\n` +
-          `Silakan lakukan transfer pembayaran ke Rekening Resmi berikut:\n\n` +
-          `🏦 *Bank BTN (Bank Tabungan Negara)*\n` +
-          `No. Rekening: *1190-0150-0015-870*\n` +
-          `Atas Nama: *Tokyo Asia Connection*\n\n` +
-          `⚠️ *Catatan Penting:*\n` +
-          `Setelah transfer, mohon balas pesan WhatsApp ini dengan melampirkan screenshot / foto bukti transfer Anda agar dapat segera diverifikasi oleh tim finance dan berkas Anda langsung diproses ke Kedutaan / JVAC.\n\n` +
-          `Terima kasih telah mempercayakan pengurusan visa Anda bersama MapahTrip! 🌸\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*\n` +
-          `Website: https://mapahtrip.com`;
+      let ownerWa = '081214104332';
+      let isOwnerNotifyActive = true;
+      if (typeof window !== 'undefined') {
+        const savedWa = localStorage.getItem('mapahtrip_owner_wa');
+        if (savedWa && savedWa.trim()) {
+          ownerWa = savedWa.trim();
+        }
+        const savedNotify = localStorage.getItem('mapahtrip_owner_notify');
+        if (savedNotify === 'false') {
+          isOwnerNotifyActive = false;
+        }
+      }
 
-        kirimPesanWA(item.noTelp, pesanWASampai)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi berkas sampai & tagihan ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi berkas sampai:', err);
-          });
+      if (isOwnerNotifyActive && ownerWa && ownerWa.trim()) {
+        const pesanWASampaiOwner = getPesanWASampai(item, today);
+        const waRes = await kirimPesanWA(ownerWa.trim(), pesanWASampaiOwner, {
+          namaPemohon: 'Owner MapahTrip',
+          tahap: 'Laporan Berkas Sampai',
+        });
 
-        alert(
-          `✅ STATUS BERKAS SAMPAI!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah ditandai BERKAS SAMPAI.\n\n` +
-          `Notifikasi WhatsApp konfirmasi berkas tiba beserta rincian tagihan & rekening resmi (Bank BTN - Tokyo Asia Connection) telah OTOMATIS dikirimkan ke nomor customer (${item.noTelp}).`
-        );
+        if (waRes && waRes.success) {
+          alert(
+            `✅ STATUS BERKAS SAMPAI!\n\n` +
+            `Pengajuan atas nama "${item.namaPemohon}" telah ditandai BERKAS SAMPAI.\n\n` +
+            `👑 Notifikasi laporan berkas tiba telah BERHASIL TERKIRIM ke WhatsApp Owner MapahTrip.\n\n` +
+            `ℹ️ Customer belum ditagih. Notifikasi berkas tiba beserta rincian tagihan resmi akan dikirimkan ke customer saat Owner mengklik tombol [💳 Kirim Tagihan].`
+          );
+        } else {
+          alert(
+            `✅ STATUS BERKAS SAMPAI TERSIMPAN!\n\n` +
+            `Pengajuan atas nama "${item.namaPemohon}" telah ditandai BERKAS SAMPAI.\n\n` +
+            `⏳ Laporan berkas tiba ke Owner disimpan di antrean outbox (menunggu gateway online).`
+          );
+        }
       } else {
         alert(
           `✅ STATUS BERKAS SAMPAI!\n\n` +
           `Pengajuan atas nama "${item.namaPemohon}" telah ditandai BERKAS SAMPAI.\n\n` +
-          `⚠️ Catatan: Nomor WhatsApp pemohon belum tersedia, sehingga pesan WA rincian tagihan tidak terkirim.`
+          `Customer akan menerima konfirmasi berkas tiba beserta invoice saat Owner mengklik tombol [💳 Kirim Tagihan].`
         );
       }
     } else if (shouldSendWAProses) {
       if (item.noTelp && item.noTelp.trim()) {
-        const pesanWAProses =
-          `*PEMBERITAHUAN PENGAJUAN VISA DIPROSES - MAPAHTRIP* 🇯🇵📋\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Berkas permohonan Visa Jepang Anda saat ini telah *RESMI DIAJUKAN DAN SEDANG DIPROSES* oleh Kedutaan Besar Jepang / JVAC. 🏛️\n\n` +
-          `📋 *Rincian Pengajuan:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Program: ${item.program || 'Visa Jepang'}\n` +
-          `• Tanggal Apply: ${today}\n` +
-          `• Status: *Sedang Diproses Kedutaan / JVAC* ⏳\n\n` +
-          `Estimasi waktu pemrosesan kedutaan sekitar 6 hari kerja. Kami akan segera mengabarkan Anda kembali begitu visa telah selesai dan terbit.\n\n` +
-          `Terima kasih atas kepercayaannya bersama MapahTrip! 🌸\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*\n` +
-          `Website: https://mapahtrip.com`;
+        const pesanWAProses = getPesanWAProses(item, today);
+        const waRes = await kirimPesanWA(item.noTelp, pesanWAProses, {
+          namaPemohon: item.namaPemohon,
+          tahap: 'Sedang Diproses',
+        });
 
-        kirimPesanWA(item.noTelp, pesanWAProses)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi proses ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi proses:', err);
-          });
-
-        alert(
-          `✅ STATUS VISA DIPROSES!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
-          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
-        );
+        if (waRes && waRes.success) {
+          alert(
+            `✅ STATUS VISA DIPROSES!\n\n` +
+            `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SEDANG DIPROSES.\n\n` +
+            `✅ Notifikasi WhatsApp resmi bahwa berkas sedang diproses telah BERHASIL TERKIRIM ke nomor customer (${item.noTelp}).`
+          );
+        } else {
+          alert(
+            `⚠️ STATUS VISA DIPROSES TERSIMPAN!\n\n` +
+            `Pengajuan atas nama "${item.namaPemohon}" berhasil disimpan sebagai SEDANG DIPROSES.\n\n` +
+            `📡 KONDISI GATEWAY: WhatsApp Gateway sedang connecting / offline.\n\n` +
+            `⏳ Pesan notifikasi telah OTOMATIS DISIMPAN KE ANTREAN OUTBOX.\n` +
+            `Sistem akan langsung mengirimkannya otomatis begitu gateway online kembali.\n\n` +
+            `Anda juga dapat memantau antrean via tombol [WA Gateway] di pojok kanan atas.`
+          );
+        }
       } else {
         alert(
           `✅ STATUS VISA DIPROSES!\n\n` +
@@ -681,36 +1094,28 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       }
     } else if (shouldSendWASelesai) {
       if (item.noTelp && item.noTelp.trim()) {
-        const pesanWASelesai =
-          `*PEMBERITAHUAN VISA JEPANG SELESAI - MAPAHTRIP* 🇯🇵✨\n\n` +
-          `Halo Sdr/i *${item.namaPemohon}*,\n\n` +
-          `Kabar gembira! Pengajuan Visa Jepang Anda telah *SELESAI* diproses oleh Kedutaan / JVAC dan visa telah resmi terbit. ✅\n\n` +
-          `📋 *Rincian Pengajuan:*\n` +
-          `• No. Pengajuan: ${item.noPengajuan || '-'}\n` +
-          `• Nama Pemohon: ${item.namaPemohon}\n` +
-          `• No. Paspor: ${item.noPaspor}\n` +
-          `• Program: ${item.program || 'Visa Jepang'}\n` +
-          `• Tanggal Selesai: ${today}\n` +
-          `• Status: *SELESAI (Visa Terbit)*\n\n` +
-          `📦 Paspor fisik dan stiker visa Anda sudah siap. Informasi penyerahan langsung atau nomor resi pengiriman akan kami informasikan lebih lanjut.\n\n` +
-          `Terima kasih telah mempercayakan pengurusan visa Anda kepada MapahTrip! 🌸\n\n` +
-          `Salam hangat,\n` +
-          `*Tim Operasional MapahTrip*\n` +
-          `Website: https://mapahtrip.com`;
+        const pesanWASelesai = getPesanWASelesai(item, today);
+        const waRes = await kirimPesanWA(item.noTelp, pesanWASelesai, {
+          namaPemohon: item.namaPemohon,
+          tahap: 'Visa Selesai',
+        });
 
-        kirimPesanWA(item.noTelp, pesanWASelesai)
-          .then((res) => {
-            console.log('[WA Gateway] Sukses kirim notifikasi selesai ke:', item.noTelp, res);
-          })
-          .catch((err) => {
-            console.warn('[WA Gateway] Gagal kirim notifikasi selesai:', err);
-          });
-
-        alert(
-          `✅ STATUS VISA SELESAI!\n\n` +
-          `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
-          `Notifikasi WhatsApp resmi telah otomatis dikirimkan ke nomor customer (${item.noTelp}).`
-        );
+        if (waRes && waRes.success) {
+          alert(
+            `✅ STATUS VISA SELESAI!\n\n` +
+            `Pengajuan atas nama "${item.namaPemohon}" telah diubah menjadi SELESAI.\n\n` +
+            `✅ Notifikasi WhatsApp resmi bahwa visa telah terbit telah BERHASIL TERKIRIM ke nomor customer (${item.noTelp}).`
+          );
+        } else {
+          alert(
+            `⚠️ STATUS VISA SELESAI TERSIMPAN!\n\n` +
+            `Pengajuan atas nama "${item.namaPemohon}" berhasil disimpan sebagai SELESAI (Visa Terbit).\n\n` +
+            `📡 KONDISI GATEWAY: WhatsApp Gateway sedang connecting / offline.\n\n` +
+            `⏳ Pesan resmi telah OTOMATIS DISIMPAN KE ANTREAN OUTBOX.\n` +
+            `Sistem akan langsung mengirimkannya otomatis begitu gateway online kembali.\n\n` +
+            `Anda juga dapat memantau antrean via tombol [WA Gateway] di pojok kanan atas.`
+          );
+        }
       } else {
         alert(
           `✅ STATUS VISA SELESAI!\n\n` +
@@ -724,33 +1129,63 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
   const openKirimModal = (item: Pengajuan) => {
     const stages = getCandidateStages(item);
     const existingResi = stages.noResi || '';
+    const resiLower = existingResi.toLowerCase();
 
     if (
-      existingResi.toLowerCase().includes('soetta') ||
-      existingResi.toLowerCase().includes('bandara') ||
-      existingResi.toLowerCase().includes('flight') ||
-      existingResi.toLowerCase().includes('handover')
+      resiLower.includes('soetta') ||
+      resiLower.includes('soehatta') ||
+      resiLower.includes('soekarno') ||
+      resiLower.includes('bandara') ||
+      resiLower.includes('flight') ||
+      resiLower.includes('handover')
     ) {
       setKirimMetode('soetta');
       const flightMatch = existingResi.match(/(?:handover\s*soetta\s*t3\s*-\s*|flight\s*)([^(]+)/i);
       if (flightMatch && flightMatch[1]) {
         setSoettaFlight(flightMatch[1].trim());
+      } else if (resiLower.includes('soehatta') || resiLower.includes('soetta')) {
+        setSoettaFlight('Keberangkatan Soekarno-Hatta T3');
       } else {
         setSoettaFlight('ANA NH836');
       }
+
+      // Inisialisasi Tanggal & Jam Temu Bandara
+      let initDate = '';
+      let initTime = '21:00';
       const timeMatch = existingResi.match(/\(([^)]+)\)/);
-      if (timeMatch && timeMatch[1]) {
-        setSoettaTanggalJam(timeMatch[1].trim());
+      const rawTimeText = timeMatch ? timeMatch[1].trim() : (resiLower.includes('soehatta') ? (stages.tglKirim || '') : '');
+
+      const isoM = rawTimeText.match(/(\d{4})-(\d{2})-(\d{2})/);
+      const dmyM = rawTimeText.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (isoM) {
+        initDate = `${isoM[1]}-${isoM[2]}-${isoM[3]}`;
+      } else if (dmyM) {
+        initDate = `${dmyM[3]}-${dmyM[2].padStart(2, '0')}-${dmyM[1].padStart(2, '0')}`;
+      } else if (stages.tglKirim && stages.tglKirim.includes('-')) {
+        initDate = stages.tglKirim;
       } else {
-        setSoettaTanggalJam(`${getTodayFormatted()}, 21:00 WIB`);
+        const now = new Date();
+        initDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       }
+
+      const tM = rawTimeText.match(/(\d{1,2}):(\d{2})/);
+      if (tM) {
+        initTime = `${tM[1].padStart(2, '0')}:${tM[2]}`;
+      }
+
+      setSoettaDate(initDate);
+      setSoettaTime(initTime);
+      const dateParts = initDate.split('-');
+      const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : initDate;
+      setSoettaTanggalJam(`${formattedDate}, ${initTime} WIB`);
+
       const gateMatch = existingResi.match(/\[([^\]]+)\]/);
       if (gateMatch && gateMatch[1]) {
         setSoettaTitikTemu(gateMatch[1].trim());
       } else {
         setSoettaTitikTemu('Terminal 3 Keberangkatan Internasional Gate 1');
       }
-    } else if (existingResi.toLowerCase().includes('kantor') || existingResi.toLowerCase().includes('langsung')) {
+    } else if (resiLower.includes('kantor') || resiLower.includes('langsung') || resiLower.includes('diambil')) {
       setKirimMetode('kantor');
       const pengambilMatch = existingResi.match(/\(([^)]+)\)/);
       setKantorPengambil(pengambilMatch ? pengambilMatch[1].trim() : 'Pemohon Sendiri');
@@ -774,6 +1209,25 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     setKirimModalItem(item);
   };
 
+  const handleSoettaDateChange = (newDate: string) => {
+    setSoettaDate(newDate);
+    if (newDate) {
+      const parts = newDate.split('-');
+      if (parts.length === 3) {
+        const formatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        setSoettaTanggalJam(`${formatted}, ${soettaTime || '21:00'} WIB`);
+      }
+    }
+  };
+
+  const handleSoettaTimeChange = (newTime: string) => {
+    setSoettaTime(newTime);
+    const dateToUse = soettaDate || new Date().toISOString().split('T')[0];
+    const parts = dateToUse.split('-');
+    const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateToUse;
+    setSoettaTanggalJam(`${formatted}, ${newTime} WIB`);
+  };
+
   const getKirimWAMessage = (item: Pengajuan) => {
     const today = getTodayFormatted();
     if (kirimMetode === 'soetta') {
@@ -793,7 +1247,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         `Semoga penerbangan dan perjalanan Anda ke Jepang menyenangkan, lancar, dan berkesan! 🇯🇵✨\n\n` +
         `Salam hangat,\n` +
         `*Tim Operasional MapahTrip*\n` +
-        `Website: https://mapahtrip.com`
+        `Website: https://mapahtrip.id`
       );
     } else if (kirimMetode === 'ekspedisi') {
       return (
@@ -847,22 +1301,28 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     const today = getTodayFormatted();
     const newStages = { ...(localStageOverrides[kirimModalItem.id] || {}) };
     let resiFinal = '';
+    let targetTglKirim = stages.tglKirim || today;
 
     if (kirimMetode === 'soetta') {
       const flightText = soettaFlight.trim() || 'Flight Internasional';
       const timeText = soettaTanggalJam.trim() ? ` (${soettaTanggalJam.trim()})` : '';
       const gateText = soettaTitikTemu.trim() ? ` [${soettaTitikTemu.trim()}]` : '';
       resiFinal = `Handover Soetta T3 - ${flightText}${timeText}${gateText}`;
+      if (soettaDate) {
+        targetTglKirim = soettaDate;
+      }
     } else if (kirimMetode === 'ekspedisi') {
       const kurir = ekspedisiKurir.trim() || 'Ekspedisi';
       const noResi = ekspedisiResi.trim() || 'Resi Menyusul';
       resiFinal = `${kurir} - ${noResi}`;
+      targetTglKirim = today;
     } else {
       const pengambil = kantorPengambil.trim() || 'Pemohon Sendiri';
       resiFinal = `Diambil Langsung di Kantor (${pengambil})`;
+      targetTglKirim = today;
     }
 
-    newStages.tglKirim = today;
+    newStages.tglKirim = targetTglKirim;
     newStages.noResi = resiFinal;
     const newStatus: StatusPengajuan = 'Selesai';
     newStages.status = newStatus;
@@ -888,7 +1348,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         tglBerkasMasuk: newStages.tglSampai,
         tglApply: newStages.tglProses,
         tglSelesai: newStages.tglSelesai,
-        tglKirim: newStages.tglKirim,
+        tglKirim: targetTglKirim,
         noResi: resiFinal,
         status: newStatus,
       });
@@ -906,7 +1366,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               tglBerkasMasuk: newStages.tglSampai !== undefined ? newStages.tglSampai : p.tglBerkasMasuk,
               tglApply: newStages.tglProses !== undefined ? newStages.tglProses : p.tglApply,
               tglSelesai: newStages.tglSelesai !== undefined ? newStages.tglSelesai : p.tglSelesai,
-              tglKirim: today,
+              tglKirim: targetTglKirim,
               noResi: resiFinal,
               status: newStatus,
             }
@@ -930,7 +1390,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             tgl_sampai: finalSampai || null,
             tgl_proses: finalProses || null,
             tgl_selesai: finalSelesai || null,
-            tgl_kirim: today,
+            tgl_kirim: targetTglKirim,
             resi_pengiriman: resiFinal,
             status: newStatus,
             updated_at: new Date().toISOString(),
@@ -1062,10 +1522,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
     const inputAlasan = window.prompt(
       `⚠️ PENOLAKAN PENGAJUAN VISA: "${item.namaPemohon}"\n\n` +
-      `Pilih / ketik alasan penolakan:\n` +
+      `Pilih atau ketik alasan penolakan:\n` +
       `1 = Ditolak di Awal (Berkas tidak lengkap / Waktu mepet)\n` +
-      `2 = Ditolak oleh Konsulat Jepang\n\n` +
-      `Ketik angka 1, 2, atau ketik alasan penolakan:`,
+      `2 = Ditolak oleh Konsulat Jepang\n` +
+      `3 = Ketik alasan khusus sendiri\n\n` +
+      `Ketik angka 1, 2, atau langsung ketik alasan Anda di kotak ini:`,
       '1'
     );
 
@@ -1077,6 +1538,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       alasanFinal = 'Ditolak di Awal (Berkas tidak lengkap / Waktu mepet)';
     } else if (trimmed === '2') {
       alasanFinal = 'Ditolak oleh Konsulat Jepang';
+    } else if (trimmed === '3') {
+      const customInput = window.prompt(
+        `Ketik alasan penolakan khusus untuk "${item.namaPemohon}":`,
+        'Customer membatalkan pengajuan'
+      );
+      if (customInput === null) return;
+      alasanFinal = customInput.trim() || 'Dibatalkan oleh pemohon';
     } else if (trimmed.length > 0) {
       alasanFinal = trimmed;
     }
@@ -1154,7 +1622,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         `Terima kasih atas pengertian dan kerja sama Anda.\n\n` +
         `Salam hormat,\n` +
         `*Tim Operasional MapahTrip*\n` +
-        `Website: https://mapahtrip.com`;
+        `Website: https://mapahtrip.id`;
 
       kirimPesanWA(noWa, pesanWATolak)
         .then((res) => {
@@ -1163,6 +1631,50 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         .catch((err) => {
           console.warn('[WA Gateway] Gagal kirim notifikasi penolakan:', err);
         });
+
+      // Otomatis Kirim WhatsApp ke Mitra Affiliate jika pemohon ini menggunakan kode referral
+      const cleanAffCode = (item.affiliateCode || '').trim().toUpperCase();
+      if (cleanAffCode && cleanAffCode !== 'MAPAHTRIP') {
+        findAffiliateByCode(cleanAffCode)
+          .then((affiliate) => {
+            if (affiliate && affiliate.noWa && affiliate.noWa.trim()) {
+              const pesanWAAffiliateTolak =
+`*PEMBERITAHUAN UPDATE STATUS PEMOHON BINAAN - MAPAHTRIP* 🇯🇵⚠️
+
+Halo Kak *${affiliate.nama}*,
+
+Melalui pesan ini, kami menginformasikan pembaruan status pemohon visa Jepang yang terdaftar menggunakan kode referral Anda (*${cleanAffCode}*):
+
+📋 *Data Pemohon Binaan:*
+• *ID Pengajuan:* *${item.noPengajuan || '-'}*
+• *Nama Pemohon:* ${item.namaPemohon}
+• *Program Visa:* ${item.program || 'Visa Jepang'}
+• *Status:* *DITOLAK / TIDAK DAPAT DIPROSES* ❌
+• *Alasan/Keterangan:* ${alasanFinal}
+
+📌 *Catatan Transparansi:*
+Dikarenakan permohonan visa pemohon yang bersangkutan tidak dapat dilanjutkan atau ditolak, maka komisi referral atas pengajuan ini belum dapat dicairkan.
+
+Anda dapat memantau rekapan seluruh pemohon dan status referral Anda di Portal Affiliate:
+🌐 https://mapahtrip.id
+
+Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan calon pemohon visa lainnya bersama MapahTrip! 🌸🤝
+
+*Tim Kemitraan MapahTrip*`;
+
+              kirimPesanWA(affiliate.noWa.trim(), pesanWAAffiliateTolak)
+                .then((r) => {
+                  console.log(`[WA Gateway] Sukses kirim notifikasi penolakan ke Mitra Affiliate ${affiliate.nama}:`, affiliate.noWa, r);
+                })
+                .catch((e) => {
+                  console.warn(`[WA Gateway] Gagal kirim notifikasi penolakan ke Mitra Affiliate:`, e);
+                });
+            }
+          })
+          .catch((err) => {
+            console.warn('Gagal mencari mitra affiliate saat tolak:', err);
+          });
+      }
 
       alert(
         `❌ STATUS PENGAJUAN DITOLAK!\n\n` +
@@ -1180,14 +1692,50 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     }
   };
 
+  const handleHapusPengajuan = (item: Pengajuan) => {
+    const nama = item.namaPemohon || 'Pemohon';
+    const no = item.noPengajuan ? ` (${item.noPengajuan})` : '';
+    const konfirmasi = window.confirm(
+      `🗑️ HAPUS / BATALKAN PENDAFTARAN:\n\n` +
+      `Apakah Anda yakin ingin menghapus data pengajuan ${nama}${no}?\n\n` +
+      `Gunakan opsi ini jika pemohon batal mendaftar atau tidak jadi melanjutkan berkas.\n` +
+      `Data pengajuan dan seluruh antrean pesan WhatsApp terkait akan dihapus secara permanen.`
+    );
+    if (!konfirmasi) return;
+
+    // Bersihkan seluruh pesan WhatsApp pending dari pemohon ini di antrean outbox (customer, staf, owner, mitra)
+    removeApplicantFromWAOutbox({
+      namaPemohon: item.namaPemohon,
+      noPengajuan: item.noPengajuan,
+      noTelp: item.noTelp,
+    });
+
+    // Hapus override stage lokal jika ada
+    setLocalStageOverrides((prev) => {
+      const updated = { ...prev };
+      delete updated[item.id];
+      try {
+        localStorage.setItem('mapahtrip_stage_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    if (onDeletePengajuan) {
+      onDeletePengajuan(item.id);
+    }
+  };
+
   // Daftar pemohon yang masuk ke wilayah konsulat yang dipilih / tugas staf
   const territoryList = useMemo(() => {
     return pengajuanList.filter((item) => {
-      if (!isOwner && currentStaff?.konsjenTugas) {
-        return currentStaff.konsjenTugas.includes(item.konsjen);
+      if (!isOwner && currentStaff) {
+        return isApplicantAssignedToStaff(item, currentStaff);
       }
+      const prog = (item.program || '').toLowerCase();
+      const isWaiver = prog.includes('waiver') || prog.includes('e-visa') || prog.includes('evisa');
       if (selectedKonsjen === 'Tugas Staf' && currentStaff?.konsjenTugas) {
-        return currentStaff.konsjenTugas.includes(item.konsjen);
+        if (isWaiver) return false;
+        return isApplicantAssignedToStaff(item, currentStaff);
       }
       if (selectedKonsjen !== 'Semua') {
         return item.konsjen === selectedKonsjen;
@@ -1247,31 +1795,69 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     };
   }, [territoryList, localStageOverrides]);
 
+  // Laporkan jumlah berkas belum tertangani (aktif) ke sidebar utama
+  useEffect(() => {
+    if (onActiveCountChange) {
+      const activeCount = stageCounts.belumVerifikasi + stageCounts.baruSampai + stageCounts.sedangProses;
+      onActiveCountChange(activeCount);
+    }
+  }, [stageCounts.belumVerifikasi, stageCounts.baruSampai, stageCounts.sedangProses, onActiveCountChange]);
+
   const handleTogglePaymentStatus = async (item: Pengajuan) => {
     if (!isOwner) return;
     const current = item.statusPembayaran || 'Lunas';
     const nextStatus = current === 'Menunggu Pembayaran' ? 'Lunas' : 'Menunggu Pembayaran';
 
-    const konfirm = window.confirm(
-      `Ubah status pembayaran ${item.namaPemohon} menjadi "${nextStatus === 'Lunas' ? 'Lunas (100%)' : 'Menunggu Pembayaran'}"?`
-    );
-    if (!konfirm) return;
+    let nominalFinal = item.dibayarPemohon || 0;
+    if (nextStatus === 'Lunas') {
+      const defaultNominal = nominalFinal > 0 ? String(nominalFinal) : '';
+      const input = window.prompt(
+        `✅ KONFIRMASI PEMBAYARAN LUNAS: ${item.namaPemohon}\n\n` +
+        `Total Tagihan Resmi Terkirim: ${formatRupiah(nominalFinal)}\n\n` +
+        `• Jika customer transfer PAS sesuai tagihan, cukup tekan [OK / Enter].\n` +
+        `• Jika nominal yang diterima BERBEDA (misal ada potongan / biaya tambahan), silakan sesuaikan angkanya di bawah:`,
+        defaultNominal
+      );
+      if (input === null) return; // Owner membatalkan
+      const parsed = parseInt(input.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        nominalFinal = parsed;
+      }
+    } else {
+      const konfirm = window.confirm(
+        `Ubah status pembayaran ${item.namaPemohon} menjadi "Menunggu Pembayaran"?`
+      );
+      if (!konfirm) return;
+    }
+
+    const refFee = item.referralFee || 0;
+    const staffFee = item.staffFee || 0;
+    const modalKeluar = item.nominalKeluar || 0;
+    const newFeeBersih = Math.max(0, nominalFinal - modalKeluar - refFee - staffFee);
 
     try {
       await updatePengajuanPaymentInDB(item.id, {
         statusPembayaran: nextStatus,
+        dibayarPemohon: nominalFinal,
+        feeBersih: newFeeBersih,
       });
       const updated: Pengajuan = {
         ...item,
         statusPembayaran: nextStatus,
+        dibayarPemohon: nominalFinal,
+        feeBersih: newFeeBersih,
       };
       if (onUpdatePengajuan) {
         onUpdatePengajuan(updated);
       }
+      if (nextStatus === 'Lunas') {
+        kirimNotifikasiLunasKeStaff(updated).catch(() => {});
+        kirimNotifikasiLunasKeCustomer(updated).catch(() => {});
+      }
     } catch (err) {
       console.warn('Gagal update status pembayaran:', err);
       if (onUpdatePengajuan) {
-        onUpdatePengajuan({ ...item, statusPembayaran: nextStatus });
+        onUpdatePengajuan({ ...item, statusPembayaran: nextStatus, dibayarPemohon: nominalFinal, feeBersih: newFeeBersih });
       }
     }
   };
@@ -1320,11 +1906,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       }
     }
 
-    // Konsjen filter (Jika staf login: kunci mutlak ke wilayah tugasnya)
-    if (!isOwner && currentStaff?.konsjenTugas) {
-      if (!currentStaff.konsjenTugas.includes(item.konsjen)) return false;
+    // Filter kepemilikan berkas staf vs owner
+    if (!isOwner && currentStaff) {
+      if (!isApplicantAssignedToStaff(item, currentStaff)) return false;
     } else if (selectedKonsjen === 'Tugas Staf' && currentStaff?.konsjenTugas) {
-      if (!currentStaff.konsjenTugas.includes(item.konsjen)) return false;
+      if (!isApplicantAssignedToStaff(item, currentStaff)) return false;
     } else if (selectedKonsjen !== 'Semua' && item.konsjen !== selectedKonsjen) {
       return false;
     }
@@ -1369,57 +1955,98 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     return filteredData.slice(startIndex, endIndex);
   }, [filteredData, pageSize, startIndex, endIndex]);
 
-  const getPaketBadge = (paket: string) => {
+  const getPaketBadge = (paket: string, item?: Pengajuan) => {
+    const isInteractive = Boolean(item);
+    const cursor = isInteractive ? 'pointer' : 'default';
+    const onClickHandler = isInteractive && item ? (e: React.MouseEvent) => handleOpenEditPaket(e, item) : undefined;
+    const titleText = isInteractive ? `Klik untuk ubah paket layanan pemohon "${item?.namaPemohon}"` : undefined;
+
     switch (paket) {
       case 'Premium':
         return (
           <span
+            onClick={onClickHandler}
+            title={titleText}
             style={{
               padding: '2px 8px',
               borderRadius: '9999px',
               background: '#FEF3C7',
               color: '#92400E',
-              border: '1px solid #FDE68A',
+              border: '1px solid #FCD34D',
               fontSize: '0.7rem',
               fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
               gap: '3px',
+              cursor,
+              userSelect: 'none',
+              transition: 'all 0.15s ease',
             }}
           >
             ★ Premium
+            {isInteractive && (
+              <span className="material-symbols-outlined" style={{ fontSize: '11px', opacity: 0.7, marginLeft: '1px' }}>
+                edit
+              </span>
+            )}
           </span>
         );
       case 'TAC':
         return (
           <span
+            onClick={onClickHandler}
+            title={titleText}
             style={{
               padding: '2px 8px',
               borderRadius: '9999px',
               background: '#EEF2FF',
               color: '#4338CA',
-              border: '1px solid #E0E7FF',
+              border: '1px solid #C7D2FE',
               fontSize: '0.7rem',
               fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              cursor,
+              userSelect: 'none',
+              transition: 'all 0.15s ease',
             }}
           >
             ⚡ TAC
+            {isInteractive && (
+              <span className="material-symbols-outlined" style={{ fontSize: '11px', opacity: 0.7, marginLeft: '1px' }}>
+                edit
+              </span>
+            )}
           </span>
         );
       default:
         return (
           <span
+            onClick={onClickHandler}
+            title={titleText}
             style={{
               padding: '2px 8px',
               borderRadius: '9999px',
               background: '#F1F5F9',
               color: '#475569',
-              border: '1px solid #E2E8F0',
+              border: '1px solid #CBD5E1',
               fontSize: '0.7rem',
               fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              cursor,
+              userSelect: 'none',
+              transition: 'all 0.15s ease',
             }}
           >
             {paket || 'Reguler'}
+            {isInteractive && (
+              <span className="material-symbols-outlined" style={{ fontSize: '11px', opacity: 0.6, marginLeft: '1px' }}>
+                edit
+              </span>
+            )}
           </span>
         );
     }
@@ -1434,8 +2061,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             Daftar Pengajuan Visa
           </h1>
           <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>
-            {selectedKonsjen === 'Tugas Staf' ? (
-              <>Total <strong>{territoryList.length}</strong> pemohon di wilayah tugas Anda ({currentStaff?.konsjenTugas?.join(', ')}).</>
+            {!isOwner && currentStaff ? (
+              <>Total <strong>{territoryList.length}</strong> pemohon yang ditugaskan kepada Anda ({currentStaff.nama}).</>
             ) : selectedKonsjen !== 'Semua' ? (
               <>Total <strong>{territoryList.length}</strong> pemohon di Konsulat {selectedKonsjen}.</>
             ) : (
@@ -2246,23 +2873,23 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.78rem' }}>
           <thead>
             <tr style={{ color: '#64748B', fontWeight: 700 }}>
-              <th style={{ width: '38px', textAlign: 'center', padding: '10px 4px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1', borderTopLeftRadius: '15px' }}>
+              <th style={{ width: '28px', minWidth: '24px', textAlign: 'center', padding: '8px 2px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1', borderTopLeftRadius: '15px' }}>
                 No.
               </th>
-              <th style={{ minWidth: '150px', padding: '10px 8px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
+              <th style={{ minWidth: '140px', padding: '8px 6px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
                 Pemohon &amp; Identitas
               </th>
-              <th style={{ minWidth: '130px', padding: '10px 8px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
+              <th style={{ minWidth: '120px', padding: '8px 6px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
                 Program &amp; Konsulat
               </th>
-              <th style={{ width: '135px', minWidth: '125px', textAlign: 'center', padding: '10px 4px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
+              <th style={{ width: '98px', minWidth: '95px', textAlign: 'center', padding: '8px 2px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
                 Berkas
               </th>
-              <th style={{ minWidth: '240px', textAlign: 'center', padding: '8px 4px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
-                <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '3px', fontSize: '0.74rem' }}>
+              <th style={{ width: '230px', minWidth: '220px', textAlign: 'center', padding: '8px 2px', backgroundColor: '#F8FAFC', borderBottom: '2px solid #CBD5E1' }}>
+                <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '3px', fontSize: '0.72rem' }}>
                   Status Pengajuan
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', fontSize: '0.65rem', color: '#475569', fontWeight: 700, width: '100%' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '2px', fontSize: '0.64rem', color: '#475569', fontWeight: 700, width: '100%' }}>
                   <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Sampai</span>
                   <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Proses</span>
                   <span style={{ backgroundColor: '#F1F5F9', padding: '2px 1px', borderRadius: '4px' }}>Selesai</span>
@@ -2272,10 +2899,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               {isOwner ? (
                 <th
                   style={{
-                    width: '140px',
-                    minWidth: '135px',
+                    width: '112px',
+                    minWidth: '106px',
                     textAlign: 'center',
-                    padding: '10px 4px',
+                    padding: '8px 2px',
                     backgroundColor: '#F8FAFC',
                     borderBottom: '2px solid #CBD5E1',
                     whiteSpace: 'nowrap',
@@ -2286,10 +2913,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               ) : (
                 <th
                   style={{
-                    width: '135px',
-                    minWidth: '130px',
+                    width: '112px',
+                    minWidth: '106px',
                     textAlign: 'center',
-                    padding: '10px 4px',
+                    padding: '8px 2px',
                     backgroundColor: '#F8FAFC',
                     borderBottom: '2px solid #CBD5E1',
                     whiteSpace: 'nowrap',
@@ -2301,10 +2928,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
               <th
                 className="table-col-aksi"
                 style={{
-                  width: '70px',
-                  minWidth: '65px',
+                  width: '72px',
+                  minWidth: '68px',
                   textAlign: 'center',
-                  padding: '10px 4px',
+                  padding: '8px 2px',
                   backgroundColor: '#F8FAFC',
                   borderBottom: '2px solid #CBD5E1',
                   borderTopRightRadius: '15px',
@@ -2325,16 +2952,51 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
             ) : (
               paginatedData.map((row, index) => {
                 const st = getCandidateStages(row);
-                const isProsesLocked = !st.isSampai && !st.isProses;
-                const isSelesaiLocked = !st.isProses && !st.isSelesai;
-                const isKirimLocked = !st.isSelesai && !st.isKirim;
+                const isBelumLunas = row.statusPembayaran === 'Menunggu Pembayaran';
+                const isProsesLocked = (!isOwner && isBelumLunas && !st.isProses) || (!st.isSampai && !st.isProses);
+                const isSelesaiLocked = (!isOwner && isBelumLunas && !st.isSelesai) || (!st.isProses && !st.isSelesai);
+                const isKirimLocked = (!isOwner && isBelumLunas && !st.isKirim) || (!st.isSelesai && !st.isKirim);
 
                 const stageItems = [
-                  { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', isLocked: false },
-                  { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', isLocked: isProsesLocked },
-                  { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', isLocked: isSelesaiLocked },
-                  { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', isLocked: isKirimLocked },
+                  { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', isLocked: false, lockTooltip: '' },
+                  {
+                    key: 'proses' as const,
+                    label: 'Proses',
+                    ok: st.isProses,
+                    date: st.tglProses,
+                    color: '#D97706',
+                    isLocked: isProsesLocked,
+                    lockTooltip: (!isOwner && isBelumLunas && !st.isProses)
+                      ? '⚠️ Pembayaran Belum Lunas (Tahan Berkas: Staf dilarang proses berkas sebelum lunas)'
+                      : (!st.isSampai ? '⚠️ Tahap 1 (Sampai) belum selesai (Wajib berurutan)' : '')
+                  },
+                  {
+                    key: 'selesai' as const,
+                    label: 'Selesai',
+                    ok: st.isSelesai,
+                    date: st.tglSelesai,
+                    color: '#16A34A',
+                    isLocked: isSelesaiLocked,
+                    lockTooltip: (!isOwner && isBelumLunas && !st.isSelesai)
+                      ? '⚠️ Pembayaran Belum Lunas (Berkas Ditahan)'
+                      : (!st.isProses ? '⚠️ Tahap 2 (Proses) belum selesai (Wajib berurutan)' : '')
+                  },
+                  {
+                    key: 'kirim' as const,
+                    label: 'Kirim',
+                    ok: st.isKirim,
+                    date: st.tglKirim,
+                    color: '#7C3AED',
+                    isLocked: isKirimLocked,
+                    lockTooltip: (!isOwner && isBelumLunas && !st.isKirim)
+                      ? '⚠️ Pembayaran Belum Lunas (Paspor Ditahan: Dilarang kirim sebelum lunas)'
+                      : (!st.isSelesai ? '⚠️ Tahap 3 (Selesai) belum selesai (Wajib berurutan)' : '')
+                  },
                 ];
+
+                const officialMasterNo = Number((row.noPengajuan || '').replace(/[^0-9]/g, '')) || Number(row.id) || (startIndex + index + 1);
+                const staffListNo = startIndex + index + 1;
+                const displayRowNo = isOwner ? officialMasterNo : staffListNo;
 
                 return (
                   <tr
@@ -2346,23 +3008,26 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                   >
-                    {/* No. Urut (Data terbaru di nomor 1) */}
-                    <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800, color: '#64748B', fontSize: '0.78rem' }}>
-                      {(activePage - 1) * pageSize + index + 1}
+                    {/* No. Urut (Owner: Nomor Resmi Master Spreadsheet | Staf: Nomor Urut Antrean Berkas Staf) */}
+                    <td
+                      style={{ padding: '6px 2px', textAlign: 'center', fontWeight: 800, color: '#64748B', fontSize: '0.76rem' }}
+                      title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
+                    >
+                      {displayRowNo}
                     </td>
 
                     {/* 1. Pemohon & Identitas */}
-                    <td style={{ padding: '8px 6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <td style={{ padding: '6px 4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {row.fotoBase64 ? (
                           <img
                             src={row.fotoBase64}
                             alt={row.namaPemohon}
                             onClick={() => setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` })}
                             style={{
-                              width: '38px',
-                              height: '38px',
-                              borderRadius: '10px',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
                               objectFit: 'cover',
                               border: '1px solid #CBD5E1',
                               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
@@ -2374,9 +3039,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         ) : (
                           <div
                             style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '10px',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
                               backgroundColor: '#EFF6FF',
                               border: '1px solid #DBEAFE',
                               color: '#1D4ED8',
@@ -2384,7 +3049,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               alignItems: 'center',
                               justifyContent: 'center',
                               fontWeight: 800,
-                              fontSize: '0.84rem',
+                              fontSize: '0.80rem',
                               flexShrink: 0,
                               boxShadow: '0 1px 2px rgba(37, 99, 235, 0.06)',
                             }}
@@ -2396,24 +3061,24 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               .join('')}
                           </div>
                         )}
-                        <div>
+                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
                           <div
-                            style={{ fontWeight: 800, color: '#0F172A', cursor: 'pointer', fontSize: '0.86rem', transition: 'color 0.15s' }}
+                            style={{ fontWeight: 800, color: '#0F172A', cursor: 'pointer', fontSize: '0.84rem', transition: 'color 0.15s', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                             onClick={() => onSelectPengajuan(row.id)}
                             onMouseEnter={(e) => (e.currentTarget.style.color = '#2563EB')}
                             onMouseLeave={(e) => (e.currentTarget.style.color = '#0F172A')}
-                            title="Klik untuk lihat detail"
+                            title={row.namaPemohon}
                           >
                             {row.namaPemohon}
                           </div>
-                          <div style={{ fontSize: '0.74rem', color: '#64748B', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <div style={{ fontSize: '0.72rem', color: '#64748B', display: 'flex', gap: '4px', alignItems: 'center' }}>
                             <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
                               {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
                             </span>
                             <span>•</span>
                             <span>{row.noPengajuan}</span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', flexWrap: 'wrap' }}>
                             {row.noTelp && (
                               <a
                                 href={`https://wa.me/${row.noTelp.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
@@ -2421,13 +3086,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
                                 style={{
-                                  fontSize: '0.72rem',
+                                  fontSize: '0.70rem',
                                   color: '#475569',
                                   fontWeight: 600,
                                   textDecoration: 'none',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '4px',
+                                  gap: '3px',
                                   cursor: 'pointer',
                                   transition: 'color 0.15s ease',
                                 }}
@@ -2435,7 +3100,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
                                 title="Klik untuk langsung chat WhatsApp pemohon"
                               >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
                                   <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.54 1.769.782 2.791.782h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.182-2.585-5.768-5.769-5.768zm3.376 8.163c-.141.396-.713.725-1.021.76-.299.034-.689.147-2.27-.478-1.579-.623-2.58-2.23-2.658-2.336-.079-.105-.639-.851-.639-1.624 0-.773.407-1.154.551-1.31.144-.156.315-.195.42-.195.105 0 .21.001.302.006.098.005.228-.037.356.271.132.316.452 1.104.492 1.185.04.081.066.176.013.281-.053.106-.079.172-.158.264-.079.092-.166.205-.237.276-.08.079-.163.165-.07.325.093.16.413.681.887 1.102.61.543 1.124.71 1.284.79.16.08.254.067.348-.04.094-.107.404-.47.512-.631.108-.161.216-.134.364-.08.148.054.938.442 1.099.522.16.08.267.12.306.186.039.066.039.382-.102.778z"/>
                                   <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.98-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.156c-1.636 0-3.155-.472-4.436-1.285l-.318-.202-2.955.775.789-2.88-.22-.35A8.109 8.109 0 013.844 12c0-4.497 3.659-8.156 8.156-8.156 4.497 0 8.156 3.659 8.156 8.156 0 4.497-3.659 8.156-8.156 8.156z"/>
                                 </svg>
@@ -2454,8 +3119,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   color: '#334155',
                                   border: '1px solid #CBD5E1',
                                   borderRadius: '4px',
-                                  padding: '1px 5px',
-                                  fontSize: '0.68rem',
+                                  padding: '1px 4px',
+                                  fontSize: '0.66rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
@@ -2464,7 +3129,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 }}
                                 title="Lihat Foto Penuh"
                               >
-                                <span>📷 Pasfoto</span>
+                                <span>📷 Foto</span>
                               </button>
                             )}
                             {row.uploadedDocs && Object.keys(row.uploadedDocs).length > 0 && (
@@ -2474,12 +3139,12 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   color: '#334155',
                                   border: '1px solid #E2E8F0',
                                   borderRadius: '4px',
-                                  padding: '1px 5px',
-                                  fontSize: '0.68rem',
+                                  padding: '1px 4px',
+                                  fontSize: '0.66rem',
                                   fontWeight: 700,
                                 }}
                               >
-                                📁 {Object.keys(row.uploadedDocs).length} Berkas
+                                📁 {Object.keys(row.uploadedDocs).length}
                               </span>
                             )}
                           </div>
@@ -2488,20 +3153,47 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     </td>
 
                     {/* 2. Program, Paket & Konsulat (Digabung Rapi & Hemat Ruang) */}
-                    <td style={{ padding: '8px 6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.80rem', color: '#0F172A' }}>{row.program}</span>
-                        {getPaketBadge(row.paket)}
+                    <td style={{ padding: '6px 4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.78rem', color: '#0F172A' }}>{row.program}</span>
+                        {getPaketBadge(row.paket, row)}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
-                        <span>•</span>
-                        <span>PIC: {row.staffPic.split(' ')[0]}</span>
+                      <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        {(row.program || '').toLowerCase().includes('waiver') ? (
+                          <span style={{ color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>cloud_done</span>
+                            100% Online • Ditangani Owner
+                          </span>
+                        ) : (
+                          <>
+                            <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
+                            <span>•</span>
+                            <span>PIC: {row.staffPic ? row.staffPic.split(' ')[0] : 'Tim Pusat'}</span>
+                          </>
+                        )}
                       </div>
+                      {row.catatan && (
+                        <div
+                          style={{
+                            fontSize: '0.67rem',
+                            color: '#475569',
+                            marginTop: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                          title={`Catatan: ${row.catatan}`}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '12px', color: '#005BB5' }}>sticky_note_2</span>
+                          <span style={{ maxWidth: '115px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {row.catatan}
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* 3. Berkas Fisik (Checklist Dots Ringkas) */}
-                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                    <td style={{ padding: '6px 2px', textAlign: 'center', width: '98px' }}>
                       {(() => {
                         const berkasList = [
                           { label: 'Form', ok: Boolean(row.berkas?.formVisa || row.uploadedDocs?.formVisa) },
@@ -2518,19 +3210,19 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
                             {/* 6 Dots Bulat */}
-                            <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
                               {berkasList.map((b, bIdx) => (
                                 <span
                                   key={bIdx}
                                   title={`${b.label}: ${b.ok ? 'Lengkap' : 'Kurang'}`}
                                   style={{
-                                    width: '15px',
-                                    height: '15px',
+                                    width: '13px',
+                                    height: '13px',
                                     borderRadius: '50%',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '8.5px',
+                                    fontSize: '8px',
                                     fontWeight: 800,
                                     background: '#F8FAFC',
                                     color: b.ok ? '#16A34A' : '#DC2626',
@@ -2552,7 +3244,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   backgroundColor: '#ECFDF5',
                                   border: '1px solid #A7F3D0',
                                   borderRadius: '6px',
-                                  padding: '1px 6px',
+                                  padding: '1px 5px',
                                   whiteSpace: 'nowrap',
                                   marginTop: '1px',
                                 }}
@@ -2564,13 +3256,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 {/* Badge Kurang X Berkas */}
                                 <span
                                   style={{
-                                    fontSize: '0.62rem',
+                                    fontSize: '0.60rem',
                                     fontWeight: 700,
                                     color: '#E11D48',
                                     backgroundColor: '#FFF1F2',
                                     border: '1px solid #FFE4E6',
-                                    borderRadius: '6px',
-                                    padding: '1px 6px',
+                                    borderRadius: '5px',
+                                    padding: '1px 5px',
                                     whiteSpace: 'nowrap',
                                     marginTop: '1px',
                                   }}
@@ -2579,14 +3271,14 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 </span>
 
                                 {/* Tombol Aksi Cepat: Seragam, Netral & Rapi */}
-                                <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
-                                  {row.noTelp && (
+                                {row.noTelp && (
+                                  <div style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
                                     <button
                                       type="button"
                                       onClick={(e) => handleSendCustomerWALink(e, row)}
                                       style={{
-                                        padding: '2px 5px',
-                                        fontSize: '0.62rem',
+                                        padding: '1px 6px',
+                                        fontSize: '0.60rem',
                                         fontWeight: 700,
                                         borderRadius: '4px',
                                         backgroundColor: '#F8FAFC',
@@ -2599,44 +3291,15 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                         whiteSpace: 'nowrap',
                                         transition: 'all 0.15s ease',
                                       }}
-                                      title="Kirim pesan WhatsApp pengingat berkas yang kurang & tautan upload mandiri untuk customer"
+                                      title="Kirim pesan WhatsApp pengingat berkas yang kurang ke customer"
                                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
                                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
                                     >
                                       <span>📲</span>
                                       <span>Minta via WA</span>
                                     </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleCopyCustomerLink(e, row)}
-                                    style={{
-                                      padding: '2px 5px',
-                                      fontSize: '0.62rem',
-                                      fontWeight: 700,
-                                      borderRadius: '4px',
-                                      backgroundColor: copiedLinkRowId === row.id ? '#ECFDF5' : '#F8FAFC',
-                                      border: `1px solid ${copiedLinkRowId === row.id ? '#A7F3D0' : '#CBD5E1'}`,
-                                      color: copiedLinkRowId === row.id ? '#059669' : '#334155',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '2px',
-                                      whiteSpace: 'nowrap',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                    title="Salin tautan upload mandiri untuk customer"
-                                    onMouseEnter={(e) => {
-                                      if (copiedLinkRowId !== row.id) e.currentTarget.style.backgroundColor = '#F1F5F9';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (copiedLinkRowId !== row.id) e.currentTarget.style.backgroundColor = '#F8FAFC';
-                                    }}
-                                  >
-                                    <span>{copiedLinkRowId === row.id ? '✓' : '🔗'}</span>
-                                    <span>{copiedLinkRowId === row.id ? 'Tersalin' : 'Salin Link'}</span>
-                                  </button>
-                                </div>
+                                  </div>
+                                )}
                               </>
                             )}
                           </div>
@@ -2645,19 +3308,19 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     </td>
 
                     {/* 4. Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
-                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                    <td style={{ padding: '6px 2px', textAlign: 'center', width: '230px', minWidth: '220px' }}>
                       {st.currentStatus === 'Ditolak' ? (
                         <div
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '6px',
+                            gap: '4px',
                             backgroundColor: 'rgba(239, 68, 68, 0.04)',
                             border: '1px solid rgba(239, 68, 68, 0.22)',
                             borderRadius: '8px',
-                            padding: '6px 8px',
-                            maxWidth: '260px',
+                            padding: '4px 6px',
+                            maxWidth: '220px',
                             margin: '0 auto',
                             lineHeight: 1.3,
                           }}
@@ -2666,27 +3329,27 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '3px',
+                              gap: '2px',
                               color: '#DC2626',
                               fontWeight: 800,
-                              fontSize: '0.68rem',
+                              fontSize: '0.66rem',
                               flexShrink: 0,
                               backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                              padding: '2px 6px',
+                              padding: '2px 5px',
                               borderRadius: '4px',
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#DC2626' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '12px', color: '#DC2626' }}>
                               cancel
                             </span>
                             DITOLAK
                           </span>
-                          <span style={{ color: '#334155', fontWeight: 600, fontSize: '0.72rem', textAlign: 'left', wordBreak: 'break-word' }}>
+                          <span style={{ color: '#334155', fontWeight: 600, fontSize: '0.70rem', textAlign: 'left', wordBreak: 'break-word' }}>
                             {st.alasanPenolakan || 'Berkas Tidak Lengkap / Waktu Mepet'}
                           </span>
                         </div>
                       ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '3px', width: '100%' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '2px', width: '100%' }}>
                           {stageItems.map((s) => (
                             <div
                               key={s.key}
@@ -2695,12 +3358,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 backgroundColor: s.ok ? '#FFFFFF' : '#F8FAFC',
-                                border: s.ok ? `1.5px solid ${s.color}60` : '1px solid #E2E8F0',
-                                borderRadius: '6px',
-                                padding: '3px 2px',
+                                border: s.ok ? `1.5px solid ${s.color}75` : '1px solid #E2E8F0',
+                                borderRadius: '5px',
+                                padding: '2px 1px',
                                 transition: 'all 0.15s ease',
-                                minWidth: 0,
-                                overflow: 'hidden',
                                 boxSizing: 'border-box',
                                 boxShadow: s.ok ? '0 1px 2px rgba(0,0,0,0.03)' : 'none',
                                 opacity: s.isLocked ? 0.6 : 1,
@@ -2708,13 +3369,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             >
                               <button
                                 type="button"
+                                disabled={s.isLocked}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleToggleStage(row, s.key);
+                                  if (!s.isLocked) {
+                                    handleToggleStage(row, s.key);
+                                  }
                                 }}
                                 title={
                                   s.isLocked
-                                    ? `⚠️ Tahap sebelumnya belum selesai (Wajib berurutan)`
+                                    ? (s.lockTooltip || `⚠️ Tahap sebelumnya belum selesai (Wajib berurutan)`)
                                     : `Klik untuk ${s.ok ? 'membatalkan' : 'menceklis'} tahap ${s.label}`
                                 }
                                 style={{
@@ -2726,14 +3390,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '2px',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 800,
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700,
+                                  letterSpacing: '-0.2px',
                                   color: s.ok ? '#0F172A' : (s.isLocked ? '#CBD5E1' : '#94A3B8'),
                                   padding: '1px 0',
+                                  whiteSpace: 'nowrap',
                                 }}
                               >
-                                <span style={{ color: s.ok ? s.color : (s.isLocked ? '#CBD5E1' : '#CBD5E1'), fontSize: '0.70rem' }}>{s.ok ? '✓' : '○'}</span>
-                                <span style={{ color: s.ok ? '#0F172A' : (s.isLocked ? '#94A3B8' : '#64748B') }}>{s.label}</span>
+                                <span style={{ color: s.ok ? s.color : (s.isLocked ? '#CBD5E1' : '#CBD5E1'), fontSize: '0.65rem', fontWeight: 900 }}>{s.ok ? '✓' : '○'}</span>
+                                <span style={{ color: s.ok ? '#0F172A' : (s.isLocked ? '#94A3B8' : '#64748B'), whiteSpace: 'nowrap' }}>{s.label}</span>
                               </button>
                               <span
                                 onClick={(e) => {
@@ -2742,7 +3408,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 }}
                                 title={s.ok ? 'Klik untuk ubah tanggal' : ''}
                                 style={{
-                                  fontSize: '0.65rem',
+                                  fontSize: '0.58rem',
                                   fontFamily: 'monospace',
                                   color: s.ok ? '#475569' : '#CBD5E1',
                                   fontWeight: s.ok ? 700 : 500,
@@ -2750,40 +3416,53 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   textDecoration: s.ok ? 'underline dotted' : 'none',
                                   lineHeight: 1.1,
                                   marginTop: '1px',
+                                  whiteSpace: 'nowrap',
                                 }}
                               >
                                 {s.ok ? (s.date || getTodayFormatted()) : '-'}
                               </span>
                               {/* Jika tahap Kirim aktif, tampilkan nomor resi / status pengiriman di dalam kotak */}
-                              {s.key === 'kirim' && st.noResi && (
-                                <span
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openKirimModal(row);
-                                  }}
-                                  style={{
-                                    fontSize: '0.60rem',
-                                    fontWeight: 700,
-                                    color: '#0F172A',
-                                    backgroundColor: '#F8FAFC',
-                                    border: '1px solid #E2E8F0',
-                                    padding: '0 4px',
-                                    borderRadius: '3px',
-                                    marginTop: '2px',
-                                    whiteSpace: 'nowrap',
-                                    maxWidth: '100%',
-                                    boxSizing: 'border-box',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    display: 'inline-block',
-                                    cursor: 'pointer',
-                                    fontFamily: 'monospace',
-                                  }}
-                                  title={`Status Pengiriman: ${st.noResi} (Klik untuk ubah / lihat rincian)`}
-                                >
-                                  {(st.noResi.toLowerCase().includes('soetta') || st.noResi.toLowerCase().includes('bandara') || st.noResi.toLowerCase().includes('flight')) ? '✈️' : '📦'} {st.noResi}
-                                </span>
-                              )}
+                              {s.key === 'kirim' && st.noResi && (() => {
+                                const rLower = st.noResi.toLowerCase();
+                                const isAirport = rLower.includes('soehatta') || rLower.includes('soetta') || rLower.includes('soekarno') || rLower.includes('bandara') || rLower.includes('flight') || rLower.includes('airport');
+                                const isOffice = rLower.includes('diambil') || rLower.includes('kantor') || rLower.includes('langsung');
+                                const isSent = rLower.includes('terkirim');
+
+                                const icon = isAirport ? '✈️' : isOffice ? '🏢' : isSent ? '✓' : '📦';
+                                const badgeText = isAirport ? 'Soetta' : isOffice ? 'Diambil' : isSent ? 'Terkirim' : (st.noResi.length > 8 ? st.noResi.slice(0, 7) + '..' : st.noResi);
+                                const badgeBg = isAirport ? '#EFF6FF' : isOffice ? '#ECFDF5' : isSent ? '#F0FDF4' : '#F8FAFC';
+                                const badgeBorder = isAirport ? '#BFDBFE' : isOffice ? '#A7F3D0' : isSent ? '#BBF7D0' : '#E2E8F0';
+                                const badgeColor = isAirport ? '#1D4ED8' : isOffice ? '#065F46' : isSent ? '#15803D' : '#0F172A';
+
+                                return (
+                                  <span
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openKirimModal(row);
+                                    }}
+                                    style={{
+                                      fontSize: '0.58rem',
+                                      fontWeight: 700,
+                                      color: badgeColor,
+                                      backgroundColor: badgeBg,
+                                      border: `1px solid ${badgeBorder}`,
+                                      padding: '0 2px',
+                                      borderRadius: '3px',
+                                      marginTop: '1px',
+                                      whiteSpace: 'nowrap',
+                                      maxWidth: '100%',
+                                      boxSizing: 'border-box',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      display: 'inline-block',
+                                      cursor: 'pointer',
+                                    }}
+                                    title={`Status Pengiriman: ${st.noResi} (Klik untuk ubah / lihat rincian)`}
+                                  >
+                                    {icon} {badgeText}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           ))}
                         </div>
@@ -2792,116 +3471,221 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
                     {/* 5. Kolom Finansial & Status Bayar: Mode Owner (Finansial & Margin) vs Mode Staf (Indikator Kesiapan Kerja) */}
                     {isOwner ? (
-                      <td style={{ width: '140px', minWidth: '135px', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                      <td style={{ width: '120px', minWidth: '110px', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                         {(() => {
                           const isWaitingWithStruk = row.statusPembayaran === 'Menunggu Pembayaran' && Boolean(row.buktiBayarPemohon);
+                          const isLunas = row.statusPembayaran === 'Lunas';
+                          const isFinanceReady = isRowFinanceInputted(row);
+                          const effectiveFee = isFinanceReady ? getRowEffectiveFee(row) : 0;
+                          const hasMitra = Boolean(row.affiliateCode && row.affiliateCode.trim() !== '' && row.affiliateCode.toUpperCase() !== 'MAPAHTRIP');
+                          const hasModal = Boolean(row.nominalKeluar && row.nominalKeluar > 0);
+                          const hasStaffFee = Boolean(row.staffFee && row.staffFee > 0);
+                          const hasRefFee = hasMitra && Boolean(row.referralFee && row.referralFee > 0);
+                          const refFee = hasMitra ? (row.referralFee || 100000) : 0;
+                          const isWaiver = (row.program || '').toLowerCase().includes('waiver');
+                          const staffFee = isWaiver ? 0 : (row.staffFee !== undefined && row.staffFee !== null ? row.staffFee : (row.cashback !== undefined && row.cashback !== null ? row.cashback : 0));
+
+                          const tooltipLines = [
+                            `Pemasukan (Tagihan): ${formatRupiah(row.dibayarPemohon || 0)}`,
+                            `Modal Konsulat: ${isWaiver ? '-Rp 0 (Waiver)' : (hasModal ? '-' + formatRupiah(row.nominalKeluar || 0) : (isFinanceReady ? '-Rp 0' : 'Belum diinput Owner'))}`,
+                            `Fee Staf PIC (${row.staffPic || 'PIC'}): ${isWaiver ? '-Rp 0 (Owner Langsung)' : (hasStaffFee ? '-' + formatRupiah(staffFee) : (isFinanceReady ? '-' + formatRupiah(staffFee) : 'Belum ditentukan Owner'))}`,
+                          ];
+                          if (hasMitra) {
+                            tooltipLines.push(`Komisi Mitra (${row.affiliateCode}): ${hasRefFee ? '-' + formatRupiah(refFee) : (isFinanceReady ? '-' + formatRupiah(refFee) : 'Belum ditentukan Owner')}`);
+                          }
+                          if (isFinanceReady) {
+                            tooltipLines.push(`Fee Bersih MapahTrip: ${formatRupiah(effectiveFee)}`);
+                          } else {
+                            tooltipLines.push(`Fee Bersih MapahTrip: Belum Ada (Menunggu input pengeluaran & fee oleh Owner)`);
+                          }
+                          tooltipLines.push(`(Klik status untuk ubah, klik ✏️ untuk edit/input pengeluaran & fee)`);
+
                           return (
                             <div
-                              onClick={() => handleTogglePaymentStatus(row)}
-                              className={isWaitingWithStruk ? 'box-struk-waiting' : undefined}
                               style={{
-                                backgroundColor: isWaitingWithStruk ? '#FFFBEB' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#FFFBEB' : '#ECFDF5'),
-                                border: isWaitingWithStruk ? '1.5px solid #F59E0B' : `1.5px solid ${row.statusPembayaran === 'Menunggu Pembayaran' ? '#FCD34D' : '#A7F3D0'}`,
-                                borderRadius: '8px',
-                                padding: '4px 6px',
+                                backgroundColor: isWaitingWithStruk ? '#FFFBEB' : (isLunas ? '#F0FDF4' : '#F8FAFC'),
+                                border: isWaitingWithStruk ? '1.5px solid #F59E0B' : (isLunas ? '1px solid #BBF7D0' : '1px solid #E2E8F0'),
+                                borderRadius: '10px',
+                                padding: '6px 6px',
                                 display: 'inline-flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
-                                gap: '2px',
+                                gap: '4px',
                                 width: '100%',
-                                maxWidth: '120px',
+                                maxWidth: '116px',
                                 boxSizing: 'border-box',
-                                cursor: 'pointer',
                                 transition: 'all 0.15s ease',
-                                boxShadow: isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 1px 2px rgba(0,0,0,0.03)',
+                                boxShadow: isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 1px 3px rgba(0,0,0,0.03)',
                               }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = '0 3px 8px rgba(0,0,0,0.08)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = isWaitingWithStruk ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 1px 2px rgba(0,0,0,0.03)';
-                              }}
-                              title={
-                                isWaitingWithStruk
-                                  ? 'Customer telah mengunggah bukti struk transfer! Klik untuk verifikasi & ubah status jadi Lunas'
-                                  : 'Klik untuk ubah status pembayaran pemohon'
-                              }
+                              title={tooltipLines.join('\n')}
                             >
-                              {/* Status Indikator Bulat Halus + Teks */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span
-                                  style={{
-                                    width: '6px',
-                                    height: '6px',
-                                    borderRadius: '50%',
-                                    backgroundColor: isWaitingWithStruk ? '#EA580C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#D97706' : '#059669'),
-                                  }}
-                                />
-                                <span
-                                  style={{
-                                    fontSize: '0.67rem',
-                                    fontWeight: 800,
-                                    color: isWaitingWithStruk ? '#C2410C' : (row.statusPembayaran === 'Menunggu Pembayaran' ? '#92400E' : '#065F46'),
-                                    letterSpacing: '0.01em',
-                                  }}
-                                >
-                                  {isWaitingWithStruk ? '⚡ Struk' : (row.statusPembayaran === 'Menunggu Pembayaran' ? 'Menunggu Bayar' : 'Lunas (100%)')}
-                                </span>
-                              </div>
-
-                              {/* Fee Bersih Amount */}
-                              <div
+                              {/* 1. Baris Status Pembayaran */}
+                              <button
+                                type="button"
+                                onClick={() => isOwner && handleTogglePaymentStatus(row)}
+                                disabled={!isOwner}
                                 style={{
-                                  fontFamily: 'monospace',
-                                  fontWeight: 800,
-                                  fontSize: '0.80rem',
-                                  color: '#0F172A',
-                                  marginTop: '1px',
+                                  border: 'none',
+                                  background: 'none',
+                                  padding: 0,
+                                  cursor: isOwner ? 'pointer' : 'default',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
                                 }}
+                                title={isOwner ? "Klik untuk mengubah status pembayaran" : undefined}
                               >
-                                {formatRupiah(row.feeBersih)}
+                                {isWaitingWithStruk ? (
+                                  <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D', padding: '1px 6px', borderRadius: '5px', fontSize: '0.62rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#EA580C' }} />
+                                    <span>⚡ Verif Struk</span>
+                                  </span>
+                                ) : isLunas ? (
+                                  <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', padding: '1px 6px', borderRadius: '5px', fontSize: '0.62rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#16A34A' }} />
+                                    <span>✓ Lunas</span>
+                                  </span>
+                                ) : (
+                                  <span style={{ backgroundColor: '#F1F5F9', color: '#64748B', border: '1px solid #CBD5E1', padding: '1px 6px', borderRadius: '5px', fontSize: '0.62rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#D97706' }} />
+                                    <span>⏳ Belum Lunas</span>
+                                  </span>
+                                )}
+                              </button>
+
+                              {/* 2. Baris Nominal Masuk + Tombol Edit Pensil */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.78rem', color: '#0F172A', lineHeight: 1 }}>
+                                  {formatRupiah(row.dibayarPemohon || 0)}
+                                </span>
+                                {isOwner && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleOpenEditPaket(e, row)}
+                                    style={{
+                                      border: 'none',
+                                      background: '#EFF6FF',
+                                      color: '#0284C7',
+                                      borderRadius: '4px',
+                                      padding: '1px 4px',
+                                      fontSize: '0.60rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      lineHeight: 1,
+                                    }}
+                                    title="Edit rincian modal & fee pemohon ini"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
                               </div>
 
-                              {/* Struk Badge or Subtle Label */}
-                              {row.buktiBayarPemohon ? (
+                              {/* 3. Baris Badge Laba Bersih (+ Struk button jika ada) */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'center' }}>
+                                {isFinanceReady ? (
+                                  <span
+                                    style={{
+                                      backgroundColor: '#ECFDF5',
+                                      color: '#047857',
+                                      border: '1px solid #A7F3D0',
+                                      borderRadius: '5px',
+                                      padding: '1px 5px',
+                                      fontSize: '0.62rem',
+                                      fontWeight: 700,
+                                      fontFamily: 'monospace',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title={`Fee Bersih MapahTrip: ${formatRupiah(effectiveFee)}`}
+                                  >
+                                    Laba: {formatRupiah(effectiveFee)}
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleOpenEditPaket(e, row)}
+                                    style={{
+                                      backgroundColor: '#F8FAFC',
+                                      color: '#64748B',
+                                      border: '1px dashed #CBD5E1',
+                                      borderRadius: '5px',
+                                      padding: '1px 5px',
+                                      fontSize: '0.60rem',
+                                      fontWeight: 700,
+                                      whiteSpace: 'nowrap',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '2px',
+                                    }}
+                                    title="Fee bersih belum dihitung karena Owner belum menginput pengeluaran & fee. Klik untuk menginput."
+                                  >
+                                    Laba: Belum Ada
+                                  </button>
+                                )}
+
+                                {row.buktiBayarPemohon && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Struk Transfer: ${row.namaPemohon}` });
+                                    }}
+                                    style={{
+                                      background: '#EFF6FF',
+                                      color: '#1D4ED8',
+                                      border: '1px solid #BFDBFE',
+                                      borderRadius: '4px',
+                                      padding: '1px 3px',
+                                      fontSize: '0.58rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      lineHeight: 1,
+                                    }}
+                                    title="Lihat struk transfer"
+                                  >
+                                    📄
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* 4. Tombol Khusus Owner: Kirim Tagihan Resmi via WA */}
+                              {isOwner && !isLunas && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Struk Transfer: ${row.namaPemohon}` });
+                                    handleKirimTagihanWA(row);
                                   }}
                                   style={{
-                                    background: isWaitingWithStruk ? '#FEF3C7' : '#EFF6FF',
-                                    color: isWaitingWithStruk ? '#B45309' : '#1D4ED8',
-                                    border: isWaitingWithStruk ? '1px solid #FCD34D' : '1px solid #BFDBFE',
-                                    borderRadius: '4px',
-                                    padding: '1px 5px',
-                                    fontSize: '0.60rem',
+                                    marginTop: '2px',
+                                    backgroundColor: '#EFF6FF',
+                                    color: '#1D4ED8',
+                                    border: '1px solid #BFDBFE',
+                                    borderRadius: '5px',
+                                    padding: '2px 5px',
+                                    fontSize: '0.62rem',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '2px',
-                                    marginTop: '1px',
+                                    justifyContent: 'center',
+                                    gap: '3px',
+                                    width: '100%',
+                                    transition: 'all 0.15s ease',
                                   }}
-                                  title="Klik untuk melihat foto struk transfer"
+                                  title="Kirim rincian tagihan resmi & no rekening BTN ke WhatsApp customer (bisa edit nominal)"
                                 >
-                                  <span>📄</span>
-                                  <span>Lihat Struk</span>
+                                  <span>💳 Kirim Tagihan</span>
                                 </button>
-                              ) : (
-                                <span style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 600 }}>
-                                  Fee Bersih
-                                </span>
                               )}
                             </div>
                           );
                         })()}
                       </td>
                     ) : (
-                      <td style={{ width: '135px', minWidth: '130px', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                      <td style={{ width: '112px', minWidth: '106px', padding: '6px 2px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                         {(() => {
                           const isLunas = row.statusPembayaran === 'Lunas';
                           const hasStruk = Boolean(row.buktiBayarPemohon);
@@ -2913,24 +3697,24 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   backgroundColor: '#ECFDF5',
                                   border: '1.5px solid #A7F3D0',
                                   borderRadius: '8px',
-                                  padding: '4px 6px',
+                                  padding: '3px 4px',
                                   display: 'inline-flex',
                                   flexDirection: 'column',
                                   alignItems: 'center',
                                   gap: '2px',
                                   width: '100%',
-                                  maxWidth: '115px',
+                                  maxWidth: '108px',
                                   boxSizing: 'border-box',
                                 }}
                                 title="Pembayaran telah lunas & terverifikasi. Berkas aman diajukan ke JVAC."
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#059669', display: 'inline-block' }} />
-                                  <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#065F46' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#059669', display: 'inline-block' }} />
+                                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#065F46' }}>
                                     LUNAS
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.62rem', color: '#059669', fontWeight: 700 }}>
+                                <span style={{ fontSize: '0.60rem', color: '#059669', fontWeight: 700 }}>
                                   ✓ Siap JVAC
                                 </span>
                               </div>
@@ -2943,20 +3727,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                 backgroundColor: '#FFFBEB',
                                 border: '1.5px solid #FCD34D',
                                 borderRadius: '8px',
-                                padding: '4px 6px',
+                                padding: '3px 4px',
                                 display: 'inline-flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 gap: '2px',
                                 width: '100%',
-                                maxWidth: '115px',
+                                maxWidth: '108px',
                                 boxSizing: 'border-box',
                               }}
                               title="Customer belum lunas. Tahan pengajuan berkas ke JVAC sampai status diverifikasi oleh Owner."
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97706', display: 'inline-block' }} />
-                                <span style={{ fontSize: '0.70rem', fontWeight: 800, color: '#92400E' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#D97706', display: 'inline-block' }} />
+                                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#92400E' }}>
                                   BELUM BAYAR
                                 </span>
                               </div>
@@ -2972,8 +3756,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                     color: '#B45309',
                                     border: '1px solid #F59E0B',
                                     borderRadius: '4px',
-                                    padding: '1px 5px',
-                                    fontSize: '0.60rem',
+                                    padding: '1px 4px',
+                                    fontSize: '0.58rem',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     display: 'inline-flex',
@@ -2986,7 +3770,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                                   <span>📄 Cek Struk</span>
                                 </button>
                               ) : (
-                                <span style={{ fontSize: '0.60rem', color: '#DC2626', fontWeight: 700 }}>
+                                <span style={{ fontSize: '0.58rem', color: '#DC2626', fontWeight: 700 }}>
                                   ⚠️ Tahan Berkas
                                 </span>
                               )}
@@ -3000,8 +3784,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     <td
                       className="table-col-aksi"
                       style={{
-                        width: '76px',
-                        padding: '6px 6px',
+                        width: '72px',
+                        minWidth: '68px',
+                        padding: '6px 2px',
                         textAlign: 'center',
                         verticalAlign: 'middle',
                       }}
@@ -3011,13 +3796,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           className="btn btn-primary"
                           onClick={() => onSelectPengajuan(row.id)}
                           style={{
-                            padding: '3px 6px',
-                            fontSize: '0.72rem',
+                            padding: '3px 4px',
+                            fontSize: '0.70rem',
                             fontWeight: 700,
-                            borderRadius: '6px',
+                            borderRadius: '5px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '3px',
+                            gap: '2px',
                             boxShadow: '0 1px 3px rgba(37, 99, 235, 0.2)',
                             whiteSpace: 'nowrap',
                             width: '100%',
@@ -3025,7 +3810,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           }}
                           title="Buka rincian lengkap pemohon"
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
                             visibility
                           </span>
                           <span>Rincian</span>
@@ -3036,8 +3821,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             type="button"
                             onClick={() => handleTolakPengajuan(row)}
                             style={{
-                              padding: '2px 6px',
-                              fontSize: '0.68rem',
+                              padding: '2px 4px',
+                              fontSize: '0.66rem',
                               borderRadius: '5px',
                               backgroundColor: '#F1F5F9',
                               border: '1px solid #CBD5E1',
@@ -3053,7 +3838,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             }}
                             title="Pulihkan status berkas dari Ditolak"
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>
                               refresh
                             </span>
                             <span>Pulihkan</span>
@@ -3063,8 +3848,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             type="button"
                             onClick={() => handleTolakPengajuan(row)}
                             style={{
-                              padding: '2px 6px',
-                              fontSize: '0.68rem',
+                              padding: '2px 4px',
+                              fontSize: '0.66rem',
                               borderRadius: '5px',
                               backgroundColor: 'rgba(239, 68, 68, 0.08)',
                               border: '1px solid rgba(239, 68, 68, 0.22)',
@@ -3087,12 +3872,46 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>
                               close
                             </span>
                             <span>Tolak</span>
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleHapusPengajuan(row)}
+                          style={{
+                            padding: '2px 4px',
+                            fontSize: '0.66rem',
+                            borderRadius: '5px',
+                            backgroundColor: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            color: '#DC2626',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                            whiteSpace: 'nowrap',
+                            width: '100%',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title="Hapus / batalkan pendaftaran pemohon ini"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FEE2E2';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FEF2F2';
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>
+                            delete
+                          </span>
+                          <span>Hapus</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -3140,16 +3959,57 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
         ) : (
           paginatedData.map((row, index) => {
             const st = getCandidateStages(row);
-            const isProsesLocked = !st.isSampai && !st.isProses;
-            const isSelesaiLocked = !st.isProses && !st.isSelesai;
-            const isKirimLocked = !st.isSelesai && !st.isKirim;
+            const isBelumLunas = row.statusPembayaran === 'Menunggu Pembayaran';
+            const isProsesLocked = (!isOwner && isBelumLunas && !st.isProses) || (!st.isSampai && !st.isProses);
+            const isSelesaiLocked = (!isOwner && isBelumLunas && !st.isSelesai) || (!st.isProses && !st.isSelesai);
+            const isKirimLocked = (!isOwner && isBelumLunas && !st.isKirim) || (!st.isSelesai && !st.isKirim);
 
             const stageItems = [
-              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD', isLocked: false },
-              { key: 'proses' as const, label: 'Proses', ok: st.isProses, date: st.tglProses, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A', isLocked: isProsesLocked },
-              { key: 'selesai' as const, label: 'Selesai', ok: st.isSelesai, date: st.tglSelesai, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0', isLocked: isSelesaiLocked },
-              { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE', isLocked: isKirimLocked },
+              { key: 'sampai' as const, label: 'Sampai', ok: st.isSampai, date: st.tglSampai, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD', isLocked: false, lockTooltip: '' },
+              {
+                key: 'proses' as const,
+                label: 'Proses',
+                ok: st.isProses,
+                date: st.tglProses,
+                color: '#D97706',
+                bg: '#FEF3C7',
+                border: '#FDE68A',
+                isLocked: isProsesLocked,
+                lockTooltip: (!isOwner && isBelumLunas && !st.isProses)
+                  ? '⚠️ Pembayaran Belum Lunas (Tahan Berkas: Dilarang proses sebelum lunas)'
+                  : (!st.isSampai ? '⚠️ Tahap 1 (Sampai) belum selesai' : '')
+              },
+              {
+                key: 'selesai' as const,
+                label: 'Selesai',
+                ok: st.isSelesai,
+                date: st.tglSelesai,
+                color: '#16A34A',
+                bg: '#DCFCE7',
+                border: '#BBF7D0',
+                isLocked: isSelesaiLocked,
+                lockTooltip: (!isOwner && isBelumLunas && !st.isSelesai)
+                  ? '⚠️ Pembayaran Belum Lunas (Berkas Ditahan)'
+                  : (!st.isProses ? '⚠️ Tahap 2 (Proses) belum selesai' : '')
+              },
+              {
+                key: 'kirim' as const,
+                label: 'Kirim',
+                ok: st.isKirim,
+                date: st.tglKirim,
+                color: '#7C3AED',
+                bg: '#F3E8FF',
+                border: '#DDD6FE',
+                isLocked: isKirimLocked,
+                lockTooltip: (!isOwner && isBelumLunas && !st.isKirim)
+                  ? '⚠️ Pembayaran Belum Lunas (Paspor Ditahan: Dilarang kirim sebelum lunas)'
+                  : (!st.isSelesai ? '⚠️ Tahap 3 (Selesai) belum selesai' : '')
+              },
             ];
+
+            const officialMasterNo = Number((row.noPengajuan || '').replace(/[^0-9]/g, '')) || Number(row.id) || (startIndex + index + 1);
+            const staffListNo = startIndex + index + 1;
+            const displayRowNo = isOwner ? officialMasterNo : staffListNo;
 
             return (
               <div
@@ -3168,8 +4028,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                 {/* Header: No Urut, ID Pengajuan, Program & Paket */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', backgroundColor: '#F1F5F9', padding: '2px 7px', borderRadius: '6px' }}>
-                      #{(activePage - 1) * pageSize + index + 1}
+                    <span
+                      style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', backgroundColor: '#F1F5F9', padding: '2px 7px', borderRadius: '6px' }}
+                      title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
+                    >
+                      #{displayRowNo}
                     </span>
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>
                       {row.noPengajuan}
@@ -3179,69 +4042,193 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                     <span style={{ fontWeight: 700, fontSize: '0.75rem', color: '#1E40AF', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '6px' }}>
                       {row.program}
                     </span>
-                    {getPaketBadge(row.paket)}
+                    {getPaketBadge(row.paket, row)}
                   </div>
                 </div>
 
-                {/* Status Pembayaran & Info Wilayah/Fee */}
+                {row.catatan && (
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: '#475569',
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '6px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#005BB5', flexShrink: 0, marginTop: '1px' }}>sticky_note_2</span>
+                    <span style={{ wordBreak: 'break-word', lineHeight: 1.35, whiteSpace: 'normal', color: '#334155' }}>
+                      {row.catatan}
+                    </span>
+                  </div>
+                )}
+
+                {/* Status Pembayaran & Rincian Finansial (Struktur Rapih Responsif) */}
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '8px',
                     backgroundColor: '#F8FAFC',
                     border: '1px solid #E2E8F0',
-                    borderRadius: '10px',
-                    padding: '8px 12px',
+                    borderRadius: '12px',
+                    padding: '10px 12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
-                    <button
-                      type="button"
-                      onClick={() => isOwner && handleTogglePaymentStatus(row)}
-                      disabled={!isOwner}
-                      style={{ border: 'none', background: 'none', padding: 0, cursor: isOwner ? 'pointer' : 'default' }}
-                      title={isOwner ? "Klik untuk ubah status pembayaran" : undefined}
-                    >
-                      {row.statusPembayaran === 'Menunggu Pembayaran' ? (
-                        <span style={{ backgroundColor: '#FFFBEB', color: '#92400E', border: '1px solid #FCD34D', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800 }}>
-                          ⏳ Belum Lunas {isOwner && '✎'}
-                        </span>
-                      ) : (
-                        <span style={{ backgroundColor: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800 }}>
-                          ✓ Lunas (100%) {isOwner && '✎'}
-                        </span>
-                      )}
-                    </button>
-                    {row.buktiBayarPemohon && (
+                  {/* Baris Atas: Status Pembayaran + Tombol Edit Biaya */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Transfer: ${row.namaPemohon}` });
-                        }}
-                        style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '5px', padding: '2px 7px', fontSize: '0.66rem', fontWeight: 700, cursor: 'pointer' }}
+                        onClick={() => isOwner && handleTogglePaymentStatus(row)}
+                        disabled={!isOwner}
+                        style={{ border: 'none', background: 'none', padding: 0, cursor: isOwner ? 'pointer' : 'default' }}
+                        title={isOwner ? "Klik untuk ubah status pembayaran" : undefined}
                       >
-                        📄 Struk
+                        {row.statusPembayaran === 'Menunggu Pembayaran' ? (
+                          <span style={{ backgroundColor: '#FFFBEB', color: '#92400E', border: '1px solid #FCD34D', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <span>⏳ Belum Lunas</span>
+                            {isOwner && <span style={{ fontSize: '10px' }}>✎</span>}
+                          </span>
+                        ) : (
+                          <span style={{ backgroundColor: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <span>✓ Lunas</span>
+                            {isOwner && <span style={{ fontSize: '10px' }}>✎</span>}
+                          </span>
+                        )}
                       </button>
+                      {row.buktiBayarPemohon && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Transfer: ${row.namaPemohon}` });
+                          }}
+                          style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '5px', padding: '2px 7px', fontSize: '0.66rem', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          📄 Struk
+                        </button>
+                      )}
+                    </div>
+
+                    {isOwner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {row.statusPembayaran !== 'Lunas' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleKirimTagihanWA(row);
+                            }}
+                            style={{
+                              border: '1px solid #BFDBFE',
+                              backgroundColor: '#EFF6FF',
+                              color: '#1D4ED8',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                            title="Kirim rincian tagihan resmi ke WA customer"
+                          >
+                            <span>💳 Kirim Tagihan</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenEditPaket(e, row)}
+                          style={{
+                            border: '1px solid #BAE6FD',
+                            backgroundColor: '#F0F9FF',
+                            color: '#0284C7',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                        >
+                          <span>✏️ Biaya</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.70rem', color: '#64748B', fontWeight: 600 }}>
+                        {(row.program || '').toLowerCase().includes('waiver') ? (
+                          <span style={{ color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>cloud_done</span>
+                            100% Online • Ditangani Owner
+                          </span>
+                        ) : (
+                          <>
+                            <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
+                            <span>•</span>
+                            <span>PIC: {row.staffPic || 'Tim Pusat'}</span>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {isOwner ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600 }}>Fee:</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#15803D' }}>
-                        {formatRupiah(row.feeBersih || 0)}
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
-                      <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
-                      <span>•</span>
-                      <span>PIC: {row.staffPic}</span>
+                  {/* Baris Bawah: Kotak Keuangan 3 Kolom Rapi (Khusus Owner) */}
+                  {isOwner && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '6px',
+                        paddingTop: '6px',
+                        borderTop: '1px dashed #E2E8F0',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <div
+                        onClick={(e) => handleOpenEditPaket(e, row)}
+                        style={{ backgroundColor: '#FFFFFF', padding: '6px 4px', borderRadius: '8px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                        title="Klik untuk ubah nominal pemasukan"
+                      >
+                        <div style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Masuk</div>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#0F172A', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                          {formatRupiah(row.dibayarPemohon || 0)}
+                        </div>
+                      </div>
+                      <div
+                        onClick={(e) => handleOpenEditPaket(e, row)}
+                        style={{ backgroundColor: '#FFFFFF', padding: '6px 4px', borderRadius: '8px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                        title="Klik untuk ubah modal pengeluaran"
+                      >
+                        <div style={{ fontSize: '0.60rem', color: '#DC2626', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Modal</div>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 800, color: (row.nominalKeluar && row.nominalKeluar > 0) ? '#DC2626' : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? '#0F172A' : '#94A3B8'), marginTop: '2px', whiteSpace: 'nowrap' }}>
+                          {(row.nominalKeluar && row.nominalKeluar > 0) ? `-${formatRupiah(row.nominalKeluar)}` : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? 'Rp 0' : 'Belum Ada')}
+                        </div>
+                      </div>
+                      <div
+                        onClick={(e) => handleOpenEditPaket(e, row)}
+                        style={{
+                          backgroundColor: isRowFinanceInputted(row) ? '#F0FDF4' : '#F8FAFC',
+                          padding: '6px 4px',
+                          borderRadius: '8px',
+                          border: isRowFinanceInputted(row) ? '1px solid #BBF7D0' : '1px dashed #CBD5E1',
+                          cursor: 'pointer'
+                        }}
+                        title={isRowFinanceInputted(row) ? "Fee Bersih MapahTrip" : "Fee bersih belum dihitung karena Owner belum menginput pengeluaran & fee. Klik untuk menginput."}
+                      >
+                        <div style={{ fontSize: '0.60rem', color: isRowFinanceInputted(row) ? '#15803D' : '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Fee Bersih</div>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 800, color: isRowFinanceInputted(row) ? '#15803D' : '#94A3B8', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                          {isRowFinanceInputted(row) ? formatRupiah(getRowEffectiveFee(row)) : 'Belum Ada'}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3464,46 +4451,20 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       </div>
 
                       {/* Tombol Aksi Cepat jika ada berkas kurang */}
-                      {!isAllComplete && (
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                          {row.noTelp && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleSendCustomerWALink(e, row)}
-                              style={{
-                                flex: 1,
-                                padding: '6px 8px',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                borderRadius: '6px',
-                                backgroundColor: '#F8FAFC',
-                                border: '1px solid #CBD5E1',
-                                color: '#334155',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                transition: 'all 0.15s ease',
-                              }}
-                              title="Kirim pesan WhatsApp pengingat berkas yang kurang & tautan upload mandiri untuk customer"
-                            >
-                              <span>📲</span>
-                              <span>Minta via WA</span>
-                            </button>
-                          )}
+                      {!isAllComplete && row.noTelp && (
+                        <div style={{ marginTop: '8px' }}>
                           <button
                             type="button"
-                            onClick={(e) => handleCopyCustomerLink(e, row)}
+                            onClick={(e) => handleSendCustomerWALink(e, row)}
                             style={{
-                              flex: 1,
+                              width: '100%',
                               padding: '6px 8px',
                               fontSize: '0.72rem',
                               fontWeight: 700,
                               borderRadius: '6px',
-                              backgroundColor: copiedLinkRowId === row.id ? '#ECFDF5' : '#F8FAFC',
-                              border: `1px solid ${copiedLinkRowId === row.id ? '#A7F3D0' : '#CBD5E1'}`,
-                              color: copiedLinkRowId === row.id ? '#059669' : '#334155',
+                              backgroundColor: '#F8FAFC',
+                              border: '1px solid #CBD5E1',
+                              color: '#334155',
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -3511,10 +4472,10 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               gap: '4px',
                               transition: 'all 0.15s ease',
                             }}
-                            title="Salin tautan upload mandiri untuk customer"
+                            title="Kirim pesan WhatsApp pengingat berkas yang kurang ke customer"
                           >
-                            <span>{copiedLinkRowId === row.id ? '✓' : '🔗'}</span>
-                            <span>{copiedLinkRowId === row.id ? 'Link Tersalin' : 'Salin Link Upload'}</span>
+                            <span>📲</span>
+                            <span>Minta via WA</span>
                           </button>
                         </div>
                       )}
@@ -3570,7 +4531,9 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                             key={s.key}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleToggleStage(row, s.key);
+                              if (!s.isLocked) {
+                                handleToggleStage(row, s.key);
+                              }
                             }}
                             style={{
                               display: 'flex',
@@ -3587,7 +4550,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                               boxShadow: s.ok ? '0 1px 3px rgba(0,0,0,0.03)' : 'none',
                               opacity: s.isLocked ? 0.6 : 1,
                             }}
-                            title={s.isLocked ? "⚠️ Tahap sebelumnya belum selesai (Wajib berurutan)" : "Klik untuk ubah status tahapan"}
+                            title={s.isLocked ? (s.lockTooltip || "⚠️ Tahap sebelumnya belum selesai (Wajib berurutan)") : "Klik untuk ubah status tahapan"}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -3666,8 +4629,22 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                           title="Klik untuk ubah nomor resi atau serah terima bandara"
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                            <span style={{ fontSize: '0.82rem' }}>✈️</span>
-                            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Resi:</span>
+                            <span style={{ fontSize: '0.82rem' }}>
+                              {(() => {
+                                const rLower = (st.noResi || '').toLowerCase();
+                                if (rLower.includes('soehatta') || rLower.includes('soetta') || rLower.includes('soekarno') || rLower.includes('bandara') || rLower.includes('flight')) return '✈️';
+                                if (rLower.includes('diambil') || rLower.includes('kantor') || rLower.includes('langsung')) return '🏢';
+                                return '📦';
+                              })()}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                              {(() => {
+                                const rLower = (st.noResi || '').toLowerCase();
+                                if (rLower.includes('soehatta') || rLower.includes('soetta') || rLower.includes('soekarno') || rLower.includes('bandara') || rLower.includes('flight')) return 'Bandara:';
+                                if (rLower.includes('diambil') || rLower.includes('kantor') || rLower.includes('langsung')) return 'Status:';
+                                return 'Resi:';
+                              })()}
+                            </span>
                             <span style={{ fontSize: '0.74rem', color: '#0F172A', fontWeight: 700, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', backgroundColor: '#FFFFFF', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
                               {st.noResi}
                             </span>
@@ -3681,8 +4658,8 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                   )}
                 </div>
 
-                {/* Tombol Aksi: Buka Rincian & Tolak/Pulihkan (Simetris 50:50) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                {/* Tombol Aksi: Buka Rincian, Tolak/Pulihkan, & Hapus */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '6px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
                   <button
                     type="button"
                     onClick={() => onSelectPengajuan(row.id)}
@@ -3692,18 +4669,18 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                       color: '#FFFFFF',
                       border: 'none',
                       borderRadius: '8px',
-                      fontSize: '0.80rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '5px',
+                      gap: '4px',
                       boxShadow: '0 2px 4px rgba(37, 99, 235, 0.18)',
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>visibility</span>
-                    <span>Buka Rincian</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>visibility</span>
+                    <span>Rincian</span>
                   </button>
 
                   {st.currentStatus === 'Ditolak' ? (
@@ -3716,16 +4693,16 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         border: '1px solid #CBD5E1',
                         color: '#334155',
                         borderRadius: '8px',
-                        fontSize: '0.80rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '5px',
+                        gap: '4px',
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>refresh</span>
                       <span>Pulihkan</span>
                     </button>
                   ) : (
@@ -3738,13 +4715,13 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         border: '1px solid rgba(239, 68, 68, 0.22)',
                         color: '#DC2626',
                         borderRadius: '8px',
-                        fontSize: '0.80rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '5px',
+                        gap: '4px',
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
@@ -3754,10 +4731,40 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                         e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
-                      <span>Tolak Berkas</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
+                      <span>Tolak</span>
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleHapusPengajuan(row)}
+                    style={{
+                      height: '38px',
+                      backgroundColor: '#FEF2F2',
+                      border: '1px solid #FECACA',
+                      color: '#DC2626',
+                      borderRadius: '8px',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Hapus permanen berkas pemohon yang batal mendaftar"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FEE2E2';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FEF2F2';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>delete</span>
+                    <span>Hapus</span>
+                  </button>
                 </div>
               </div>
             );
@@ -4301,24 +5308,126 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
 
                   {/* Tanggal & Jam Penerbangan */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Tanggal &amp; Waktu Serah Terima / Flight:
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      📅 Tanggal &amp; Waktu Serah Terima / Flight:
                     </label>
-                    <input
-                      type="text"
-                      value={soettaTanggalJam}
-                      onChange={(e) => setSoettaTanggalJam(e.target.value)}
-                      placeholder="Contoh: 28/10/2026, 21:00 WIB"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.85rem',
-                        boxSizing: 'border-box',
-                        outline: 'none',
-                      }}
-                    />
+
+                    {/* 2 Input Pilihan: Tanggal Kalender & Jam Waktu */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '0.70rem', color: '#64748B', marginBottom: '3px', fontWeight: 600 }}>Pilih Tanggal:</span>
+                        <input
+                          type="date"
+                          value={soettaDate}
+                          onChange={(e) => handleSoettaDateChange(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #CBD5E1',
+                            fontSize: '0.85rem',
+                            boxSizing: 'border-box',
+                            outline: 'none',
+                            backgroundColor: '#FFFFFF',
+                            fontWeight: 600,
+                            color: '#0F172A',
+                            cursor: 'pointer',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '0.70rem', color: '#64748B', marginBottom: '3px', fontWeight: 600 }}>Pilih Jam Temu:</span>
+                        <input
+                          type="time"
+                          value={soettaTime}
+                          onChange={(e) => handleSoettaTimeChange(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #CBD5E1',
+                            fontSize: '0.85rem',
+                            boxSizing: 'border-box',
+                            outline: 'none',
+                            backgroundColor: '#FFFFFF',
+                            fontWeight: 600,
+                            color: '#0F172A',
+                            cursor: 'pointer',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Pilihan Cepat Tanggal & Jam */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 600, marginRight: '2px' }}>Cepat:</span>
+                      {[
+                        {
+                          label: 'Hari Ini',
+                          action: () => {
+                            const now = new Date();
+                            const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                            handleSoettaDateChange(todayIso);
+                          },
+                        },
+                        {
+                          label: 'Besok',
+                          action: () => {
+                            const tom = new Date();
+                            tom.setDate(tom.getDate() + 1);
+                            const tomIso = `${tom.getFullYear()}-${String(tom.getMonth() + 1).padStart(2, '0')}-${String(tom.getDate()).padStart(2, '0')}`;
+                            handleSoettaDateChange(tomIso);
+                          },
+                        },
+                      ].map((dBtn) => (
+                        <button
+                          key={dBtn.label}
+                          type="button"
+                          onClick={dBtn.action}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            border: '1px solid #CBD5E1',
+                            backgroundColor: '#F8FAFC',
+                            fontSize: '0.68rem',
+                            color: '#334155',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {dBtn.label}
+                        </button>
+                      ))}
+
+                      <span style={{ fontSize: '0.68rem', color: '#CBD5E1', margin: '0 2px' }}>|</span>
+
+                      {['21:00', '19:00', '23:00', '06:00', '10:00', '14:00'].map((tm) => (
+                        <button
+                          key={tm}
+                          type="button"
+                          onClick={() => handleSoettaTimeChange(tm)}
+                          style={{
+                            padding: '2px 7px',
+                            borderRadius: '12px',
+                            border: soettaTime === tm ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                            backgroundColor: soettaTime === tm ? '#EFF6FF' : '#FFFFFF',
+                            fontSize: '0.68rem',
+                            color: soettaTime === tm ? '#1D4ED8' : '#475569',
+                            fontWeight: soettaTime === tm ? 700 : 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {tm} WIB
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Ringkasan Format Otomatis */}
+                    <div style={{ marginTop: '6px', padding: '6px 10px', backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                      <div style={{ fontSize: '0.72rem', color: '#0369A1', fontWeight: 600 }}>
+                        Hasil Jadwal: <span style={{ fontWeight: 800, color: '#0C4A6E', fontFamily: 'monospace' }}>{soettaTanggalJam || 'Belum dipilih'}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Titik Temu */}
@@ -4610,6 +5719,823 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
                 </span>
                 <span>{isSavingKirim ? 'Menyimpan...' : 'Simpan & Konfirmasi Kirim 📦'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ubah Paket Layanan Visa */}
+      {editingPaketTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+          onClick={() => setEditingPaketTarget(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              maxWidth: '560px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'modalSlideUp 0.2s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #E2E8F0',
+                background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#005BB5',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>inventory_2</span>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
+                    Ubah Paket &amp; Atur Keuangan Pemohon
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: '#64748B' }}>
+                    Sesuaikan paket, uang dibayar pemohon (pemasukan), dan modal keluar konsulat (pengeluaran)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPaketTarget(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Info Pemohon */}
+              <div
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: '8px',
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block' }}>Nama Pemohon</span>
+                  <strong style={{ fontSize: '0.82rem', color: '#0F172A' }}>{editingPaketTarget.namaPemohon}</strong>
+                  <span style={{ fontSize: '0.68rem', color: '#94A3B8', display: 'block', fontFamily: 'monospace' }}>
+                    {editingPaketTarget.noPengajuan || editingPaketTarget.noPaspor}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block' }}>Program &amp; Wilayah</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1E40AF' }}>{editingPaketTarget.program}</span>
+                  <span style={{ fontSize: '0.70rem', color: '#64748B', display: 'block' }}>Konsjen {editingPaketTarget.konsjen}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block' }}>Paket Saat Ini</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        backgroundColor: '#E2E8F0',
+                        color: '#334155',
+                      }}
+                    >
+                      {editingPaketTarget.paket || 'Reguler'}
+                    </span>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#0F172A' }}>
+                      {formatRupiah(editingPaketTarget.dibayarPemohon || 0)}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.68rem', color: editingPaketTarget.statusPembayaran === 'Lunas' ? '#16A34A' : '#D97706', fontWeight: 600 }}>
+                    ● {editingPaketTarget.statusPembayaran || 'Menunggu Bayar'}
+                  </span>
+                </div>
+
+                {editingPaketTarget.catatan && (
+                  <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #CBD5E1', paddingTop: '6px', marginTop: '2px' }}>
+                    <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#005BB5' }}>sticky_note_2</span>
+                      Catatan Sebelumnya:
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600 }}>
+                      {editingPaketTarget.catatan}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Pilihan 3 Paket Layanan */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>
+                  PILIH PAKET LAYANAN BARU:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {(['Reguler', 'Premium', 'TAC'] as PaketVisa[]).map((pkt) => {
+                    const isSelected = newSelectedPaket === pkt;
+                    const pktPrice = getVisaPrice(editingPaketTarget.program, pkt);
+                    const isCurrent = (editingPaketTarget.paket || 'Reguler') === pkt;
+
+                    return (
+                      <div
+                        key={pkt}
+                        onClick={() => handleSelectNewPaket(pkt)}
+                        style={{
+                          border: isSelected ? '2px solid #005BB5' : '1px solid #E2E8F0',
+                          backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                          borderRadius: '12px',
+                          padding: '10px 6px',
+                          cursor: 'pointer',
+                          position: 'relative',
+                          transition: 'all 0.15s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          boxShadow: isSelected ? '0 4px 12px rgba(0, 91, 181, 0.12)' : 'none',
+                          minWidth: 0,
+                        }}
+                      >
+                        {isCurrent && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '-8px',
+                              right: '6px',
+                              backgroundColor: '#94A3B8',
+                              color: '#FFFFFF',
+                              fontSize: '0.58rem',
+                              fontWeight: 800,
+                              padding: '1px 5px',
+                              borderRadius: '9999px',
+                            }}
+                          >
+                            Aktif
+                          </span>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                          <span
+                            style={{
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              color: pkt === 'TAC' ? '#4338CA' : pkt === 'Premium' ? '#B45309' : '#334155',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {pkt === 'TAC' ? '⚡ TAC' : pkt === 'Premium' ? '★ Premium' : '📋 Reguler'}
+                          </span>
+                          {isSelected && (
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#005BB5' }}>
+                              check_circle
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ fontSize: '0.64rem', color: '#64748B', marginBottom: '6px', lineHeight: 1.25 }}>
+                          {pkt === 'TAC'
+                            ? 'All-in & VIP'
+                            : pkt === 'Premium'
+                            ? 'Fast-track'
+                            : 'Standar'}
+                        </div>
+
+                        <div style={{ marginTop: 'auto', paddingTop: '6px', borderTop: '1px dashed #E2E8F0' }}>
+                          <span style={{ fontSize: '0.60rem', color: '#94A3B8', display: 'block', whiteSpace: 'nowrap' }}>Master Tarif:</span>
+                          <strong
+                            style={{
+                              fontSize: 'clamp(0.68rem, 2.5vw, 0.78rem)',
+                              color: '#0F172A',
+                              whiteSpace: 'nowrap',
+                              display: 'block',
+                              letterSpacing: '-0.3px',
+                            }}
+                          >
+                            Rp&nbsp;{Number(pktPrice || 0).toLocaleString('id-ID')}
+                          </strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Input Dua Kolom: Pemasukan (Dibayar Pemohon) & Pengeluaran (Modal Keluar) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                {/* Kolom 1: Pemasukan Dibayar Pemohon */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
+                    1. Nominal Dibayar Pemohon (Pemasukan):
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontWeight: 700,
+                          fontSize: '0.80rem',
+                          color: '#64748B',
+                        }}
+                      >
+                        Rp
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={newNominalBiaya === 0 ? '' : newNominalBiaya}
+                        onChange={(e) => {
+                          const clean = e.target.value.replace(/[^0-9]/g, '');
+                          setNewNominalBiaya(clean === '' ? 0 : Number(clean));
+                        }}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px 8px 36px',
+                          borderRadius: '8px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.88rem',
+                          fontWeight: 700,
+                          color: '#0F172A',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const master = getVisaPrice(editingPaketTarget.program, newSelectedPaket);
+                        setNewNominalBiaya(master);
+                      }}
+                      style={{
+                        padding: '8px 10px',
+                        backgroundColor: '#F1F5F9',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '8px',
+                        fontSize: '0.70rem',
+                        fontWeight: 700,
+                        color: '#475569',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Kembalikan ke Master Tarif Paket"
+                    >
+                      Reset Master
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: '#64748B', marginTop: '3px', fontFamily: 'monospace' }}>
+                    Terbaca: <strong>Rp {newNominalBiaya.toLocaleString('id-ID')}</strong>
+                  </div>
+                </div>
+
+                {/* Kolom 2: Modal Keluar / Pengeluaran Konsulat */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#DC2626', marginBottom: '4px' }}>
+                    2. Modal Keluar Konsulat (Pengeluaran):
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontWeight: 700,
+                          fontSize: '0.80rem',
+                          color: '#DC2626',
+                        }}
+                      >
+                        Rp
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={newNominalKeluar === 0 ? '' : newNominalKeluar}
+                        onChange={(e) => {
+                          const clean = e.target.value.replace(/[^0-9]/g, '');
+                          setNewNominalKeluar(clean === '' ? 0 : Number(clean));
+                        }}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px 8px 36px',
+                          borderRadius: '8px',
+                          border: '1px solid #FCA5A5',
+                          backgroundColor: '#FEF2F2',
+                          fontSize: '0.88rem',
+                          fontWeight: 700,
+                          color: '#DC2626',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNewNominalKeluar(1940000)}
+                      style={{
+                        padding: '8px 10px',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        borderRadius: '8px',
+                        fontSize: '0.70rem',
+                        fontWeight: 700,
+                        color: '#1D4ED8',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Set standar modal konsulat 1.940.000"
+                    >
+                      1.94 jt
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: '#DC2626', marginTop: '3px', fontFamily: 'monospace' }}>
+                    Pengeluaran: <strong>-Rp {newNominalKeluar.toLocaleString('id-ID')}</strong>
+                  </div>
+                </div>
+
+                {/* Kolom 3: Fee Staf PIC (Operasional Pengurangan Laba) */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px' }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#4F46E5' }}>
+                      3. Alokasi Fee Staf PIC ({editingPaketTarget.staffPic || 'Staf'}):
+                    </label>
+                    <span style={{ fontSize: '0.66rem', color: '#64748B' }}>
+                      Bisa diatur Rp 0 jika belum ditentukan owner
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontWeight: 700,
+                          fontSize: '0.80rem',
+                          color: '#4F46E5',
+                        }}
+                      >
+                        Rp
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={newStaffFee === 0 ? '' : newStaffFee}
+                        onChange={(e) => {
+                          const clean = e.target.value.replace(/[^0-9]/g, '');
+                          setNewStaffFee(clean === '' ? 0 : Number(clean));
+                        }}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px 8px 36px',
+                          borderRadius: '8px',
+                          border: '1px solid #C7D2FE',
+                          backgroundColor: '#EEF2FF',
+                          fontSize: '0.88rem',
+                          fontWeight: 700,
+                          color: '#4338CA',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    {/* Preset Nominal Cepat */}
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setNewStaffFee(0)}
+                        style={{
+                          padding: '7px 9px',
+                          backgroundColor: newStaffFee === 0 ? '#4F46E5' : '#F1F5F9',
+                          color: newStaffFee === 0 ? '#FFFFFF' : '#475569',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '7px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title="Set fee staf Rp 0 (Belum ada alokasi)"
+                      >
+                        Rp 0 (Tanpa Fee)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewStaffFee(25000)}
+                        style={{
+                          padding: '7px 9px',
+                          backgroundColor: newStaffFee === 25000 ? '#4F46E5' : '#F1F5F9',
+                          color: newStaffFee === 25000 ? '#FFFFFF' : '#475569',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '7px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        25 rb
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewStaffFee(50000)}
+                        style={{
+                          padding: '7px 9px',
+                          backgroundColor: newStaffFee === 50000 ? '#4F46E5' : '#EEF2FF',
+                          color: newStaffFee === 50000 ? '#FFFFFF' : '#4338CA',
+                          border: '1px solid #C7D2FE',
+                          borderRadius: '7px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title="Standar umum Rp 50.000 per paspor"
+                      >
+                        50 rb (Standar)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewStaffFee(75000)}
+                        style={{
+                          padding: '7px 9px',
+                          backgroundColor: newStaffFee === 75000 ? '#4F46E5' : '#F1F5F9',
+                          color: newStaffFee === 75000 ? '#FFFFFF' : '#475569',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '7px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        75 rb
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: '#4F46E5', marginTop: '3px', fontFamily: 'monospace' }}>
+                    Alokasi Staf: <strong>-Rp {newStaffFee.toLocaleString('id-ID')}</strong> {newStaffFee === 0 ? '(Rp 0 = Tidak memotong laba)' : `(Diberikan ke ${editingPaketTarget.staffPic || 'Staf PIC'})`}
+                  </div>
+                </div>
+
+                {/* Kolom 4: Komisi Referral Mitra (Hanya jika mendaftar dengan kode mitra) */}
+                {(() => {
+                  const hasMitra = Boolean(
+                    editingPaketTarget.affiliateCode &&
+                    editingPaketTarget.affiliateCode.trim() !== '' &&
+                    editingPaketTarget.affiliateCode.toUpperCase() !== 'MAPAHTRIP'
+                  );
+                  if (!hasMitra) return null;
+                  return (
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px' }}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#D97706' }}>
+                          4. Komisi Referral Mitra ({editingPaketTarget.affiliateCode}):
+                        </label>
+                        <span style={{ fontSize: '0.66rem', color: '#64748B' }}>
+                          Bisa disesuaikan jika ada kenaikan fee mitra
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+                          <span
+                            style={{
+                              position: 'absolute',
+                              left: '12px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              fontWeight: 700,
+                              fontSize: '0.80rem',
+                              color: '#D97706',
+                            }}
+                          >
+                            Rp
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={newReferralFee === 0 ? '' : newReferralFee}
+                            onChange={(e) => {
+                              const clean = e.target.value.replace(/[^0-9]/g, '');
+                              setNewReferralFee(clean === '' ? 0 : Number(clean));
+                            }}
+                            placeholder="0"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px 8px 36px',
+                              borderRadius: '8px',
+                              border: '1px solid #FDE68A',
+                              backgroundColor: '#FFFBEB',
+                              fontSize: '0.88rem',
+                              fontWeight: 700,
+                              color: '#B45309',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                        {/* Preset Cepat */}
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => setNewReferralFee(0)}
+                            style={{
+                              padding: '7px 9px',
+                              backgroundColor: newReferralFee === 0 ? '#D97706' : '#F1F5F9',
+                              color: newReferralFee === 0 ? '#FFFFFF' : '#475569',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '7px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Rp 0
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewReferralFee(50000)}
+                            style={{
+                              padding: '7px 9px',
+                              backgroundColor: newReferralFee === 50000 ? '#D97706' : '#F1F5F9',
+                              color: newReferralFee === 50000 ? '#FFFFFF' : '#475569',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '7px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            50 rb
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewReferralFee(100000)}
+                            style={{
+                              padding: '7px 9px',
+                              backgroundColor: newReferralFee === 100000 ? '#D97706' : '#FFFBEB',
+                              color: newReferralFee === 100000 ? '#FFFFFF' : '#B45309',
+                              border: '1px solid #FDE68A',
+                              borderRadius: '7px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            title="Standar umum komisi referral mitra Rp 100.000"
+                          >
+                            100 rb (Standar)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewReferralFee(150000)}
+                            style={{
+                              padding: '7px 9px',
+                              backgroundColor: newReferralFee === 150000 ? '#D97706' : '#F1F5F9',
+                              color: newReferralFee === 150000 ? '#FFFFFF' : '#475569',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '7px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            150 rb
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewReferralFee(200000)}
+                            style={{
+                              padding: '7px 9px',
+                              backgroundColor: newReferralFee === 200000 ? '#D97706' : '#F1F5F9',
+                              color: newReferralFee === 200000 ? '#FFFFFF' : '#475569',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '7px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            200 rb
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: '#D97706', marginTop: '3px', fontFamily: 'monospace' }}>
+                        Komisi Mitra: <strong>-Rp {newReferralFee.toLocaleString('id-ID')}</strong> (Diberikan ke mitra {editingPaketTarget.affiliateCode})
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Live Preview Finansial: Pemasukan vs Modal Keluar - Komisi - Fee Staf = Fee Bersih */}
+              {(() => {
+                const hasMitra = Boolean(
+                  editingPaketTarget.affiliateCode &&
+                  editingPaketTarget.affiliateCode.trim() !== '' &&
+                  editingPaketTarget.affiliateCode.toUpperCase() !== 'MAPAHTRIP'
+                );
+                const refFee = hasMitra ? newReferralFee : 0;
+                const liveFee = Math.max(0, newNominalBiaya - newNominalKeluar - refFee - newStaffFee);
+                return (
+                  <div
+                    style={{
+                      backgroundColor: '#F0FDF4',
+                      border: '1.5px solid #86EFAC',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <div>
+                        <span style={{ fontSize: '0.64rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Pemasukan:</span>
+                        <strong style={{ fontSize: '0.84rem', color: '#0F172A', fontFamily: 'monospace' }}>
+                          Rp {newNominalBiaya.toLocaleString('id-ID')}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.64rem', color: '#DC2626', display: 'block', fontWeight: 600 }}>Modal Keluar:</span>
+                        <strong style={{ fontSize: '0.84rem', color: '#DC2626', fontFamily: 'monospace' }}>
+                          -Rp {newNominalKeluar.toLocaleString('id-ID')}
+                        </strong>
+                      </div>
+                      {hasMitra && (
+                        <div>
+                          <span style={{ fontSize: '0.64rem', color: '#D97706', display: 'block', fontWeight: 600 }}>Komisi Mitra:</span>
+                          <strong style={{ fontSize: '0.84rem', color: '#D97706', fontFamily: 'monospace' }}>
+                            -Rp {refFee.toLocaleString('id-ID')}
+                          </strong>
+                        </div>
+                      )}
+                      <div>
+                        <span style={{ fontSize: '0.64rem', color: '#4F46E5', display: 'block', fontWeight: 600 }}>Fee Staf PIC:</span>
+                        <strong style={{ fontSize: '0.84rem', color: '#4F46E5', fontFamily: 'monospace' }}>
+                          -Rp {newStaffFee.toLocaleString('id-ID')}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.64rem', color: '#15803D', display: 'block', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Fee Bersih MapahTrip:
+                      </span>
+                      <strong style={{ fontSize: '1.10rem', color: '#166534', fontFamily: 'monospace', fontWeight: 800 }}>
+                        Rp {liveFee.toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Status Pembayaran & Alert Selisih */}
+              {(() => {
+                const isLunas = editingPaketTarget.statusPembayaran === 'Lunas';
+                const selisih = newNominalBiaya - (editingPaketTarget.dibayarPemohon || 0);
+
+                if (isLunas) {
+                  if (selisih > 0) {
+                    return (
+                      <div style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '8px', padding: '10px 12px', fontSize: '0.74rem', color: '#92400E' }}>
+                        <strong>⚠️ Catatan Pembayaran:</strong> Status pemohon saat ini sudah <strong>Lunas ({formatRupiah(editingPaketTarget.dibayarPemohon || 0)})</strong>. Karena upgrade paket, ada kekurangan bayar sebesar <strong>{formatRupiah(selisih)}</strong> untuk ditagihkan.
+                      </div>
+                    );
+                  }
+                  if (selisih < 0) {
+                    return (
+                      <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '10px 12px', fontSize: '0.74rem', color: '#1E40AF' }}>
+                        <strong>ℹ️ Catatan Pembayaran:</strong> Status pemohon saat ini sudah <strong>Lunas ({formatRupiah(editingPaketTarget.dibayarPemohon || 0)})</strong>. Karena penurunan paket, terdapat kelebihan bayar <strong>{formatRupiah(Math.abs(selisih))}</strong> untuk di-refund.
+                      </div>
+                    );
+                  }
+                }
+                return (
+                  <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '10px 12px', fontSize: '0.74rem', color: '#15803D' }}>
+                    ✓ Tagihan otomatis diperbarui menjadi <strong>{formatRupiah(newNominalBiaya)}</strong> untuk Paket {newSelectedPaket}.
+                  </div>
+                );
+              })()}
+
+              {/* Catatan Perubahan (Opsional) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#334155', marginBottom: '3px' }}>
+                  Catatan Alasan Perubahan (Opsional):
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Pemohon minta upgrade ke TAC untuk penanganan berkas all-in"
+                  value={catatanPerubahanPaket}
+                  onChange={(e) => setCatatanPerubahanPaket(e.target.value)}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.75rem', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleKirimWAPaket}
+                  style={{
+                    backgroundColor: '#ECFDF5',
+                    color: '#047857',
+                    border: '1px solid #A7F3D0',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  title="Kirim pesan rincian paket ke WhatsApp pemohon (Opsional)"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#10B981' }}>chat</span>
+                  <span>Kirim Pesan ke WA (Opsional)</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingPaketTarget(null)}
+                    style={{ backgroundColor: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveNewPaket}
+                    style={{
+                      backgroundColor: '#005BB5',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '8px 20px',
+                      borderRadius: '8px',
+                      fontSize: '0.80rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0, 91, 181, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+                    <span>Simpan Perubahan Paket</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

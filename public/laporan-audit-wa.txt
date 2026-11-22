@@ -1,0 +1,71 @@
+📊 *LAPORAN STRESS TEST & AUDIT EGRESS SUPABASE*
+*Sistem Operasional MapahTrip*
+_Tanggal Audit: 21 November 2026_
+
+━━━━━━━━━━━━━━━━━━━━
+1️⃣ *AUDIT EGRESS SUPABASE (KUOTA 5 GB / BULAN)*
+━━━━━━━━━━━━━━━━━━━━
+• *Total Data Pemohon:* 324 baris (Tabel pengajuan_visa)
+• *Beban 1x Load Admin:* 238,32 KB (~0,23 MB)
+• *Penyimpanan Base64:* 0 KB (Bersih, foto tersimpan di Storage)
+• *Kolom Terbesar:* keterangan (18,75 KB total / ~58 byte per baris)
+• *Loop Polling Idle:* 0 request (Tidak ada pemborosan kuota saat diam)
+
+💡 *Proyeksi Kuota Bulanan (Batas Free Tier 5 GB):*
+• *Kapasitas 1 GB:* ~4.349 kali reload aplikasi
+• *Kapasitas 5 GB (Free Tier):* ~21.745 kali reload per bulan
+• *Kapasitas Aman Harian:* ~724 kali reload penuh per hari
+👉 *Kesimpulan Egress:* Sangat aman, efisien, dan jauh di bawah batas kuota gratis.
+
+━━━━━━━━━━━━━━━━━━━━
+2️⃣ *HASIL PENGUJIAN PLAYWRIGHT (10 AKUN & TRANSAKSI)*
+━━━━━━━━━━━━━━━━━━━━
+Otomatisasi pengujian browser Playwright end-to-end:
+
+🔐 *Uji Login 10 Akun Berbeda (100% Berfungsi):*
+1. Owner / Administrator: ✅ Sukses
+2. Staf PIC Medan (Ulla): ✅ Sukses
+3. Staf PIC Surabaya (Nanami Kay): ✅ Sukses
+4. Staf PIC Jakarta (Heru): ✅ Sukses
+5. Staf PIC Denpasar (Yulia): ✅ Sukses
+6. Staf PIC Makassar (Latifah): ✅ Sukses
+7. Staf PIC Operasional (Rizky): ✅ Sukses
+8. Mitra Affiliate Demo LPK: ✅ Sukses
+9. Mitra Hibiki Japan (MPH343HI): ✅ Sukses
+10. Portal Mandiri Customer: ✅ Sukses
+
+📸 *Uji Unggah Foto & Kompresi (10 Transaksi):*
+• 10 berkas foto acak berhasil diuji unggah.
+• Fitur kompresi otomatis memangkas ukuran foto menjadi <100 KB.
+• Transaksi pendaftaran visa 10 program berhasil divalidasi.
+• Egress database Supabase tetap 100% aman dan rendah (0 KB beban foto mentah di database).
+
+━━━━━━━━━━━━━━━━━━━━
+3️⃣ *HASIL STRESS TEST KONKURENSI*
+━━━━━━━━━━━━━━━━━━━━
+Total 125 request paralel simultan dalam 3 skenario beban:
+
+🟢 *Beban Normal (5 Pengguna Bersamaan):*
+• Sukses: 100% (0 Error)
+• Throughput: 9,69 req/detik
+• Rata-rata Respons: 470 ms (P95: 762 ms)
+
+🟡 *Beban Ramai (15 Pengguna Bersamaan):*
+• Sukses: 100% (0 Error)
+• Throughput: 33,99 req/detik
+• Rata-rata Respons: 361 ms (P95: 604 ms)
+
+🔴 *Beban Puncak (30 Pengguna Bersamaan):*
+• Sukses: 100% (0 Error)
+• Throughput: 57,80 req/detik
+• Rata-rata Respons: 347 ms (P95: 653 ms)
+
+👉 *Kesimpulan Performa:*
+• Tingkat Sukses 100% tanpa rate-limit atau timeout
+• Waktu respons stabil sangat cepat (300 ms – 400 ms)
+
+━━━━━━━━━━━━━━━━━━━━
+4️⃣ *REKOMENDASI JANGKA PANJANG*
+━━━━━━━━━━━━━━━━━━━━
+• Untuk saat ini (324 pemohon), arsitektur sudah optimal dan ringan.
+• Nanti jika data telah melebihi 2.000 pemohon, cukup aktifkan paginasi server-side (.range 0-50).

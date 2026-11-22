@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Pengajuan, KonsjenKota } from '../types';
+import { getEffectiveFeeBersih } from '../utils/financialCalculations';
 
 interface RekapViewProps {
   pengajuanList?: Pengajuan[];
@@ -9,7 +10,7 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
   const [activeSubTab, setActiveSubTab] = useState<'konsjen' | 'staff'>('konsjen');
 
   const formatRupiah = (val: number) => {
-    return 'Rp ' + val.toLocaleString('id-ID');
+    return 'Rp\u00A0' + Number(val || 0).toLocaleString('id-ID');
   };
 
   const KONSJEN_CITIES: KonsjenKota[] = ['Jakarta', 'Surabaya', 'Medan', 'Denpasar', 'Makassar'];
@@ -21,12 +22,14 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
       const totalPengajuan = items.length;
       const selesai = items.filter((p) => p.status === 'Selesai' || (p.tglSelesai && p.tglSelesai !== '-')).length;
       const proses = items.filter((p) =>
-        p.status === 'Sedang Diproses' ||
-        p.status === 'Apply Hari Ini' ||
-        (p.tglApply && p.tglApply !== '-' && (!p.tglSelesai || p.tglSelesai === '-'))
+        p.status !== 'Selesai' &&
+        (!p.tglSelesai || p.tglSelesai === '-') &&
+        (p.status === 'Sedang Diproses' || p.status === 'Apply Hari Ini' || (p.tglApply && p.tglApply !== '-'))
       ).length;
       const ditolak = items.filter((p) => p.status === 'Ditolak').length;
-      const feeBersih = items.reduce((sum, p) => sum + (p.feeBersih || 0), 0);
+      // Hanya menghitung transaksi lunas untuk laba bersih
+      const lunasItems = items.filter((p) => p.statusPembayaran !== 'Menunggu Pembayaran');
+      const feeBersih = lunasItems.reduce((sum, p) => sum + getEffectiveFeeBersih(p), 0);
 
       return {
         kota,
@@ -52,32 +55,56 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
     );
   }, [rekapKonsjen]);
 
-  // Agregasi Realtime Dinamis per Staff PIC
+  // Agregasi Realtime Dinamis per Staff PIC & Owner (Waiver)
+  const isApplicantWaiver = (p: Pengajuan) => {
+    const prog = (p.program || '').toLowerCase();
+    const pic = (p.staffPic || '').toLowerCase();
+    return (
+      prog.includes('waiver') ||
+      prog.includes('e-visa') ||
+      prog.includes('evisa') ||
+      pic.includes('admin') ||
+      pic.includes('owner')
+    );
+  };
+
   const STAFF_CONFIG = [
-    { nama: 'Rizky', inisial: 'RZ', wilayah: 'Jakarta' },
-    { nama: 'Nanami Kay', inisial: 'NK', wilayah: 'Surabaya' },
-    { nama: 'Heru', inisial: 'HR', wilayah: 'Medan' },
-    { nama: 'Yulia', inisial: 'YL', wilayah: 'Denpasar' },
-    { nama: 'Latifah', inisial: 'LT', wilayah: 'Makassar' },
+    { nama: 'Admin (Owner)', inisial: '👑', wilayah: 'Online (Waiver)', isAdmin: true },
+    { nama: 'Rizky', inisial: 'RZ', wilayah: 'Jakarta', isAdmin: false },
+    { nama: 'Nanami Kay', inisial: 'NK', wilayah: 'Surabaya', isAdmin: false },
+    { nama: 'Heru', inisial: 'HR', wilayah: 'Medan', isAdmin: false },
+    { nama: 'Yulia', inisial: 'YL', wilayah: 'Denpasar', isAdmin: false },
+    { nama: 'Latifah', inisial: 'LT', wilayah: 'Makassar', isAdmin: false },
+    { nama: 'Ulla', inisial: 'UL', wilayah: 'Konsulat Operasional', isAdmin: false },
   ];
 
   const rekapStaff = useMemo(() => {
     return STAFF_CONFIG.map((staff) => {
-      const items = pengajuanList.filter(
-        (p) =>
-          (p.staffPic && p.staffPic.toLowerCase().includes(staff.nama.toLowerCase())) ||
-          p.konsjen === staff.wilayah
-      );
+      const items = pengajuanList.filter((p) => {
+        if (staff.isAdmin) {
+          return isApplicantWaiver(p);
+        }
+        // Staf konsulat operasional tidak menangani Waiver (waiver langsung ditangani Admin / Owner)
+        if (isApplicantWaiver(p)) {
+          return false;
+        }
+        if (p.staffPic && p.staffPic.trim() !== '') {
+          return p.staffPic.toLowerCase().includes(staff.nama.toLowerCase());
+        }
+        return p.konsjen === staff.wilayah;
+      });
       const jumlahApply = items.length;
       const selesai = items.filter((p) => p.status === 'Selesai' || (p.tglSelesai && p.tglSelesai !== '-')).length;
       const proses = items.filter((p) =>
-        p.status === 'Sedang Diproses' ||
-        p.status === 'Apply Hari Ini' ||
-        (p.tglApply && p.tglApply !== '-' && (!p.tglSelesai || p.tglSelesai === '-'))
+        p.status !== 'Selesai' &&
+        (!p.tglSelesai || p.tglSelesai === '-') &&
+        (p.status === 'Sedang Diproses' || p.status === 'Apply Hari Ini' || (p.tglApply && p.tglApply !== '-'))
       ).length;
-      const nominalKeluar = items.reduce((sum, p) => sum + (p.nominalKeluar || 0), 0);
-      const cashback = items.reduce((sum, p) => sum + (p.cashback || 0), 0);
-      const feeBersih = items.reduce((sum, p) => sum + (p.feeBersih || 0), 0);
+      // Hanya menghitung transaksi lunas untuk keuangan & laba bersih staf
+      const lunasStaffItems = items.filter((p) => p.statusPembayaran !== 'Menunggu Pembayaran');
+      const nominalKeluar = lunasStaffItems.reduce((sum, p) => sum + (p.nominalKeluar || 0), 0);
+      const cashback = lunasStaffItems.reduce((sum, p) => sum + (p.cashback || 0), 0);
+      const feeBersih = lunasStaffItems.reduce((sum, p) => sum + getEffectiveFeeBersih(p), 0);
 
       return {
         ...staff,
@@ -181,13 +208,13 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Wilayah Konsulat</th>
-                  <th style={{ textAlign: 'center' }}>Total Pengajuan</th>
-                  <th style={{ textAlign: 'center' }}>Selesai / Terbit</th>
-                  <th style={{ textAlign: 'center' }}>Sedang Proses</th>
-                  <th style={{ textAlign: 'center' }}>Ditolak</th>
-                  <th style={{ textAlign: 'center' }}>Success Rate</th>
-                  <th style={{ textAlign: 'right' }}>Total Fee Bersih</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Wilayah Konsulat</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Total Apply</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Selesai</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Proses</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Ditolak</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Success Rate</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Fee Bersih</th>
                 </tr>
               </thead>
               <tbody>
@@ -196,10 +223,10 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
                   const rate = denom > 0 ? ((k.selesai / denom) * 100).toFixed(1) : '100.0';
                   return (
                     <tr key={k.kota}>
-                      <td style={{ fontWeight: 600 }}>Konsjen {k.kota}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{k.totalPengajuan}</td>
-                      <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 700 }}>{k.selesai}</td>
-                      <td style={{ textAlign: 'center', color: k.proses > 0 ? '#C2410C' : '#64748B', fontWeight: k.proses > 0 ? 800 : 500 }}>
+                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Konsjen {k.kota}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>{k.totalPengajuan}</td>
+                      <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 700, whiteSpace: 'nowrap' }}>{k.selesai}</td>
+                      <td style={{ textAlign: 'center', color: k.proses > 0 ? '#C2410C' : '#64748B', fontWeight: k.proses > 0 ? 800 : 500, whiteSpace: 'nowrap' }}>
                         {k.proses > 0 ? (
                           <span style={{ backgroundColor: '#FFF7ED', color: '#C2410C', padding: '2px 8px', borderRadius: '12px', fontSize: '0.78rem' }}>
                             {k.proses}
@@ -208,13 +235,13 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
                           '0'
                         )}
                       </td>
-                      <td style={{ textAlign: 'center', color: k.ditolak > 0 ? 'var(--error)' : '#94A3B8', fontWeight: k.ditolak > 0 ? 700 : 400 }}>
+                      <td style={{ textAlign: 'center', color: k.ditolak > 0 ? 'var(--error)' : '#94A3B8', fontWeight: k.ditolak > 0 ? 700 : 400, whiteSpace: 'nowrap' }}>
                         {k.ditolak}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <span className="badge badge-success">{rate}%</span>
                       </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
                         {formatRupiah(k.feeBersih)}
                       </td>
                     </tr>
@@ -223,16 +250,16 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
               </tbody>
               <tfoot>
                 <tr style={{ backgroundColor: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: 800 }}>
-                  <td style={{ fontWeight: 800, textTransform: 'uppercase' }}>TOTAL SELURUH KONSULAT</td>
-                  <td style={{ textAlign: 'center', fontWeight: 800 }}>{totalKonsjenStats.total}</td>
-                  <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800 }}>{totalKonsjenStats.selesai}</td>
-                  <td style={{ textAlign: 'center', color: '#C2410C', fontWeight: 800 }}>
+                  <td style={{ fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TOTAL SELURUH KONSULAT</td>
+                  <td style={{ textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>{totalKonsjenStats.total}</td>
+                  <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800, whiteSpace: 'nowrap' }}>{totalKonsjenStats.selesai}</td>
+                  <td style={{ textAlign: 'center', color: '#C2410C', fontWeight: 800, whiteSpace: 'nowrap' }}>
                     <span style={{ backgroundColor: '#FFF7ED', color: '#C2410C', padding: '2px 10px', borderRadius: '12px', fontSize: '0.80rem' }}>
                       {totalKonsjenStats.proses}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'center', color: 'var(--error)', fontWeight: 800 }}>{totalKonsjenStats.ditolak}</td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td style={{ textAlign: 'center', color: 'var(--error)', fontWeight: 800, whiteSpace: 'nowrap' }}>{totalKonsjenStats.ditolak}</td>
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <span className="badge badge-success">
                       {totalKonsjenStats.selesai + totalKonsjenStats.ditolak > 0
                         ? ((totalKonsjenStats.selesai / (totalKonsjenStats.selesai + totalKonsjenStats.ditolak)) * 100).toFixed(1)
@@ -240,7 +267,7 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
                       %
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)' }}>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
                     {formatRupiah(totalKonsjenStats.feeBersih)}
                   </td>
                 </tr>
@@ -339,102 +366,88 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
               );
             })}
 
-            {/* Card Total Seluruh Konsulat (Summary Ringkasan Bersih & Rapi) */}
+            {/* Card Total Seluruh Konsulat (Summary Ringkasan Nasional) */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                borderRadius: '16px',
-                overflow: 'hidden',
-                boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+                border: '1.5px solid #BFDBFE',
+                borderRadius: '14px',
+                padding: '14px',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
                 marginTop: '4px',
               }}
             >
-              {/* Header Ringkasan */}
-              <div
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#F8FAFC',
-                  borderBottom: '1px solid #E2E8F0',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
+              {/* Header: Total Seluruh Konsulat & Success Rate */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>
-                    account_balance
-                  </span>
-                  <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Total Seluruh Konsulat
-                  </span>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      account_balance
+                    </span>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>Total Seluruh Konsulat</div>
+                    <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>Rekapitulasi 4 Wilayah Konsjen</div>
+                  </div>
                 </div>
-                <span
-                  style={{
-                    backgroundColor: '#DCFCE7',
-                    color: '#15803D',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    border: '1px solid #BBF7D0',
-                  }}
-                >
+                <span className="badge badge-success" style={{ fontSize: '0.74rem', padding: '3px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {totalKonsjenStats.selesai + totalKonsjenStats.ditolak > 0
                     ? ((totalKonsjenStats.selesai / (totalKonsjenStats.selesai + totalKonsjenStats.ditolak)) * 100).toFixed(1)
                     : '100.0'}% Selesai
                 </span>
               </div>
 
-              {/* Rincian Angka Konsulat (List Sejajar Tanpa Kotak Sempit) */}
-              <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Total Pengajuan Nasional</span>
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
-                    {totalKonsjenStats.total} Pemohon
-                  </span>
+              {/* 4-Box Metrics Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                <div style={{ backgroundColor: '#EFF6FF', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #BFDBFE' }}>
+                  <div style={{ fontSize: '0.64rem', color: '#1D4ED8', fontWeight: 700, textTransform: 'uppercase' }}>Total</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1E40AF', marginTop: '2px' }}>{totalKonsjenStats.total}</div>
                 </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Paspor Selesai / Terbit</span>
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
-                    {totalKonsjenStats.selesai} Pemohon
-                  </span>
+                <div style={{ backgroundColor: '#F0FDF4', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.64rem', color: '#15803D', fontWeight: 700, textTransform: 'uppercase' }}>Selesai</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#166534', marginTop: '2px' }}>{totalKonsjenStats.selesai}</div>
                 </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Sedang Diproses</span>
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: totalKonsjenStats.proses > 0 ? '#D97706' : '#64748B' }}>
-                    {totalKonsjenStats.proses} Pemohon
-                  </span>
+                <div style={{ backgroundColor: '#FFFBEB', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #FDE68A' }}>
+                  <div style={{ fontSize: '0.64rem', color: '#B45309', fontWeight: 700, textTransform: 'uppercase' }}>Proses</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: totalKonsjenStats.proses > 0 ? '#D97706' : '#94A3B8', marginTop: '2px' }}>{totalKonsjenStats.proses}</div>
                 </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Pengajuan Ditolak</span>
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: totalKonsjenStats.ditolak > 0 ? '#DC2626' : '#64748B' }}>
-                    {totalKonsjenStats.ditolak} Pemohon
-                  </span>
+                <div style={{ backgroundColor: '#FEF2F2', padding: '8px 4px', borderRadius: '8px', textAlign: 'center', border: '1px solid #FECACA' }}>
+                  <div style={{ fontSize: '0.64rem', color: '#B91C1C', fontWeight: 700, textTransform: 'uppercase' }}>Tolak</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: totalKonsjenStats.ditolak > 0 ? '#DC2626' : '#94A3B8', marginTop: '2px' }}>{totalKonsjenStats.ditolak}</div>
                 </div>
               </div>
 
               {/* Footer Total Bersih */}
               <div
                 style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#EFF6FF',
-                  borderTop: '1px solid #BFDBFE',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
                 }}
               >
-                <div>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase' }}>
-                    Total Fee Bersih (Nasional)
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: '#3B82F6' }}>Akumulasi laba konsulat</div>
-                </div>
-                <span style={{ fontSize: '1.10rem', fontWeight: 800, color: '#1D4ED8', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase' }}>
+                  Total Fee Bersih Nasional
+                </span>
+                <span style={{ fontSize: '0.98rem', fontWeight: 800, color: '#1D4ED8', fontFamily: 'monospace' }}>
                   {formatRupiah(totalKonsjenStats.feeBersih)}
                 </span>
               </div>
@@ -448,7 +461,7 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
               Rekapitulasi Kinerja Staff PIC
             </h3>
             <span className="rekap-section-badge" style={{ fontSize: '0.78rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '4px 12px', borderRadius: '20px', fontWeight: 700 }}>
-              5 Personel Staf Operasional
+              {rekapStaff.length} Personel (6 Staf + Owner)
             </span>
           </div>
 
@@ -457,47 +470,65 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Staff PIC</th>
-                  <th>Konsjen</th>
-                  <th style={{ textAlign: 'center' }}>Jumlah Apply</th>
-                  <th style={{ textAlign: 'center' }}>Selesai</th>
-                  <th style={{ textAlign: 'center' }}>Sedang Proses</th>
-                  <th style={{ textAlign: 'right' }}>Nominal Keluar</th>
-                  <th style={{ textAlign: 'right' }}>Cashback</th>
-                  <th style={{ textAlign: 'right' }}>Fee Bersih</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Staff PIC</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Konsjen</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Apply</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Selesai</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Proses</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Modal Keluar</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Fee Staf</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Fee Bersih</th>
                 </tr>
               </thead>
               <tbody>
                 {rekapStaff.map((s) => (
-                  <tr key={s.nama}>
-                    <td>
+                  <tr key={s.nama} style={{ backgroundColor: s.isAdmin ? '#FFFDF7' : undefined }}>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div
                           style={{
                             width: '32px',
                             height: '32px',
                             borderRadius: '50%',
-                            background: '#F1F5F9',
-                            color: '#1E293B',
+                            background: s.isAdmin ? '#FEF3C7' : '#F1F5F9',
+                            color: s.isAdmin ? '#92400E' : '#1E293B',
+                            border: s.isAdmin ? '1.5px solid #FCD34D' : 'none',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: 700,
-                            fontSize: '0.75rem',
+                            fontSize: s.inisial.length > 2 ? '0.70rem' : '0.75rem',
                             flexShrink: 0,
                           }}
                         >
                           {s.inisial}
                         </div>
-                        <div style={{ fontWeight: 600 }}>{s.nama}</div>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {s.nama}
+                          {s.isAdmin && (
+                            <span
+                              style={{
+                                fontSize: '0.65rem',
+                                backgroundColor: '#FEF3C7',
+                                color: '#92400E',
+                                border: '1px solid #FCD34D',
+                                borderRadius: '10px',
+                                padding: '1px 6px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              Owner
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td>
-                      <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{s.wilayah}</span>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ fontWeight: 600, color: s.isAdmin ? '#D97706' : 'var(--primary)' }}>{s.wilayah}</span>
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 700 }}>{s.jumlahApply}</td>
-                    <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 700 }}>{s.selesai}</td>
-                    <td style={{ textAlign: 'center', color: s.proses > 0 ? '#C2410C' : '#64748B', fontWeight: s.proses > 0 ? 800 : 500 }}>
+                    <td style={{ textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.jumlahApply}</td>
+                    <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.selesai}</td>
+                    <td style={{ textAlign: 'center', color: s.proses > 0 ? '#C2410C' : '#64748B', fontWeight: s.proses > 0 ? 800 : 500, whiteSpace: 'nowrap' }}>
                       {s.proses > 0 ? (
                         <span style={{ backgroundColor: '#FFF7ED', color: '#C2410C', padding: '2px 8px', borderRadius: '12px', fontSize: '0.78rem' }}>
                           {s.proses}
@@ -506,13 +537,13 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
                         '0'
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                       {formatRupiah(s.nominalKeluar)}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#15803D', fontWeight: 600 }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#15803D', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {formatRupiah(s.cashback)}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
                       {formatRupiah(s.feeBersih)}
                     </td>
                   </tr>
@@ -520,21 +551,21 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
               </tbody>
               <tfoot>
                 <tr style={{ backgroundColor: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: 800 }}>
-                  <td colSpan={2} style={{ fontWeight: 800, textTransform: 'uppercase' }}>TOTAL TIM OPERASIONAL</td>
-                  <td style={{ textAlign: 'center', fontWeight: 800 }}>{totalStaffStats.jumlahApply}</td>
-                  <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800 }}>{totalStaffStats.selesai}</td>
-                  <td style={{ textAlign: 'center', color: '#C2410C', fontWeight: 800 }}>
+                  <td colSpan={2} style={{ fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TOTAL TIM OPERASIONAL</td>
+                  <td style={{ textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>{totalStaffStats.jumlahApply}</td>
+                  <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800, whiteSpace: 'nowrap' }}>{totalStaffStats.selesai}</td>
+                  <td style={{ textAlign: 'center', color: '#C2410C', fontWeight: 800, whiteSpace: 'nowrap' }}>
                     <span style={{ backgroundColor: '#FFF7ED', color: '#C2410C', padding: '2px 10px', borderRadius: '12px', fontSize: '0.80rem' }}>
                       {totalStaffStats.proses}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, whiteSpace: 'nowrap' }}>
                     {formatRupiah(totalStaffStats.nominalKeluar)}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#15803D' }}>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#15803D', whiteSpace: 'nowrap' }}>
                     {formatRupiah(totalStaffStats.cashback)}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#0F172A' }}>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>
                     {formatRupiah(totalStaffStats.feeBersih)}
                   </td>
                 </tr>
@@ -566,22 +597,41 @@ export const RekapView: React.FC<RekapViewProps> = ({ pengajuanList = [] }) => {
                         width: '36px',
                         height: '36px',
                         borderRadius: '50%',
-                        background: '#EFF6FF',
-                        color: '#1D4ED8',
+                        background: s.isAdmin ? '#FEF3C7' : '#EFF6FF',
+                        color: s.isAdmin ? '#92400E' : '#1D4ED8',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 800,
                         fontSize: '0.82rem',
-                        border: '1.5px solid #BFDBFE',
+                        border: s.isAdmin ? '1.5px solid #FCD34D' : '1.5px solid #BFDBFE',
                         flexShrink: 0,
                       }}
                     >
                       {s.inisial}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>{s.nama}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>PIC Konsjen {s.wilayah}</div>
+                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {s.nama}
+                        {s.isAdmin && (
+                          <span
+                            style={{
+                              fontSize: '0.65rem',
+                              backgroundColor: '#FEF3C7',
+                              color: '#92400E',
+                              border: '1px solid #FCD34D',
+                              borderRadius: '10px',
+                              padding: '1px 6px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Owner
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: s.isAdmin ? '#D97706' : '#2563EB', fontWeight: 600 }}>
+                        {s.isAdmin ? 'Penanggung Jawab Waiver (Owner)' : `PIC Konsjen ${s.wilayah}`}
+                      </div>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

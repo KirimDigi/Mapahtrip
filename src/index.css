@@ -543,6 +543,15 @@ body {
 
 
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes beaconPing {
   0% {
     transform: scale(1);
@@ -1094,20 +1103,40 @@ html, body, #root {
   width: 100% !important;
 }
 
+.trust-tag {
+  display: none;
+}
+.cta-btn-text-mobile {
+  display: none;
+}
+
 @media (max-width: 768px) {
   #beranda {
     padding: 24px 16px 40px !important;
   }
   .hero-cta-buttons {
-    flex-direction: column !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
     width: 100% !important;
-    gap: 10px !important;
+    gap: 8px !important;
+    margin-top: 8px !important;
   }
   .hero-cta-buttons > * {
     width: 100% !important;
+    height: 46px !important;
+    padding: 10px 8px !important;
     justify-content: center !important;
     box-sizing: border-box !important;
     text-align: center !important;
+    border-radius: 9999px !important;
+    font-size: 0.86rem !important;
+    white-space: nowrap !important;
+  }
+  .cta-btn-text-full {
+    display: none !important;
+  }
+  .cta-btn-text-mobile {
+    display: inline !important;
   }
   .hero-metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -1130,33 +1159,65 @@ html, body, #root {
     line-height: 1.2 !important;
     word-break: break-word !important;
   }
-  /* Trust Bar Mobile: Ditumpuk rapi ke bawah (tidak bisa digeser, tidak ada scrollbar, teks utuh) */
+  /* Trust Bar Mobile: Desain kartu trust yang rapi, berimbang, berkelas & tidak kosong di sisi kanan */
   .hero-trust-bar {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 8px !important;
-    padding: 12px 14px !important;
+    gap: 0 !important;
+    padding: 4px 14px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03) !important;
     overflow-x: visible !important;
-    border-radius: 14px !important;
   }
   .hero-trust-bar span.trust-dot-sep {
     display: none !important;
   }
-  .hero-trust-bar > div {
+  .hero-trust-bar .trust-item {
     display: flex !important;
     align-items: center !important;
-    gap: 8px !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    padding: 9px 0 !important;
     white-space: normal !important;
   }
-  .hero-trust-bar > div:not(:last-child) {
-    padding-bottom: 7px !important;
-    border-bottom: 1px dashed #F1F5F9 !important;
+  .hero-trust-bar .trust-item:not(:last-child) {
+    border-bottom: 1px solid #F1F5F9 !important;
   }
-  .hero-trust-bar > div span:last-child {
-    font-size: 0.8rem !important;
+  .hero-trust-bar .trust-item .trust-icon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+    background: #EFF6FF !important;
+    color: #005BB5 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 16px !important;
+    flex-shrink: 0 !important;
+  }
+  .hero-trust-bar .trust-item .trust-label {
+    font-size: 0.81rem !important;
     font-weight: 700 !important;
     color: #0F172A !important;
+    flex: 1 !important;
+    margin-left: 9px !important;
+    text-align: left !important;
+  }
+  .hero-trust-bar .trust-item .trust-tag {
+    display: inline-flex !important;
+    align-items: center !important;
+    font-size: 0.67rem !important;
+    font-weight: 600 !important;
+    color: #059669 !important;
+    background: #ECFDF5 !important;
+    border: 1px solid #A7F3D0 !important;
+    padding: 2px 7px !important;
+    border-radius: 9999px !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
   }
 }
 
@@ -1189,9 +1250,43 @@ html, body, #root {
   display: none !important;
 }
 
+.visa-category-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
 @media (max-width: 768px) {
   #jenis-visa {
     padding: 36px 16px !important;
+  }
+
+  .visa-category-tabs {
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    padding: 6px 16px 14px 16px !important;
+    margin: 16px -16px 0 -16px !important;
+    width: calc(100% + 32px) !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+  }
+
+  .visa-category-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .visa-category-tabs > button {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    padding: 7px 15px !important;
+    font-size: 0.80rem !important;
   }
 
   .mobile-swipe-hint {
@@ -1619,7 +1714,7 @@ html, body, #root {
     width: 100% !important;
   }
 
-  /* 1. Sosial Media: Grid 2-kolom seimbang + Email full width */
+  /* 1. Sosial Media & Kontak: 3 Kartu Berurutan Rapi & Simetris */
   .footer-col-social {
     order: 1 !important;
     width: 100% !important;
@@ -1634,30 +1729,37 @@ html, body, #root {
     font-weight: 700 !important;
   }
   .footer-social-list {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
     gap: 8px !important;
     width: 100% !important;
   }
   .footer-social-list a {
     display: flex !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     align-items: center !important;
-    gap: 8px !important;
+    gap: 12px !important;
     background: rgba(255, 255, 255, 0.04) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    padding: 10px 10px !important;
-    min-height: 40px !important;
+    padding: 10px 14px !important;
+    min-height: 42px !important;
     border-radius: 10px !important;
-    font-size: 0.78rem !important;
+    font-size: 0.80rem !important;
     font-weight: 600 !important;
     color: #f1f5f9 !important;
     text-decoration: none !important;
     box-sizing: border-box !important;
     transition: all 0.15s ease !important;
+    width: 100% !important;
+  }
+  .footer-social-list a:hover,
+  .footer-social-list a:active {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(56, 189, 248, 0.35) !important;
+    color: #38bdf8 !important;
   }
   .footer-social-list a:last-child {
-    grid-column: 1 / -1 !important;
+    grid-column: auto !important;
   }
 
   /* 2. Jenis Visa: Kartu 2-kolom terstruktur dengan chip tombol rapi setinggi seragam */
@@ -1725,30 +1827,21 @@ html, body, #root {
   }
   .footer-bantuan-list {
     display: grid !important;
-    grid-template-columns: repeat(6, 1fr) !important;
-    gap: 8px !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px 10px !important;
     width: 100% !important;
-  }
-  .footer-bantuan-list > *:nth-child(1),
-  .footer-bantuan-list > *:nth-child(2),
-  .footer-bantuan-list > *:nth-child(3) {
-    grid-column: span 2 !important;
-  }
-  .footer-bantuan-list > *:nth-child(4),
-  .footer-bantuan-list > *:nth-child(5) {
-    grid-column: span 3 !important;
   }
   .footer-bantuan-list a,
   .footer-bantuan-list span {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    min-height: 36px !important;
-    padding: 6px 8px !important;
+    min-height: 38px !important;
+    padding: 8px 14px !important;
     background: rgba(255, 255, 255, 0.04) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     border-radius: 9999px !important;
-    font-size: 0.74rem !important;
+    font-size: 0.78rem !important;
     font-weight: 500 !important;
     color: #cbd5e1 !important;
     text-align: center !important;
@@ -1778,8 +1871,9 @@ html, body, #root {
   }
   .footer-col-kantor > a:first-child {
     display: flex !important;
-    justify-content: space-between !important;
+    justify-content: flex-start !important;
     align-items: center !important;
+    gap: 8px !important;
     margin-bottom: 12px !important;
     font-size: 0.88rem !important;
     font-weight: 800 !important;
@@ -1828,6 +1922,36 @@ html, body, #root {
   }
 }
 
+/* Desktop Footer Layout (>= 901px): 5 Kolom sejajar rapi, simetris, dan tanpa ruang kosong */
+@media (min-width: 901px) {
+  .customer-main-footer {
+    padding: 60px 32px 36px !important;
+  }
+  .customer-main-footer > div:first-child {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 1.3fr) minmax(170px, 0.9fr) minmax(190px, 1fr) minmax(140px, 0.8fr) minmax(240px, 1.2fr) !important;
+    gap: 32px !important;
+    align-items: start !important;
+    max-width: 1240px !important;
+    margin: 0 auto !important;
+    flex-wrap: nowrap !important;
+  }
+  .customer-main-footer .footer-brand-col {
+    max-width: 100% !important;
+    flex: none !important;
+  }
+  .customer-main-footer .footer-columns-group {
+    display: contents !important;
+  }
+  .customer-main-footer .footer-col-visa,
+  .customer-main-footer .footer-col-social,
+  .customer-main-footer .footer-col-bantuan,
+  .customer-main-footer .footer-col-kantor {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: none !important;
+  }
+}
 
 /* Partner Metrics Grid: 5 Cards in 1 Neat Row */
 .partner-metrics-grid {
@@ -1908,6 +2032,14 @@ html, body, #root {
   display: none !important;
 }
 
+.wa-indicator-mobile {
+  display: none !important;
+}
+
+.wa-indicator-desktop {
+  display: inline !important;
+}
+
 @media (max-width: 900px) {
   .desktop-sidebar-toggle {
     display: none !important;
@@ -1984,20 +2116,20 @@ html, body, #root {
     left: 0 !important;
     right: 0 !important;
     width: 100% !important;
-    padding: 0 14px !important;
-    height: 60px !important;
+    padding: 0 12px !important;
+    height: 54px !important;
     z-index: 100 !important;
     background: rgba(255, 255, 255, 0.96) !important;
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
     border-bottom: 1px solid rgba(226, 232, 240, 0.9) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
     box-sizing: border-box !important;
   }
 
   /* Page body padding for mobile thumb friendly scrolling with fixed top header offset */
   .page-body {
-    padding: 72px 12px 24px !important;
+    padding: 64px 12px 20px !important;
     width: 100% !important;
     max-width: 100vw !important;
     box-sizing: border-box !important;
@@ -2009,15 +2141,19 @@ html, body, #root {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 8px !important;
     border: 1px solid #E2E8F0;
     background: #FFFFFF;
     color: #0F172A;
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     transition: all 0.15s ease;
+  }
+
+  .mobile-menu-btn span {
+    font-size: 20px !important;
   }
 
   .mobile-menu-btn:hover {
@@ -2029,7 +2165,12 @@ html, body, #root {
   .mobile-header-brand {
     display: flex !important;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .mobile-header-brand img {
+    width: 26px !important;
+    height: 26px !important;
   }
 
   /* Rekap Operasional: Cards on mobile, Table on desktop */
@@ -2105,10 +2246,78 @@ html, body, #root {
   }
 }
 
-@media (max-width: 520px) {
-  /* On very small screens, shorten/hide verbose button text */
-  .header-new-btn-text {
-    display: none;
+.header-desktop-text {
+  display: inline;
+}
+.header-mobile-text {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Header right actions compact layout */
+  .header-right-actions {
+    gap: 6px !important;
+  }
+
+  .header-new-btn {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #EFF6FF !important;
+    color: #005BB5 !important;
+    border: 1px solid #BFDBFE !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 1px 2px rgba(0, 91, 181, 0.08) !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+  }
+  .header-new-btn span.material-symbols-outlined {
+    font-size: 18px !important;
+    color: #005BB5 !important;
+    margin: 0 !important;
+  }
+  .header-desktop-text,
+  .header-mobile-text {
+    display: none !important;
+  }
+
+  /* Modal Tambah Pemohon mobile optimization */
+  .modal-tambah-pemohon-card {
+    padding: 16px 14px !important;
+    border-radius: 16px !important;
+    max-height: 94vh !important;
+    margin: 6px !important;
+  }
+  .modal-form-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .modal-form-grid-3 {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .header-notif-btn {
+    padding: 4px !important;
+  }
+  .header-notif-btn span.material-symbols-outlined {
+    font-size: 22px !important;
+  }
+
+  .wa-gateway-indicator-btn {
+    padding: 3px 8px !important;
+    font-size: 0.69rem !important;
+    gap: 4px !important;
+  }
+  .wa-indicator-desktop {
+    display: none !important;
+  }
+  .wa-indicator-mobile {
+    display: inline !important;
   }
 }
 
@@ -2146,6 +2355,10 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.payout-summary-banner {
+  text-align: right;
 }
 
 @media (max-width: 768px) {
@@ -2199,11 +2412,36 @@ html, body, #root {
   }
 
   .affiliate-kpi-card {
-    padding: 10px 12px !important;
+    padding: 10px 11px !important;
+    min-height: 104px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justifyContent: space-between !important;
   }
 
   .affiliate-kpi-num {
-    font-size: 1.25rem !important;
+    font-size: 1.15rem !important;
+  }
+
+  .payout-summary-banner {
+    width: 100% !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+    margin-top: 6px !important;
+  }
+
+  .staff-fee-info-box {
+    align-items: flex-start !important;
+  }
+
+  .staff-fee-info-box .material-symbols-outlined {
+    margin-top: 2px !important;
+  }
+
+  .staff-fee-info-text {
+    text-align: justify !important;
+    text-justify: inter-word !important;
+    line-height: 1.55 !important;
   }
 
   .affiliate-main-card {
@@ -2535,19 +2773,38 @@ html, body, #root {
   }
   .keuangan-header-actions {
     width: 100% !important;
-    display: flex !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 8px !important;
   }
-  .keuangan-header-actions > div,
-  .keuangan-header-actions > button {
-    flex: 1 !important;
-    justify-content: center !important;
-    font-size: 0.78rem !important;
-    padding: 8px 12px !important;
-  }
-  .keuangan-header-actions select {
+  .keuangan-filter-select-wrap {
     width: 100% !important;
-    font-size: 0.78rem !important;
+    min-width: 0 !important;
+  }
+  .keuangan-filter-select-wrap select {
+    width: 100% !important;
+    height: 38px !important;
+    font-size: 0.80rem !important;
+    padding: 0 16px 0 30px !important;
+    border-radius: 9999px !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+  .keuangan-reset-btn {
+    grid-column: span 2 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 0.76rem !important;
+    padding: 6px 12px !important;
+  }
+  .keuangan-export-btn {
+    grid-column: span 2 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 0.82rem !important;
+    padding: 9px 14px !important;
+    white-space: nowrap !important;
   }
 
   /* 2x2 KPI Grid for mobile: clean and compact */
@@ -2726,6 +2983,10 @@ html, body, #root {
   display: none !important;
 }
 
+.pengaturan-tabs-wrapper {
+  max-width: 100%;
+}
+
 @media (max-width: 768px) {
   .pengaturan-header-section {
     gap: 12px !important;
@@ -2742,20 +3003,48 @@ html, body, #root {
     line-height: 1.4 !important;
   }
 
-  /* Segmented tabs on mobile: full width, 50% / 50% distribution */
-  .pengaturan-tabs-bar {
+  /* Segmented tabs on mobile: modern horizontal scrollable pill bar */
+  .pengaturan-tabs-wrapper {
     width: 100% !important;
-    display: flex !important;
-    padding: 3px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    padding: 2px 0 4px 0 !important;
+    margin-top: 4px !important;
+  }
+
+  .pengaturan-tabs-wrapper::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .pengaturan-tabs-bar {
+    width: max-content !important;
+    min-width: 100% !important;
+    display: inline-flex !important;
+    flex-wrap: nowrap !important;
+    background-color: #F1F5F9 !important;
+    padding: 4px !important;
+    border-radius: 12px !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
   }
 
   .pengaturan-tab-btn {
-    flex: 1 1 0 !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
     justify-content: center !important;
-    padding: 8px 6px !important;
-    font-size: 0.74rem !important;
-    gap: 4px !important;
+    padding: 7px 13px !important;
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    gap: 6px !important;
+    border-radius: 9px !important;
     text-align: center !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .pengaturan-tab-btn span {
+    white-space: nowrap !important;
   }
 
   .pengaturan-card {
@@ -2775,6 +3064,60 @@ html, body, #root {
     justify-content: center !important;
     padding: 8px 10px !important;
     font-size: 0.74rem !important;
+  }
+
+  /* Master Tarif actions & filters on mobile */
+  .pengaturan-tarif-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .pengaturan-tarif-actions > button {
+    flex: 1 1 calc(50% - 4px) !important;
+    justify-content: center !important;
+    padding: 9px 12px !important;
+    font-size: 0.76rem !important;
+  }
+
+  .pengaturan-tarif-actions > button:last-child {
+    flex: 1 1 100% !important;
+    padding: 10px 14px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .pengaturan-filter-search-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .pengaturan-cat-pills-scroll {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    gap: 6px !important;
+    padding: 2px 0 6px 0 !important;
+  }
+
+  .pengaturan-cat-pills-scroll::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .pengaturan-cat-pill-btn {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .pengaturan-search-box-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
   /* Switch from heavy tables to mobile native cards */
@@ -2840,6 +3183,83 @@ html, body, #root {
   .pengaturan-form-row {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
+  }
+
+  /* Forum Komunikasi Responsive Styling on Mobile */
+  .forum-subtabs-row {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    background: #F1F5F9 !important;
+    padding: 4px !important;
+    border-radius: 12px !important;
+    gap: 4px !important;
+  }
+
+  .forum-subtab-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 6px !important;
+    font-size: 0.78rem !important;
+    border-radius: 8px !important;
+    white-space: nowrap !important;
+  }
+
+  .forum-input-card {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .forum-input-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 0.74rem !important;
+  }
+
+  .forum-input-field {
+    padding: 8px 14px !important;
+    font-size: 0.80rem !important;
+  }
+
+  .forum-input-btn {
+    padding: 8px 14px !important;
+    font-size: 0.78rem !important;
+    border-radius: 20px !important;
+  }
+
+  .forum-card-container {
+    padding: 14px 14px !important;
+    border-radius: 14px !important;
+    gap: 10px !important;
+  }
+
+  /* Owner WhatsApp Actions Row on Mobile */
+  .pengaturan-owner-actions-row {
+    flex-direction: column-reverse !important;
+    width: 100% !important;
+    gap: 8px !important;
+    margin-top: 10px !important;
+  }
+
+  .pengaturan-owner-save-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 11px 16px !important;
+    font-size: 0.84rem !important;
+    border-radius: 10px !important;
+    height: 42px !important;
+    white-space: nowrap !important;
+  }
+
+  .pengaturan-owner-test-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 16px !important;
+    font-size: 0.82rem !important;
+    border-radius: 10px !important;
+    height: 40px !important;
+    white-space: nowrap !important;
   }
 }
 
@@ -3695,18 +4115,53 @@ html, body, #root {
   }
 
   /* Staff Dashboard (DashboardView) Mobile Responsiveness */
+  .dashboard-main-container {
+    gap: 14px !important;
+  }
+
   .staff-header-row {
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 12px !important;
+    gap: 8px !important;
+    padding-bottom: 0 !important;
   }
-  .staff-header-actions {
+
+  .staff-header-info {
     width: 100% !important;
   }
+
+  .staff-header-badge {
+    margin-bottom: 4px !important;
+    padding: 2.5px 8px !important;
+  }
+  .staff-header-badge span:last-child {
+    font-size: 0.67rem !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  .staff-header-title {
+    font-size: 1.25rem !important;
+    line-height: 1.25 !important;
+    margin: 0 0 3px !important;
+  }
+
+  .staff-header-desc {
+    font-size: 0.78rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .staff-header-actions {
+    width: 100% !important;
+    margin-top: 2px !important;
+  }
+
   .staff-header-btn {
     width: 100% !important;
     justify-content: center !important;
-    padding: 11px 16px !important;
+    padding: 7px 12px !important;
+    font-size: 0.80rem !important;
+    border-radius: 8px !important;
+    min-height: 35px !important;
   }
   .staff-achievement-card {
     padding: 10px 12px !important;
@@ -3727,6 +4182,53 @@ html, body, #root {
     flex-wrap: wrap !important;
     padding-top: 7px !important;
     margin-top: 7px !important;
+  }
+  /* Owner Dashboard 2x2 Finance Grid for Mobile */
+  .owner-finance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .owner-finance-card {
+    padding: 10px 10px !important;
+    border-radius: 12px !important;
+  }
+  .owner-finance-top {
+    gap: 4px !important;
+  }
+  .owner-finance-label {
+    font-size: 0.65rem !important;
+    letter-spacing: 0.02em !important;
+    line-height: 1.25 !important;
+  }
+  .owner-finance-icon {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 7px !important;
+  }
+  .owner-finance-icon span {
+    font-size: 15px !important;
+  }
+  .owner-finance-val {
+    font-size: clamp(0.92rem, 3.8vw, 1.15rem) !important;
+    line-height: 1.2 !important;
+    margin-top: 5px !important;
+    letter-spacing: -0.4px !important;
+    white-space: nowrap !important;
+  }
+  .owner-finance-sub {
+    font-size: 0.63rem !important;
+    line-height: 1.25 !important;
+    margin-top: 4px !important;
+    gap: 3px !important;
+  }
+  .owner-finance-sub span.material-symbols-outlined {
+    font-size: 13px !important;
+  }
+  .finance-sub-mobile {
+    display: inline !important;
+  }
+  .finance-sub-desktop {
+    display: none !important;
   }
   .staff-pipeline-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -3770,7 +4272,86 @@ html, body, #root {
     gap: 8px !important;
   }
   .staff-task-item {
-    padding: 10px 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
+  .staff-task-main {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+  }
+
+  .staff-task-text {
+    min-width: 0 !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+  }
+
+  .staff-task-name {
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .staff-task-sub {
+    font-size: 0.72rem !important;
+    color: #64748B !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    margin-top: 1px !important;
+  }
+
+  .staff-task-meta {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justifyContent: space-between !important;
+    gap: 6px !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed #E2E8F0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .staff-task-price {
+    font-size: 0.76rem !important;
+    font-weight: 800 !important;
+    color: #15803D !important;
+    background-color: #F0FDF4 !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid #BBF7D0 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .staff-task-badge {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    white-space: nowrap !important;
+    margin-left: auto !important;
+  }
+
+  .staff-task-chevron {
+    font-size: 18px !important;
+    color: #64748B !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin-left: 2px !important;
   }
 
   /* Detail Pengajuan Mobile Responsiveness */
@@ -3862,12 +4443,15 @@ html, body, #root {
   .detail-columns-grid {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
+  .detail-doc-item-row,
   .detail-doc-item {
     flex-direction: column !important;
     align-items: stretch !important;
-    padding: 12px 14px !important;
-    gap: 12px !important;
+    padding: 12px 10px !important;
+    gap: 10px !important;
   }
   .detail-doc-info {
     min-width: 0 !important;
@@ -3876,17 +4460,80 @@ html, body, #root {
   .detail-doc-actions {
     width: 100% !important;
     display: grid !important;
-    grid-template-columns: 1.35fr 1fr 1fr !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 6px !important;
   }
-  .detail-doc-actions button,
-  .detail-doc-actions label {
+  /* Primary Button: Lihat Dokumen / Contoh Template span 2 kolom */
+  .detail-doc-actions > button:first-child {
+    grid-column: span 2 !important;
     width: 100% !important;
     justify-content: center !important;
-    padding: 8px 4px !important;
-    font-size: 0.72rem !important;
-    margin: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 0.76rem !important;
     box-sizing: border-box !important;
+  }
+  /* Secondary Buttons: Unduh & Upload Fisik side-by-side 50-50 */
+  .detail-doc-actions > button:nth-child(2),
+  .detail-doc-actions > label:last-child {
+    grid-column: span 1 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 7px 6px !important;
+    font-size: 0.72rem !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+
+  /* Detail Keuangan Card Responsive */
+  .detail-keuangan-card {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+  .detail-keuangan-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+  .detail-keuangan-header h3 {
+    font-size: 1.05rem !important;
+    line-height: 1.3 !important;
+  }
+  .detail-keuangan-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .detail-keuangan-actions > div {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .btn-struk-verify {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    font-size: 0.78rem !important;
+    width: 100% !important;
+  }
+  .detail-finance-row {
+    font-size: 0.80rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  .detail-finance-fee-bersih {
+    font-size: 0.80rem !important;
+  }
+  .detail-finance-fee-bersih span.font-serif {
+    font-size: 1.25rem !important;
   }
 
   .detail-doc-card-header {
@@ -4149,7 +4796,47 @@ html, body, #root {
 .rekap-desktop-table {
   display: block;
   width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
+
+.rekap-desktop-table .data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.rekap-desktop-table .data-table th {
+  padding: 10px 8px !important;
+  font-size: 0.70rem !important;
+  font-weight: 700 !important;
+  color: #64748B !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+  background-color: #F8FAFC !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+  white-space: nowrap !important;
+}
+
+.rekap-desktop-table .data-table td {
+  padding: 9px 8px !important;
+  font-size: 0.78rem !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+.rekap-desktop-table .data-table tfoot td {
+  padding: 11px 8px !important;
+  font-size: 0.80rem !important;
+  background-color: #F8FAFC !important;
+  border-top: 2px solid #CBD5E1 !important;
+  white-space: nowrap !important;
+}
+
 .rekap-mobile-cards {
   display: none;
 }
@@ -4272,6 +4959,75 @@ html, body, #root {
   color: #475569;
 }
 
+/* Owner Dashboard Finance Grid Base Styles (Desktop) */
+.owner-finance-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.owner-finance-card {
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.owner-finance-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.owner-finance-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+.owner-finance-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.owner-finance-icon span {
+  font-size: 20px;
+}
+.owner-finance-val {
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin-top: 8px;
+  font-family: monospace;
+  letter-spacing: -0.5px;
+}
+.owner-finance-sub {
+  font-size: 0.74rem;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  line-height: 1.35;
+}
+.owner-finance-sub span.material-symbols-outlined {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.finance-sub-mobile {
+  display: none;
+}
+.finance-sub-desktop {
+  display: inline;
+}
+
 /* Staff Dashboard Base Styles (Desktop) */
 .staff-pipeline-grid {
   display: grid;
@@ -4288,7 +5044,96 @@ html, body, #root {
   max-width: 100%;
 }
 
+/* Staff Task Item Base Styles (Desktop) */
+.staff-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.staff-task-item.is-tindakan {
+  background-color: #F8FAFC;
+}
+
+.staff-task-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.staff-task-text {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+.staff-task-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #0F172A;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.staff-task-sub {
+  font-size: 0.74rem;
+  color: #64748B;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.staff-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.staff-task-price {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #15803D;
+  white-space: nowrap;
+  background-color: #F0FDF4;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #BBF7D0;
+}
+
+.staff-task-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.staff-task-chevron {
+  font-size: 18px;
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+}
+
 @media (min-width: 641px) and (max-width: 1024px) {
+  .owner-finance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
   .staff-pipeline-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 10px !important;
@@ -4535,3 +5380,128 @@ html, body, #root {
 .box-struk-waiting {
   animation: strukAmberPulse 2.2s infinite ease-in-out;
 }
+
+/* Modal Apply Customer Responsiveness */
+.modal-apply-dialog {
+  padding: 28px;
+}
+
+@media (max-width: 640px) {
+  .modal-apply-dialog {
+    padding: 16px 14px !important;
+    border-radius: 18px !important;
+    max-height: 94vh !important;
+    margin: 8px !important;
+  }
+  .modal-header-title {
+    font-size: 1.08rem !important;
+    line-height: 1.25 !important;
+  }
+}
+
+/* Pilihan Paket Layanan (Modal Apply Customer & Input Staf) */
+.modal-paket-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.modal-paket-card {
+  padding: 12px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justifyContent: center;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.modal-paket-card-radio {
+  display: none;
+}
+
+.modal-paket-card-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.modal-paket-card-info {
+  text-align: center;
+}
+
+.modal-paket-title {
+  font-size: 0.90rem;
+  font-weight: 800;
+}
+
+.modal-paket-desc {
+  font-size: 0.70rem;
+  margin-top: 2px;
+}
+
+.modal-paket-card-price {
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .modal-paket-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .modal-paket-card {
+    flex-direction: row !important;
+    align-items: center !important;
+    justifyContent: space-between !important;
+    text-align: left !important;
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  .modal-paket-card-radio {
+    display: block !important;
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .modal-paket-card-left {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+    flex: 1 !important;
+  }
+
+  .modal-paket-card-info {
+    text-align: left !important;
+    min-width: 0 !important;
+  }
+
+  .modal-paket-title {
+    font-size: 0.88rem !important;
+  }
+
+  .modal-paket-desc {
+    font-size: 0.72rem !important;
+    margin-top: 1px !important;
+  }
+
+  .modal-paket-card-price {
+    font-size: 0.90rem !important;
+    margin-top: 0 !important;
+    white-space: nowrap !important;
+    text-align: right !important;
+  }
+}
+

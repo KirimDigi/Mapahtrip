@@ -26,3 +26,17 @@ dist-ssr
 *.sw?
 
 .playwright-mcp
+
+# Scratch & Temporary data files
+scratch/
+*.xlsx
+*.csv
+*.png
+!public/**/*.png
+!src/**/*.png
+Testimoni/
+*.html
+!index.html
+!public/**/*.html
+test_*.mjs
+test_*.js

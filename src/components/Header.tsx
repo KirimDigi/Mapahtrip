@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Pengajuan, StaffMaster } from '../types';
 import logomark1 from '../assets/logomark_1.png';
 import { handleImageFallback, getLogomarkFallbacks } from '../utils/imageFallbacks';
+import { isApplicantAssignedToStaff } from '../utils/staffAssignment';
+import { WAGatewayIndicator } from './WAGatewayIndicator';
 
 interface HeaderProps {
   searchQuery?: string;
@@ -78,12 +80,12 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [isDropdownOpen]);
 
-  // Filter daftar pengajuan berdasarkan wilayah tugas staf jika bukan owner
+  // Filter daftar pengajuan berdasarkan staf yang ditugaskan jika bukan owner
   const effectivePengajuanList = useMemo(() => {
-    if (isOwner || !currentStaff?.konsjenTugas || currentStaff.konsjenTugas.length === 0) {
+    if (isOwner || !currentStaff) {
       return pengajuanList;
     }
-    return pengajuanList.filter((p) => currentStaff.konsjenTugas.includes(p.konsjen));
+    return pengajuanList.filter((p) => isApplicantAssignedToStaff(p, currentStaff));
   }, [pengajuanList, isOwner, currentStaff]);
 
   // Generate daftar notifikasi aktif
@@ -266,11 +268,11 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Spacer Tengah */}
       <div style={{ flex: 1 }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div className="header-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         {/* Action Button: Input Pemohon Baru (Hanya tampil di Dashboard & Pengajuan) */}
         {(activeTab === 'dashboard' || activeTab === 'pengajuan') && (
           <button
-            className="btn btn-primary"
+            className="btn btn-primary header-new-btn"
             onClick={onOpenNewPengajuan}
             title="Buka form input data pemohon visa baru"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
@@ -278,14 +280,19 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
               person_add
             </span>
-            <span className="header-new-btn-text">Input Pemohon Baru</span>
+            <span className="header-new-btn-text header-desktop-text">Input Pemohon Baru</span>
+            <span className="header-new-btn-text header-mobile-text">+ Pemohon</span>
           </button>
         )}
+
+        {/* Indikator Live WA Gateway & Antrean Outbox */}
+        <WAGatewayIndicator />
 
         {/* Notifications (Pojok Kanan) */}
         <div ref={dropdownRef} style={{ position: 'relative' }}>
           <button
             type="button"
+            className="header-notif-btn"
             onClick={() => setIsDropdownOpen((prev) => !prev)}
             style={{
               position: 'relative',

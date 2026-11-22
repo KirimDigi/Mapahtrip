@@ -15,7 +15,9 @@ export type StaffName =
   | 'Yulia'
   | 'Heru'
   | 'Latifah'
-  | 'Ulla';
+  | 'Ulla'
+  | 'Admin'
+  | 'Admin (Owner)';
 
 export type PaketVisa = 'Reguler' | 'Premium' | 'TAC';
 
@@ -57,12 +59,14 @@ export interface Pengajuan {
   alasanPenolakan?: string;
   fotoBase64?: string;
   fotoSizeKB?: number;
-  uploadedDocs?: Record<string, { name: string; base64: string; sizeKB?: number }>;
+  fotoUrl?: string;
+  uploadedDocs?: Record<string, { name: string; base64: string; sizeKB?: number; url?: string }>;
   statusPembayaran?: 'Lunas' | 'Menunggu Pembayaran';
   metodePembayaran?: string;
   tglBayarPemohon?: string;
   buktiBayarPemohon?: string;
   buktiBayarNama?: string;
+  buktiBayarUrl?: string;
   accessKey?: string;
   payoutStatus?: 'Belum Ditransfer' | 'Berhasil Ditransfer';
   payoutTanggal?: string;
@@ -70,6 +74,13 @@ export interface Pengajuan {
   payoutBuktiUrl?: string;
   payoutBy?: string;
   payoutCatatan?: string;
+  staffFee?: number;
+  staffPayoutStatus?: 'Belum Ditransfer' | 'Berhasil Ditransfer';
+  staffPayoutTanggal?: string;
+  staffPayoutNoRef?: string;
+  staffPayoutBuktiUrl?: string;
+  staffPayoutBy?: string;
+  staffPayoutCatatan?: string;
 }
 
 export interface AffiliatePayout {
@@ -82,6 +93,28 @@ export interface AffiliatePayout {
   mitraBank: string;
   mitraRekening: string;
   mitraAtasNama: string;
+  nominal: number;
+  tanggalTransfer: string;
+  waktuTransfer: string;
+  noRef: string;
+  buktiTransferUrl?: string;
+  catatanOwner?: string;
+  status: 'Berhasil Ditransfer';
+  transferredBy: string;
+}
+
+export interface StaffPayoutRecord {
+  id: string;
+  pengajuanId: string;
+  noPengajuan: string;
+  namaPemohon: string;
+  programVisa: string;
+  staffNama: string;
+  staffRole?: string;
+  staffBank: string;
+  staffRekening: string;
+  staffAtasNama: string;
+  staffNoWa?: string;
   nominal: number;
   tanggalTransfer: string;
   waktuTransfer: string;
@@ -116,6 +149,10 @@ export interface StaffMaster {
   role: string;
   avatarUrl?: string;
   aktif: boolean;
+  bankName?: string;
+  noRekening?: string;
+  atasNamaRekening?: string;
+  defaultFeePerPaspor?: number;
 }
 
 export interface AffiliateMaster {

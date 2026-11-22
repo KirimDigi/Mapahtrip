@@ -2,9 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Pengajuan, AffiliateUser, StatusPengajuan } from '../types';
 import logoPutih from '../assets/mapahtrip_logo_putih.png';
 import { handleImageFallback, getLogoPutihFallbacks } from '../utils/imageFallbacks';
-import { REAL_AFFILIATE_LEADERBOARD } from '../data/affiliateLeaderboardData';
+import { REAL_AFFILIATE_LEADERBOARD, type RealAffiliateItem } from '../data/affiliateLeaderboardData';
 import {
-  supabase,
   registerMitraInDB,
   loginMitraFromDB,
   updateMitraProfileInDB,
@@ -362,7 +361,7 @@ export const DEMO_APPLICANTS: Pengajuan[] = [
     staffPic: 'Nanami Kay',
     program: 'Tokutei Ginou (Pertanian)',
     paket: 'Reguler',
-    tglBerkasMasuk: '',
+    tglBerkasMasuk: '2026-11-05',
     tglApply: '',
     tglEstimasiSelesai: '2026-11-15',
     status: 'Menunggu Verifikasi',
@@ -388,7 +387,6 @@ export const DEMO_APPLICANTS: Pengajuan[] = [
 export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   pengajuanList,
   onSwitchMode,
-  onUpdateBerkas,
 }) => {
   // Sinkronisasi lokal saat ada pemohon mendaftar dari tab lain
   const [localVersion, setLocalVersion] = useState(0);
@@ -471,6 +469,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regAgree, setRegAgree] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsModalRedirectToForm, setTermsModalRedirectToForm] = useState(false);
   const [showTermsInline, setShowTermsInline] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
@@ -608,9 +607,107 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
   const [copiedLeaderboardCode, setCopiedLeaderboardCode] = useState<string | null>(null);
 
+  // Dynamic Live Leaderboard yang tersinkron otomatis 100% dengan database pemohon & Owner Dashboard
+  const liveLeaderboard = useMemo<RealAffiliateItem[]>(() => {
+    const map = new Map<string, RealAffiliateItem>();
+
+    // 1. Muat baseline mitra terdaftar dari data master
+    REAL_AFFILIATE_LEADERBOARD.forEach((item) => {
+      const code = item.code.trim().toUpperCase();
+      map.set(code, { ...item });
+    });
+
+    // 2. Muat pendaftaran mitra baru dari localStorage jika ada
+    try {
+      const localStr = localStorage.getItem('mapahtrip_all_affiliates');
+      if (localStr) {
+        const localList: AffiliateUser[] = JSON.parse(localStr);
+        localList.forEach((u) => {
+          const code = (u.affiliateCode || '').trim().toUpperCase();
+          if (code && !map.has(code)) {
+            const isLPK = (u.lembaga || u.nama || '').toLowerCase().includes('lpk');
+            map.set(code, {
+              rank: 999,
+              code,
+              nama: u.lembaga || u.nama || 'Mitra MapahTrip',
+              nominal: 0,
+              totalVisaApproved: 0,
+              kategori: isLPK ? 'LPK' : 'Individu',
+              isStaff: false,
+              statusBadge: isLPK ? 'Mitra LPK' : 'Mitra Baru',
+            });
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Agregasi data pemohon riil dari pengajuanList (sama persis dengan Dashboard Owner)
+    const countMap = new Map<string, { count: number; nominal: number }>();
+    if (pengajuanList && pengajuanList.length > 0) {
+      pengajuanList.forEach((p) => {
+        const code = (p.affiliateCode || '').trim().toUpperCase();
+        if (code && code !== 'MAPAHTRIP') {
+          const cur = countMap.get(code) || { count: 0, nominal: 0 };
+          const fee = p.referralFee !== undefined && p.referralFee !== null && p.referralFee > 0
+            ? Number(p.referralFee)
+            : 100000;
+          countMap.set(code, {
+            count: cur.count + 1,
+            nominal: cur.nominal + fee,
+          });
+        }
+      });
+    }
+
+    // 4. Update data statistik per mitra
+    const result: RealAffiliateItem[] = [];
+    map.forEach((item) => {
+      if (item.isStaff || item.kategori === 'Staff' || (item.nama && item.nama.toLowerCase().includes('owner'))) {
+        return;
+      }
+      const stats = countMap.get(item.code);
+      if (stats && stats.count > 0) {
+        item.totalVisaApproved = stats.count;
+        item.nominal = stats.nominal;
+      }
+      result.push(item);
+    });
+
+    // 5. Urutkan dari nominal komisi tertinggi & jumlah pemohon terbanyak
+    result.sort((a, b) => {
+      if (b.nominal !== a.nominal) {
+        return b.nominal - a.nominal;
+      }
+      return b.totalVisaApproved - a.totalVisaApproved;
+    });
+
+    // 6. Tetapkan peringkat 1, 2, 3 dan badge
+    return result.map((item, index) => {
+      const rank = index + 1;
+      let badge = item.statusBadge;
+      if (rank === 1) badge = 'Top Earner #1 👑';
+      else if (rank === 2) badge = 'Top Earner #2 🥈';
+      else if (rank === 3) badge = 'Top Earner #3 🥉';
+      else if (item.kategori === 'LPK') badge = 'Mitra LPK Unggulan';
+      else if (item.totalVisaApproved > 0) badge = 'Mitra Aktif';
+
+      return {
+        ...item,
+        rank,
+        statusBadge: badge,
+      };
+    });
+  }, [pengajuanList]);
+
+  const top1 = liveLeaderboard[0];
+  const top2 = liveLeaderboard[1];
+  const top3 = liveLeaderboard[2];
+
   // Filtered Leaderboard Data Real (Murni Mitra Luar Berprestasi)
   const filteredLeaderboard = useMemo(() => {
-    return REAL_AFFILIATE_LEADERBOARD.filter((item) => {
+    return liveLeaderboard.filter((item) => {
       // 1. Staff MapahTrip internal kantor selalu disembunyikan 100% dari leaderboard mitra
       if (item.isStaff || item.kategori === 'Staff') return false;
 
@@ -632,96 +729,43 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       }
       return true;
     });
-  }, [leaderboardFilter, leaderboardSearch]);
+  }, [liveLeaderboard, leaderboardFilter, leaderboardSearch]);
 
   // Format Rupiah Helper
   const formatRupiah = (val: number) => {
     return 'Rp ' + val.toLocaleString('id-ID');
   };
 
-
-  // State override ceklis berkas interaktif secara realtime (0ms lag)
-  const [localBerkasOverrides, setLocalBerkasOverrides] = useState<Record<string, Partial<Pengajuan['berkas']>>>({});
-
-  const getCandidateBerkas = (item: Pengajuan) => {
-    const overrides = localBerkasOverrides[item.id] || {};
-    return {
-      formVisa: overrides.formVisa !== undefined ? overrides.formVisa : Boolean(item.berkas?.formVisa),
-      ktp: overrides.ktp !== undefined ? overrides.ktp : Boolean(item.berkas?.ktp),
-      ektln: overrides.ektln !== undefined ? overrides.ektln : Boolean(item.berkas?.ektln),
-      coe: overrides.coe !== undefined ? overrides.coe : Boolean(item.berkas?.coe),
-      foto: overrides.foto !== undefined ? overrides.foto : Boolean(item.berkas?.foto),
-    };
+  const formatTanggalIndo = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parts[0];
+        const monthIdx = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        if (monthIdx >= 0 && monthIdx < 12) {
+          return `${day} ${months[monthIdx]} ${year}`;
+        }
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
   };
 
-  // Handler interaktif untuk ceklis berkas mandiri (FORM, KTP, KTLN, COE, FOTO)
-  const handleToggleBerkas = (
-    item: Pengajuan,
-    key: 'formVisa' | 'ktp' | 'ektln' | 'coe' | 'foto'
-  ) => {
-    const currentStatus = getCandidateBerkas(item);
-    const newVal = !currentStatus[key];
-
-    // 1. Simpan ke local state override instan
-    setLocalBerkasOverrides((prev) => ({
-      ...prev,
-      [item.id]: {
-        ...(prev[item.id] || item.berkas || {}),
-        [key]: newVal,
-      },
-    }));
-
-    // 2. Beritahu App.tsx state
-    if (onUpdateBerkas) {
-      onUpdateBerkas(item.id, key, newVal);
-    }
-
-    // 3. Simpan permanen ke localStorage
-    try {
-      const raw = localStorage.getItem('mapahtrip_local_registrations');
-      if (raw) {
-        const localList: Pengajuan[] = JSON.parse(raw);
-        const updated = localList.map((p) =>
-          p.id === item.id ? { ...p, berkas: { ...p.berkas, [key]: newVal } } : p
-        );
-        localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(updated));
-      }
-    } catch {}
-
-    // 4. Update modal detail jika aktif
-    if (selectedKandidat && selectedKandidat.id === item.id) {
-      setSelectedKandidat((prev) =>
-        prev
-          ? {
-              ...prev,
-              berkas: { ...prev.berkas, [key]: newVal },
-            }
-          : null
-      );
-    }
-
-    // 5. Sinkronisasi ke Supabase
-    try {
-      const dbColMap: Record<string, string> = {
-        formVisa: 'form_visa',
-        ktp: 'ktp',
-        ektln: 'ektln',
-        coe: 'coe',
-        foto: 'foto',
-      };
-      const col = dbColMap[key];
-      const numId = Number(item.id);
-      if (col && !isNaN(numId)) {
-        supabase
-          .from('pengajuan_visa')
-          .update({ [col]: newVal, updated_at: new Date().toISOString() })
-          .eq('id', numId)
-          .then();
-      }
-    } catch (err) {
-      console.warn('Sync toggle note:', err);
-    }
+  // Mask Passport Helper untuk privasi mitra
+  const getMaskedPaspor = (paspor?: string, masked?: string) => {
+    if (masked && (masked.includes('•') || masked.includes('*'))) return masked;
+    if (!paspor) return '••••••••';
+    const clean = paspor.trim();
+    if (clean.length <= 4) return clean.substring(0, 1) + '••••';
+    return `${clean.substring(0, 2)}••••••${clean.slice(-1)}`;
   };
+
+
+
 
   // State override tahapan pengajuan (Sampai, Proses, Selesai, Kirim) secara realtime
   const [localStageOverrides] = useState<
@@ -755,7 +799,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
   const getCandidateStages = (item: Pengajuan) => {
     const ov = localStageOverrides[item.id] || {};
-    const tglSampai = ov.tglSampai !== undefined ? ov.tglSampai : (item.tglBerkasMasuk || '');
+    // Jika paspor fisik belum ada dan belum ada override staf, tahap Sampai belum diceklis
+    const defaultSampai = item.berkas && item.berkas.pasporFisik === false ? '' : (item.tglBerkasMasuk || '');
+    const tglSampai = ov.tglSampai !== undefined ? ov.tglSampai : defaultSampai;
     const tglProses = ov.tglProses !== undefined ? ov.tglProses : (item.tglApply || '');
     const tglSelesai = ov.tglSelesai !== undefined ? ov.tglSelesai : (item.tglSelesai || '');
     const tglKirim = ov.tglKirim !== undefined ? ov.tglKirim : (item.tglKirim || '');
@@ -1334,10 +1380,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
       const catatan = (p.catatan || '').toLowerCase();
       return (
         resi.includes('soetta') ||
+        resi.includes('soehatta') ||
+        resi.includes('soekarno') ||
         resi.includes('bandara') ||
         resi.includes('handover') ||
         catatan.includes('flight') ||
         catatan.includes('soetta') ||
+        catatan.includes('soehatta') ||
         catatan.includes('bandara')
       );
     });
@@ -2387,6 +2436,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 onClick={() => {
                   setRegAgree(true);
                   setShowTermsModal(false);
+                  if (termsModalRedirectToForm) {
+                    setTermsModalRedirectToForm(false);
+                    setOnboardingView('form');
+                  }
                 }}
                 style={{
                   backgroundColor: '#10B981',
@@ -2404,6 +2457,9 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 }}
               >
                 <span>✓ Saya Mengerti &amp; Setuju</span>
+                {termsModalRedirectToForm && (
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_forward</span>
+                )}
               </button>
             </div>
           </div>
@@ -4211,7 +4267,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
+                  justifyContent: 'space-between',
                   padding: '10px 12px',
                   borderRadius: '10px',
                   border: portalTab === 'mpc' ? '1px solid #BBF7D0' : 'none',
@@ -4224,8 +4280,30 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px', color: portalTab === 'mpc' ? '#10B981' : 'inherit' }}>groups</span>
-                <span>Partner Club (MPC)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: portalTab === 'mpc' ? '#10B981' : 'inherit' }}>groups</span>
+                  <span>Partner Club (MPC)</span>
+                </div>
+                {!currentUser?.isProfileComplete && (
+                  <span
+                    style={{
+                      backgroundColor: '#FEF3C7',
+                      color: '#B45309',
+                      border: '1px solid #FDE68A',
+                      fontSize: '0.66rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      letterSpacing: '0.3px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}
+                  >
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#F59E0B', display: 'inline-block' }} />
+                    Daftar
+                  </span>
+                )}
               </button>
             </div>
 
@@ -4429,6 +4507,86 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           )}
           {portalTab === 'dasbor' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
+              {/* Alert Peringatan untuk Akun yang Belum Menyelesaikan Pendaftaran Kemitraan MPC */}
+              {!currentUser?.isProfileComplete && (
+                <div
+                  style={{
+                    backgroundColor: '#FFFBEB',
+                    border: '1.5px solid #FCD34D',
+                    borderRadius: '16px',
+                    padding: '16px 20px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    flexWrap: 'wrap',
+                    boxShadow: '0 4px 14px rgba(245, 158, 11, 0.12)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: '1 1 320px' }}>
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        backgroundColor: '#FEF3C7',
+                        color: '#B45309',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
+                        how_to_reg
+                      </span>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#92400E', fontSize: '0.94rem', marginBottom: '2px' }}>
+                        Pendaftaran Kemitraan MPC Belum Selesai
+                      </div>
+                      <p style={{ margin: 0, color: '#B45309', fontSize: '0.82rem', lineHeight: 1.45 }}>
+                        Lengkapi profil kemitraan Anda untuk mendapatkan <strong>Kode Referral Resmi</strong> dan mulai terima komisi <strong>Rp 100.000 / visa terbit</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPortalTab('mpc');
+                      setPartnerSubTab('informasi');
+                      setTermsModalRedirectToForm(true);
+                      setShowTermsModal(true);
+                    }}
+                    style={{
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '10px',
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 3px 10px rgba(16, 185, 129, 0.35)',
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+                  >
+                    <span>Lengkapi Pendaftaran</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      arrow_forward
+                    </span>
+                  </button>
+                </div>
+              )}
+
         {/* Banner Welcome & Search */}
         <div
           className="portal-welcome-banner"
@@ -4927,7 +5085,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               }}
             >
               <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.80rem' }}>
+                <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.80rem' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#F8FAFC', color: '#64748B', fontWeight: 700 }}>
                       <th
@@ -4936,42 +5094,65 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           left: 0,
                           zIndex: 3,
                           backgroundColor: '#F8FAFC',
-                          padding: '12px 14px',
+                          padding: '12px 8px',
                           whiteSpace: 'nowrap',
-                          width: '85px',
-                          minWidth: '85px',
+                          width: '46px',
+                          minWidth: '46px',
+                          textAlign: 'center',
                           borderBottom: '2px solid #CBD5E1',
                           borderRight: '1px solid #E2E8F0',
                           boxShadow: '2px 0 5px rgba(0,0,0,0.03)',
                         }}
                       >
-                        No. &amp; ID
+                        No.
                       </th>
-                      <th style={{ padding: '12px 10px', minWidth: '130px', borderBottom: '2px solid #CBD5E1' }}>Nama Pemohon / Kandidat</th>
-                      <th style={{ padding: '12px 8px', whiteSpace: 'nowrap', width: '90px', borderBottom: '2px solid #CBD5E1' }}>No. Paspor</th>
-                      <th style={{ padding: '12px 8px', whiteSpace: 'nowrap', width: '100px', borderBottom: '2px solid #CBD5E1' }}>Program Visa</th>
-                      <th style={{ padding: '8px 8px', textAlign: 'center', width: '350px', minWidth: '350px', borderBottom: '2px solid #CBD5E1' }}>
+                      <th style={{ padding: '12px 12px', minWidth: '190px', borderBottom: '2px solid #CBD5E1' }}>
+                        Pemohon &amp; Identitas
+                      </th>
+                      <th style={{ padding: '12px 10px', whiteSpace: 'nowrap', minWidth: '130px', borderBottom: '2px solid #CBD5E1' }}>
+                        Program Visa
+                      </th>
+                      <th style={{ padding: '12px 10px', whiteSpace: 'nowrap', minWidth: '110px', borderBottom: '2px solid #CBD5E1' }}>
+                        Tanggal Masuk
+                      </th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', width: '34%', minWidth: '300px', borderBottom: '2px solid #CBD5E1' }}>
                         <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: '4px', fontSize: '0.80rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                           <span>Status Pengajuan</span>
-                          <span style={{ fontSize: '0.68rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          <span style={{ fontSize: '0.66rem', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
                             🔒 Dikelola Tim Staf
                           </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '0.68rem', color: '#475569', fontWeight: 700, width: '100%', minWidth: '340px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', fontSize: '0.68rem', color: '#475569', fontWeight: 700, width: '100%' }}>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Sampai</span>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Proses</span>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Selesai</span>
                           <span style={{ backgroundColor: '#F1F5F9', padding: '2px 2px', borderRadius: '4px' }}>Kirim</span>
                         </div>
                       </th>
-                      <th style={{ padding: '12px 10px', minWidth: '120px', borderBottom: '2px solid #CBD5E1' }}>Resi / Pengiriman</th>
-                      <th style={{ padding: '12px 10px', textAlign: 'center', whiteSpace: 'nowrap', width: '75px', borderBottom: '2px solid #CBD5E1' }}>Aksi</th>
+                      <th
+                        style={{
+                          position: 'sticky',
+                          right: 0,
+                          zIndex: 3,
+                          backgroundColor: '#F8FAFC',
+                          padding: '12px 10px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap',
+                          width: '85px',
+                          minWidth: '85px',
+                          borderBottom: '2px solid #CBD5E1',
+                          borderLeft: '1px solid #E2E8F0',
+                          boxShadow: '-3px 0 6px rgba(0,0,0,0.03)',
+                        }}
+                      >
+                        Aksi
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredList.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                        <td colSpan={6} style={{ padding: '48px 20px', textAlign: 'center' }}>
                           <div style={{ maxWidth: '460px', margin: '0 auto' }}>
                             <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
                               <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>group_add</span>
@@ -5027,14 +5208,18 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             e.currentTarget.style.backgroundColor = '#F8FAFC';
                             const firstCell = e.currentTarget.querySelector('.sticky-col-id') as HTMLElement;
                             if (firstCell) firstCell.style.backgroundColor = '#F8FAFC';
+                            const actionCell = e.currentTarget.querySelector('.sticky-col-action') as HTMLElement;
+                            if (actionCell) actionCell.style.backgroundColor = '#F8FAFC';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = '#FFFFFF';
                             const firstCell = e.currentTarget.querySelector('.sticky-col-id') as HTMLElement;
                             if (firstCell) firstCell.style.backgroundColor = '#FFFFFF';
+                            const actionCell = e.currentTarget.querySelector('.sticky-col-action') as HTMLElement;
+                            if (actionCell) actionCell.style.backgroundColor = '#FFFFFF';
                           }}
                         >
-                          {/* ID (Sticky Left) */}
+                          {/* No. (Sticky Left) */}
                           <td
                             className="sticky-col-id"
                             style={{
@@ -5042,39 +5227,91 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                               left: 0,
                               zIndex: 2,
                               backgroundColor: '#FFFFFF',
-                              padding: '10px 14px',
+                              padding: '10px 8px',
+                              textAlign: 'center',
                               color: '#64748B',
-                              fontWeight: 600,
-                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              fontSize: '0.80rem',
                               borderBottom: '1px solid #F1F5F9',
                               borderRight: '1px solid #E2E8F0',
                               boxShadow: '2px 0 5px rgba(0,0,0,0.03)',
                             }}
                           >
-                            <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>{item.noPengajuan}</div>
-                            <div style={{ fontSize: '0.70rem', color: '#94A3B8' }}>#{idx + 1}</div>
+                            #{idx + 1}
                           </td>
 
-                          {/* Nama */}
-                          <td style={{ padding: '10px 8px' }}>
-                            <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.82rem' }}>{item.namaPemohon}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                              WA: {item.noTelp || '-'}
+                          {/* Pemohon & Identitas (Nama, Paspor • ID, No. Telp) */}
+                          <td style={{ padding: '8px 12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                              <div
+                                style={{
+                                  width: '34px',
+                                  height: '34px',
+                                  borderRadius: '8px',
+                                  backgroundColor: '#EFF6FF',
+                                  color: '#1D4ED8',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 800,
+                                  fontSize: '0.78rem',
+                                  flexShrink: 0,
+                                  border: '1px solid #DBEAFE',
+                                }}
+                              >
+                                {item.namaPemohon ? item.namaPemohon.substring(0, 2).toUpperCase() : 'KD'}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.namaPemohon}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: '#64748B', display: 'flex', gap: '5px', alignItems: 'center', marginTop: '1px' }}>
+                                  <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#334155' }}>
+                                    {getMaskedPaspor(item.noPaspor, item.maskedPaspor)}
+                                  </span>
+                                  <span>•</span>
+                                  <span style={{ fontWeight: 600, color: '#64748B' }}>{item.noPengajuan}</span>
+                                </div>
+                                <div style={{ fontSize: '0.70rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '1px' }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#16A34A' }}>chat</span>
+                                  <span>{item.noTelp || '-'}</span>
+                                </div>
+                              </div>
                             </div>
                           </td>
 
-                          {/* Paspor */}
-                          <td style={{ padding: '10px 8px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                            {item.noPaspor}
+                          {/* Program */}
+                          <td style={{ padding: '10px 10px' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                backgroundColor: '#EFF6FF',
+                                color: '#1E40AF',
+                                border: '1px solid #DBEAFE',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>badge</span>
+                              <span>{item.program}</span>
+                            </span>
                           </td>
 
-                          {/* Program */}
-                          <td style={{ padding: '10px 8px' }}>
-                            <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#EFF6FF', color: '#1E40AF', whiteSpace: 'nowrap' }}>{item.program}</span>
+                          {/* Tanggal Masuk */}
+                          <td style={{ padding: '10px 10px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: '#334155', fontWeight: 600 }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748B' }}>calendar_today</span>
+                              <span>{formatTanggalIndo(item.tglBerkasMasuk || item.tglApply || '2026-11-05')}</span>
+                            </div>
                           </td>
 
                           {/* Status Pengajuan 4 Tahapan Ceklis: Sampai | Proses | Selesai | Kirim */}
-                          <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                             {(() => {
                               const st = getCandidateStages(item);
                               const stageItems = [
@@ -5084,7 +5321,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                 { key: 'kirim' as const, label: 'Kirim', ok: st.isKirim, date: st.tglKirim, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
                               ];
                               return (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', width: '100%', minWidth: '340px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', width: '100%' }}>
                                   {stageItems.map((s) => (
                                     <div
                                       key={s.key}
@@ -5096,10 +5333,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                         backgroundColor: s.ok ? s.bg : '#F8FAFC',
                                         border: `1px solid ${s.ok ? s.border : '#E2E8F0'}`,
                                         borderRadius: '7px',
-                                        padding: '5px 2px',
+                                        padding: '5px 3px',
                                         transition: 'all 0.15s ease',
                                         boxSizing: 'border-box',
-                                        minWidth: '80px',
+                                        minWidth: '50px',
                                       }}
                                     >
                                       <div
@@ -5111,7 +5348,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                           alignItems: 'center',
                                           justifyContent: 'center',
                                           gap: '3px',
-                                          fontSize: '0.72rem',
+                                          fontSize: '0.70rem',
                                           fontWeight: 800,
                                           color: s.ok ? s.color : '#94A3B8',
                                           whiteSpace: 'nowrap',
@@ -5119,7 +5356,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                           userSelect: 'none',
                                         }}
                                       >
-                                        {s.ok && <span style={{ fontSize: '0.74rem', fontWeight: 900 }}>✓</span>}
+                                        {s.ok && <span style={{ fontSize: '0.72rem', fontWeight: 900 }}>✓</span>}
                                         <span>{s.label}</span>
                                       </div>
                                       <span
@@ -5129,7 +5366,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                                           color: s.ok ? s.color : '#CBD5E1',
                                           fontWeight: s.ok ? 700 : 500,
                                           lineHeight: 1.2,
-                                          marginTop: '3px',
+                                          marginTop: '2px',
                                           whiteSpace: 'nowrap',
                                           wordBreak: 'keep-all',
                                           letterSpacing: '-0.3px',
@@ -5145,50 +5382,22 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             })()}
                           </td>
 
-                          {/* Resi / Pengiriman */}
-                          <td style={{ padding: '10px 8px' }}>
-                            {(() => {
-                              const st = getCandidateStages(item);
-                              const finalResi = (st.isKirim && st.noResi) ? st.noResi : item.noResi;
-                              if (finalResi) {
-                                const lower = finalResi.toLowerCase();
-                                const isAirport = lower.includes('soetta') || lower.includes('bandara') || lower.includes('flight') || lower.includes('handover');
-                                const isOffice = lower.includes('kantor') || lower.includes('langsung');
-
-                                const iconName = isAirport ? 'flight_takeoff' : isOffice ? 'storefront' : 'local_shipping';
-                                const bg = isAirport ? '#EFF6FF' : isOffice ? '#F0FDF4' : '#F3E8FF';
-                                const color = isAirport ? '#1D4ED8' : isOffice ? '#15803D' : '#6B21A8';
-                                const border = isAirport ? '#BFDBFE' : isOffice ? '#BBF7D0' : '#E9D5FF';
-
-                                return (
-                                  <div>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', fontSize: '0.73rem', fontWeight: 700, backgroundColor: bg, color: color, border: `1px solid ${border}` }}>
-                                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{iconName}</span>
-                                      <span>{finalResi}</span>
-                                    </span>
-                                    {st.tglKirim && (
-                                      <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '2px' }}>
-                                        Tgl: {st.tglKirim}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div style={{ color: '#94A3B8', fontSize: '0.74rem' }}>
-                                  <span>-</span>
-                                </div>
-                              );
-                            })()}
-                            {item.catatan && (
-                              <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '2px' }}>
-                                {item.catatan}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Action Button */}
-                          <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {/* Action Button (Sticky Right agar langsung nampil utuh tanpa kepotong) */}
+                          <td
+                            className="sticky-col-action"
+                            style={{
+                              position: 'sticky',
+                              right: 0,
+                              zIndex: 2,
+                              backgroundColor: '#FFFFFF',
+                              padding: '8px 10px',
+                              textAlign: 'center',
+                              whiteSpace: 'nowrap',
+                              borderBottom: '1px solid #F1F5F9',
+                              borderLeft: '1px solid #E2E8F0',
+                              boxShadow: '-3px 0 6px rgba(0,0,0,0.03)',
+                            }}
+                          >
                             <button
                               type="button"
                               onClick={() => setSelectedKandidat(item)}
@@ -5286,7 +5495,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                           {item.namaPemohon}
                         </div>
                         <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '3px' }}>
-                          Paspor: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{item.noPaspor}</strong>
+                          Paspor: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>🔒 {getMaskedPaspor(item.noPaspor, item.maskedPaspor)}</strong>
                           {item.noTelp && ` • WA: ${item.noTelp}`}
                         </div>
                       </div>
@@ -5319,8 +5528,8 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                         <div>
                           {item.noResi ? (() => {
                             const lower = item.noResi.toLowerCase();
-                            const isAirport = lower.includes('soetta') || lower.includes('bandara') || lower.includes('flight') || lower.includes('handover');
-                            const isOffice = lower.includes('kantor') || lower.includes('langsung');
+                            const isAirport = lower.includes('soetta') || lower.includes('soehatta') || lower.includes('soekarno') || lower.includes('bandara') || lower.includes('flight') || lower.includes('handover');
+                            const isOffice = lower.includes('kantor') || lower.includes('langsung') || lower.includes('diambil');
                             const iconEmoji = isAirport ? '✈️' : isOffice ? '🏢' : '🚚';
                             const bg = isAirport ? '#EFF6FF' : isOffice ? '#F0FDF4' : '#F3E8FF';
                             const color = isAirport ? '#1D4ED8' : isOffice ? '#15803D' : '#6B21A8';
@@ -5404,7 +5613,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 700 }}>{item.program}</span>
                     </div>
                     <div style={{ fontSize: '0.82rem', color: '#475569', marginBottom: '6px' }}>
-                      Paspor: <strong>{item.noPaspor}</strong> • WA: {item.noTelp}
+                      Paspor: <strong>🔒 {getMaskedPaspor(item.noPaspor, item.maskedPaspor)}</strong> • WA: {item.noTelp}
                     </div>
                     {(() => {
                       const itemResi = localStageOverrides[item.id]?.noResi || item.noResi;
@@ -5678,32 +5887,67 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowTermsModal(true)}
-                    className="mpc-terms-btn"
-                    style={{
-                      backgroundColor: '#F1F5F9',
-                      color: '#0F172A',
-                      border: '1px solid #CBD5E1',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E2E8F0')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#475569' }}>
-                      description
-                    </span>
-                    <span>Syarat dan Ketentuan</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    {!currentUser?.isProfileComplete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTermsModalRedirectToForm(true);
+                          setShowTermsModal(true);
+                        }}
+                        className="mpc-register-now-btn"
+                        style={{
+                          backgroundColor: '#10B981',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          padding: '10px 22px',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10B981')}
+                      >
+                        <span>Daftar Sekarang</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                          arrow_forward
+                        </span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="mpc-terms-btn"
+                      style={{
+                        backgroundColor: '#F1F5F9',
+                        color: '#0F172A',
+                        border: '1px solid #CBD5E1',
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E2E8F0')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#475569' }}>
+                        description
+                      </span>
+                      <span>Syarat dan Ketentuan</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Banner Motivasi Leaderboard Penghasilan Nyata Mitra */}
@@ -5786,45 +6030,6 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     <span>Buka Peringkat Mitra</span>
                   </button>
                 </div>
-
-                {/* Tombol Hijau: Daftar Sekarang (Hanya muncul jika mitra belum menyelesaikan pendaftaran profil MPC) */}
-                {!currentUser?.isProfileComplete && (
-                  <div style={{ marginTop: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setOnboardingView('form')}
-                      className="mpc-register-now-btn"
-                      style={{
-                        backgroundColor: '#10B981',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        padding: '14px 28px',
-                        borderRadius: '12px',
-                        fontSize: '0.95rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#059669';
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#10B981';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }}
-                    >
-                      <span>Daftar Sekarang</span>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                        open_in_new
-                      </span>
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
@@ -7040,7 +7245,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
 
                   <div className="mpc-sync-badge" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', backgroundColor: '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', color: '#334155' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0284C7' }}>verified</span>
-                    <span>Tersinkron: <strong>60 Mitra Terdaftar</strong> &bull; <strong>Top 10 Ditampilkan</strong></span>
+                    <span>Tersinkron: <strong>{liveLeaderboard.length} Mitra Terdaftar</strong> &bull; <strong>Top 10 Ditampilkan</strong></span>
                   </div>
                 </div>
 
@@ -7054,7 +7259,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                     marginBottom: '20px',
                   }}
                 >
-                  {/* Juara 2: Derryl (Perak) */}
+                  {/* Juara 2: Perak */}
                   <div
                     className="podium-card podium-card-2"
                     style={{
@@ -7071,23 +7276,23 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       🥈 JUARA 2
                     </div>
                     <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#F8FAFC', color: '#475569', margin: '6px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.15rem', border: '2px solid #CBD5E1' }}>
-                      D
+                      {(top2?.nama || 'M').charAt(0).toUpperCase()}
                     </div>
                     <h3 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: '#0F172A' }}>
-                      Derryl
+                      {top2?.nama || 'Mitra Berprestasi'}
                     </h3>
                     <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace', marginBottom: '8px' }}>
-                      KODE: <strong>{currentUser?.affiliateCode === 'MPH555DE' ? 'MPH555DE' : 'MPH555***'}</strong>
+                      KODE: <strong>{currentUser?.affiliateCode === top2?.code ? top2.code : (top2?.code ? `${top2.code.slice(0, 5)}***` : 'MPH***')}</strong>
                     </div>
                     <div className="podium-nominal" style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
-                      Rp 600.000
+                      {formatRupiah(top2?.nominal || 0)}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, backgroundColor: '#F8FAFC', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                      ✓ 6 Visa Berhasil Terbit
+                      ✓ {top2?.totalVisaApproved || 0} Visa Berhasil Terbit
                     </div>
                   </div>
 
-                  {/* Juara 1: Rizky Muhammad E (Emas / Top Earner) */}
+                  {/* Juara 1: Emas / Top Earner */}
                   <div
                     className="podium-card podium-card-1"
                     style={{
@@ -7105,23 +7310,23 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       <span>JUARA 1 &bull; TOP EARNER</span>
                     </div>
                     <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#EFF6FF', color: '#005BB5', margin: '6px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.3rem', border: '2.5px solid #005BB5' }}>
-                      R
+                      {(top1?.nama || 'M').charAt(0).toUpperCase()}
                     </div>
                     <h3 style={{ margin: '0 0 2px', fontSize: '1.08rem', fontWeight: 900, color: '#0F172A' }}>
-                      Rizky Muhammad E
+                      {top1?.nama || 'Mitra Berprestasi'}
                     </h3>
                     <div style={{ fontSize: '0.74rem', color: '#005BB5', fontFamily: 'monospace', fontWeight: 700, marginBottom: '8px' }}>
-                      KODE: <strong>{currentUser?.affiliateCode === 'MPH458RI' ? 'MPH458RI' : 'MPH458***'}</strong>
+                      KODE: <strong>{currentUser?.affiliateCode === top1?.code ? top1.code : (top1?.code ? `${top1.code.slice(0, 5)}***` : 'MPH***')}</strong>
                     </div>
                     <div className="podium-nominal" style={{ fontSize: '1.65rem', fontWeight: 900, color: '#005BB5', margin: '4px 0' }}>
-                      Rp 1.300.000
+                      {formatRupiah(top1?.nominal || 0)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#005BB5', fontWeight: 800, backgroundColor: '#EFF6FF', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
-                      ✨ 13 Visa Berhasil Terbit
+                      ✨ {top1?.totalVisaApproved || 0} Visa Berhasil Terbit
                     </div>
                   </div>
 
-                  {/* Juara 3: Albert Lazuardy (Perunggu) */}
+                  {/* Juara 3: Perunggu */}
                   <div
                     className="podium-card podium-card-3"
                     style={{
@@ -7138,19 +7343,19 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       🥉 JUARA 3
                     </div>
                     <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#F8FAFC', color: '#64748B', margin: '6px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.15rem', border: '2px solid #CBD5E1' }}>
-                      A
+                      {(top3?.nama || 'M').charAt(0).toUpperCase()}
                     </div>
                     <h3 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: '#0F172A' }}>
-                      Albert Lazuardy
+                      {top3?.nama || 'Mitra Berprestasi'}
                     </h3>
                     <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace', marginBottom: '8px' }}>
-                      KODE: <strong>{currentUser?.affiliateCode === 'MPH630AL' ? 'MPH630AL' : 'MPH630***'}</strong>
+                      KODE: <strong>{currentUser?.affiliateCode === top3?.code ? top3.code : (top3?.code ? `${top3.code.slice(0, 5)}***` : 'MPH***')}</strong>
                     </div>
                     <div className="podium-nominal" style={{ fontSize: '1.38rem', fontWeight: 900, color: '#0F172A', margin: '4px 0' }}>
-                      Rp 600.000
+                      {formatRupiah(top3?.nominal || 0)}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, backgroundColor: '#F8FAFC', display: 'inline-block', padding: '3px 10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                      ✓ 6 Visa Berhasil Terbit
+                      ✓ {top3?.totalVisaApproved || 0} Visa Berhasil Terbit
                     </div>
                   </div>
                 </div>
@@ -7158,166 +7363,172 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 {/* PODIUM TOP 3 JUARA - MOBILE VERSION (3 BARIS SERAGAM & PROPORSIONAL TANPA GEDE SENDIRI) */}
                 <div className="mpc-podium-mobile">
                   {/* Juara 1 */}
-                  <div
-                    style={{
-                      backgroundColor: '#EFF6FF',
-                      border: '1px solid #93C5FD',
-                      borderRadius: '12px',
-                      padding: '9px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '8px',
-                      boxShadow: '0 1px 4px rgba(0, 91, 181, 0.08)',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥇</span>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: '#DBEAFE',
-                          color: '#005BB5',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.9rem',
-                          flexShrink: 0,
-                          border: '1.5px solid #005BB5',
-                        }}
-                      >
-                        R
+                  {top1 && (
+                    <div
+                      style={{
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #93C5FD',
+                        borderRadius: '12px',
+                        padding: '9px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        boxShadow: '0 1px 4px rgba(0, 91, 181, 0.08)',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥇</span>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#DBEAFE',
+                            color: '#005BB5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.9rem',
+                            flexShrink: 0,
+                            border: '1.5px solid #005BB5',
+                          }}
+                        >
+                          {(top1.nama || 'M').charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {top1.nama}
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#005BB5', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {currentUser?.affiliateCode === top1.code ? top1.code : `${top1.code.slice(0, 5)}***`} &bull; {top1.totalVisaApproved} Visa
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          Rizky Muhammad E
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontWeight: 900, color: '#005BB5', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                          {formatRupiah(top1.nominal)}
                         </div>
-                        <div style={{ fontSize: '0.66rem', color: '#005BB5', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {currentUser?.affiliateCode === 'MPH458RI' ? 'MPH458RI' : 'MPH458***'} &bull; 13 Visa
-                        </div>
+                        <span style={{ fontSize: '0.62rem', backgroundColor: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          Top 1
+                        </span>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontWeight: 900, color: '#005BB5', fontSize: '0.92rem', lineHeight: 1.2 }}>
-                        Rp 1.300.000
-                      </div>
-                      <span style={{ fontSize: '0.62rem', backgroundColor: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        Top 1
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Juara 2 */}
-                  <div
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '12px',
-                      padding: '9px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '8px',
-                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥈</span>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: '#F1F5F9',
-                          color: '#475569',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.9rem',
-                          flexShrink: 0,
-                          border: '1.5px solid #CBD5E1',
-                        }}
-                      >
-                        D
+                  {top2 && (
+                    <div
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '9px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥈</span>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.9rem',
+                            flexShrink: 0,
+                            border: '1.5px solid #CBD5E1',
+                          }}
+                        >
+                          {(top2.nama || 'M').charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {top2.nama}
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {currentUser?.affiliateCode === top2.code ? top2.code : `${top2.code.slice(0, 5)}***`} &bull; {top2.totalVisaApproved} Visa
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          Derryl
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontWeight: 900, color: '#0F172A', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                          {formatRupiah(top2.nominal)}
                         </div>
-                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {currentUser?.affiliateCode === 'MPH555DE' ? 'MPH555DE' : 'MPH555***'} &bull; 6 Visa
-                        </div>
+                        <span style={{ fontSize: '0.62rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          Top 2
+                        </span>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontWeight: 900, color: '#0F172A', fontSize: '0.92rem', lineHeight: 1.2 }}>
-                        Rp 600.000
-                      </div>
-                      <span style={{ fontSize: '0.62rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        Top 2
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Juara 3 */}
-                  <div
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '12px',
-                      padding: '9px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '8px',
-                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥉</span>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: '#F1F5F9',
-                          color: '#64748B',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.9rem',
-                          flexShrink: 0,
-                          border: '1.5px solid #CBD5E1',
-                        }}
-                      >
-                        A
+                  {top3 && (
+                    <div
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '9px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🥉</span>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#F1F5F9',
+                            color: '#64748B',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.9rem',
+                            flexShrink: 0,
+                            border: '1.5px solid #CBD5E1',
+                          }}
+                        >
+                          {(top3.nama || 'M').charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {top3.nama}
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {currentUser?.affiliateCode === top3.code ? top3.code : `${top3.code.slice(0, 5)}***`} &bull; {top3.totalVisaApproved} Visa
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          Albert Lazuardy
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontWeight: 900, color: '#0F172A', fontSize: '0.92rem', lineHeight: 1.2 }}>
+                          {formatRupiah(top3.nominal)}
                         </div>
-                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {currentUser?.affiliateCode === 'MPH630AL' ? 'MPH630AL' : 'MPH630***'} &bull; 6 Visa
-                        </div>
+                        <span style={{ fontSize: '0.62rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          Top 3
+                        </span>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontWeight: 900, color: '#0F172A', fontSize: '0.92rem', lineHeight: 1.2 }}>
-                        Rp 600.000
-                      </div>
-                      <span style={{ fontSize: '0.62rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        Top 3
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Banner Tips untuk Affiliate Baru */}
@@ -7923,7 +8134,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', padding: '12px 14px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '0.80rem' }}>
                 <div>
                   <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>No. Paspor:</span>
-                  <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{selectedKandidat.noPaspor}</strong>
+                  <strong style={{ color: '#0F172A', fontFamily: 'monospace', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#94A3B8' }}>lock</span>
+                    <span>{getMaskedPaspor(selectedKandidat.noPaspor, selectedKandidat.maskedPaspor)}</span>
+                  </strong>
                 </div>
                 <div>
                   <span style={{ color: '#64748B', display: 'block', fontSize: '0.72rem' }}>WhatsApp:</span>
@@ -7991,68 +8205,49 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 </div>
               </div>
 
-              {/* Rincian Kelengkapan Berkas (Arsip Dokumen) */}
-              <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>📋 Arsip Kelengkapan Berkas (Verifikasi Internal)</span>
-                </div>
-                {(() => {
-                  const bStatus = getCandidateBerkas(selectedKandidat);
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
-                      {[
-                        { key: 'formVisa' as const, label: 'Formulir Visa', ok: bStatus.formVisa },
-                        { key: 'ktp' as const, label: 'Fotokopi KTP', ok: bStatus.ktp },
-                        { key: 'ektln' as const, label: 'E-KTLN BP2MI', ok: bStatus.ektln },
-                        { key: 'coe' as const, label: 'COE Imigrasi Jepang', ok: bStatus.coe },
-                        { key: 'foto' as const, label: 'Pasfoto 4.5 x 3.5 cm', ok: bStatus.foto },
-                      ].map((doc, dIdx) => (
-                        <button
-                          key={dIdx}
-                          type="button"
-                          onClick={() => handleToggleBerkas(selectedKandidat, doc.key)}
-                          title={`Klik untuk ${doc.ok ? 'batalkan ceklis' : 'menceklis'} ${doc.label}`}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '6px',
-                            fontSize: '0.74rem',
-                            padding: '6px 10px',
-                            borderRadius: '7px',
-                            backgroundColor: doc.ok ? '#DCFCE7' : '#FEE2E2',
-                            color: doc.ok ? '#15803D' : '#B91C1C',
-                            fontWeight: 700,
-                            border: doc.ok ? '1px solid #86EFAC' : '1px solid #FECACA',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            textAlign: 'left',
-                          }}
-                        >
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                              {doc.ok ? 'check_circle' : 'cancel'}
-                            </span>
-                            <span>{doc.label}</span>
-                          </span>
-                          <span style={{ fontSize: '0.66rem', fontWeight: 800 }}>
-                            {doc.ok ? '✓' : '✕'}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-                <div style={{ marginTop: '6px', fontSize: '0.68rem', color: '#64748B', textAlign: 'right' }}>
-                  * Klik berkas di atas untuk mencentang (✓) atau membatalkan (✕) kapan saja.
-                </div>
-              </div>
+              {/* Status Pengiriman / Penyerahan Paspor */}
+              {(() => {
+                const st = getCandidateStages(selectedKandidat);
+                const finalResi = (st.isKirim && st.noResi) ? st.noResi : selectedKandidat.noResi;
+                if (!finalResi && !st.isKirim) return null;
+                const lower = (finalResi || '').toLowerCase();
+                const isAirport = lower.includes('soetta') || lower.includes('soehatta') || lower.includes('soekarno') || lower.includes('bandara') || lower.includes('flight') || lower.includes('handover');
+                const isOffice = lower.includes('kantor') || lower.includes('langsung') || lower.includes('diambil');
 
-              {selectedKandidat.catatan && (
-                <div style={{ backgroundColor: '#F0F9FF', padding: '10px 14px', borderRadius: '10px', color: '#0369A1', fontSize: '0.80rem', border: '1px solid #E0F2FE' }}>
-                  <strong>Catatan:</strong> {selectedKandidat.catatan}
-                </div>
-              )}
+                const iconName = isAirport ? 'flight_takeoff' : isOffice ? 'storefront' : 'local_shipping';
+                const label = isAirport ? 'Handover Bandara Soetta T3' : isOffice ? 'Pengambilan Langsung di Kantor' : 'Ekspedisi / Kurir Pengiriman';
+                const bg = isAirport ? '#EFF6FF' : isOffice ? '#F0FDF4' : '#FAF5FF';
+                const color = isAirport ? '#1D4ED8' : isOffice ? '#15803D' : '#6B21A8';
+                const border = isAirport ? '#BFDBFE' : isOffice ? '#BBF7D0' : '#E9D5FF';
+
+                return (
+                  <div style={{ backgroundColor: bg, border: `1px solid ${border}`, borderRadius: '12px', padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color, fontWeight: 700, fontSize: '0.82rem', marginBottom: '4px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{iconName}</span>
+                      <span>{label}</span>
+                    </div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0F172A', marginTop: '2px' }}>
+                      {finalResi || 'Telah diserahkan / dikirim'}
+                    </div>
+                    {st.tglKirim && (
+                      <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '4px' }}>
+                        Tanggal Pengiriman: <strong>{st.tglKirim}</strong>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {(() => {
+                const note = (selectedKandidat.catatan || '').trim();
+                const isTechnicalNote = /spreadsheet|data_apply/i.test(note);
+                if (!note || isTechnicalNote) return null;
+                return (
+                  <div style={{ backgroundColor: '#F0F9FF', padding: '10px 14px', borderRadius: '10px', color: '#0369A1', fontSize: '0.80rem', border: '1px solid #E0F2FE' }}>
+                    <strong>Catatan:</strong> {note}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Footer (Sticky Bottom) */}

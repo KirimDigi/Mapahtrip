@@ -7,6 +7,12 @@ export default defineConfig({
   base: './',
   server: {
     proxy: {
+      '/api-local-wa': {
+        target: 'http://localhost:2026',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api-local-wa/, ''),
+      },
       '/api-wa': {
         target: 'https://hypnotic-curtly-dealt.ngrok-free.dev',
         changeOrigin: true,

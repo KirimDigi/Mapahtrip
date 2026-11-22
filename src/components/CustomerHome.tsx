@@ -12,30 +12,21 @@ import type { Pengajuan, KonsjenKota, StaffMaster } from '../types';
 import { searchPasporInDB, createPengajuanInDB, findAffiliateByCode, updatePengajuanDocumentInDB } from '../lib/supabase';
 import { kirimPesanWA } from '../whatsapp';
 import { REAL_AFFILIATE_LEADERBOARD } from '../data/affiliateLeaderboardData';
+import { REAL_SPREADSHEET_AFFILIATES } from '../data/spreadsheetData';
 import { mockStaff } from '../data/mockData';
-import { compressImageUnder100KB } from '../utils/imageCompressor';
+import { optimizeDocumentUpload } from '../utils/documentOptimizer';
 import { getApplicantAccessKey, verifyApplicantAccessKey } from '../utils/accessKey';
+import { determineDefaultStaffPic } from '../utils/staffAssignment';
+import { STORY_HIGHLIGHTS } from '../data/storyHighlights';
+import { StoryHighlightsBar } from './StoryHighlightsBar';
+import { InstagramStoryViewer } from './InstagramStoryViewer';
+import { getVisaPrice, getVisaPricingList, type VisaPricingItem } from '../utils/visaPricing';
 
 // Helper format Rupiah & Penentuan Nominal Biaya Visa
-const formatRupiah = (val: number): string => 'Rp ' + (val || 0).toLocaleString('id-ID');
+const formatRupiah = (val: number): string => 'Rp\u00A0' + (val || 0).toLocaleString('id-ID');
 
 const getNominalVisa = (visaTitle?: string, paket?: string): number => {
-  if (!visaTitle) return 1650000;
-  const lower = visaTitle.toLowerCase();
-  let base = 1650000;
-  if (lower.includes('waiver') || lower.includes('evisa')) base = 450000;
-  else if (lower.includes('transit')) base = 550000;
-  else if (lower.includes('single')) base = 750000;
-  else if (lower.includes('multiple')) base = 1100000;
-  else if (lower.includes('keluarga') || lower.includes('family')) base = 850000;
-  else if (lower.includes('bisnis')) base = 950000;
-  else if (lower.includes('pelajar') || lower.includes('student')) base = 1200000;
-  else if (lower.includes('dependent') || lower.includes('spouse')) base = 1300000;
-  else if (lower.includes('tokutei') || lower.includes('ginou') || lower.includes('ssw') || lower.includes('magang') || lower.includes('kerja')) base = 1650000;
-
-  if (paket === 'Premium') base += 250000;
-  if (paket === 'TAC') base += 500000;
-  return base;
+  return getVisaPrice(visaTitle, paket);
 };
 
 // Rekening Bank Resmi Pembayaran Customer
@@ -72,15 +63,40 @@ export const validateReferralCode = (
     return { isValid: true, partnerName: 'Mitra Demo LPK (MPC)', code: 'MPH425MI' };
   }
 
-  // 2. Cek Real Affiliate Leaderboard (Spreadsheet Resmi)
+  // Helper pembersih nama mitra agar tidak pernah menghasilkan tanda strip '-' atau kosong
+  const sanitizePartnerName = (nama?: string | null, lembaga?: string | null): string => {
+    const cleanNama = (nama || '').trim();
+    const cleanLembaga = (lembaga || '').trim();
+    if (cleanNama && cleanNama !== '-') return cleanNama;
+    if (cleanLembaga && cleanLembaga !== '-') return cleanLembaga;
+    return 'Mitra Terdaftar';
+  };
+
+  // 2. Cek Real Spreadsheet Affiliates (Database Master Mitra Mapahtrip)
+  const foundSpreadsheet = REAL_SPREADSHEET_AFFILIATES.find(
+    (m) => (m.affiliateCode || '').toUpperCase().trim() === clean
+  );
+  if (foundSpreadsheet) {
+    return {
+      isValid: true,
+      partnerName: sanitizePartnerName(foundSpreadsheet.nama, foundSpreadsheet.lembaga),
+      code: foundSpreadsheet.affiliateCode,
+    };
+  }
+
+  // 3. Cek Real Affiliate Leaderboard (Spreadsheet Resmi)
   const foundLeaderboard = REAL_AFFILIATE_LEADERBOARD.find(
     (m) => m.code.toUpperCase().trim() === clean
   );
   if (foundLeaderboard) {
-    return { isValid: true, partnerName: foundLeaderboard.nama, code: foundLeaderboard.code };
+    return {
+      isValid: true,
+      partnerName: sanitizePartnerName(foundLeaderboard.nama),
+      code: foundLeaderboard.code,
+    };
   }
 
-  // 3. Cek localStorage mapahtrip_all_affiliates
+  // 4. Cek localStorage mapahtrip_all_affiliates
   try {
     const saved = localStorage.getItem('mapahtrip_all_affiliates');
     if (saved) {
@@ -91,14 +107,14 @@ export const validateReferralCode = (
       if (found) {
         return {
           isValid: true,
-          partnerName: found.lembaga || found.nama || 'Mitra Terdaftar',
+          partnerName: sanitizePartnerName(found.nama, found.lembaga),
           code: found.affiliateCode,
         };
       }
     }
   } catch {}
 
-  // 4. Cek current logged in affiliate
+  // 5. Cek current logged in affiliate
   try {
     const curr = localStorage.getItem('mapahtrip_current_affiliate');
     if (curr) {
@@ -106,14 +122,14 @@ export const validateReferralCode = (
       if ((parsed.affiliateCode || '').toUpperCase().trim() === clean) {
         return {
           isValid: true,
-          partnerName: parsed.lembaga || parsed.nama || 'Mitra Terdaftar',
+          partnerName: sanitizePartnerName(parsed.nama, parsed.lembaga),
           code: parsed.affiliateCode,
         };
       }
     }
   } catch {}
 
-  // 5. Cek kode dari pengajuanList
+  // 6. Cek kode dari pengajuanList
   const foundInPengajuan = pengajuanList.find(
     (p) => (p.affiliateCode || '').toUpperCase().trim() === clean
   );
@@ -275,7 +291,7 @@ const VISA_OPTIONS = [
     popularBadge: '★ POPULER',
     topRightBadge: '100% Online',
     icon: 'description',
-    pricePill: 'Mulai Rp 450rb',
+    pricePill: 'Mulai Rp 200rb',
     durationPill: '15 Hari',
     desc: 'Registrasi bebas visa untuk e-paspor atau e-Visa turis via online. Proses 3-5 hari.',
     tags: ['e-Paspor', 'Foto Digital'],
@@ -288,7 +304,72 @@ const VISA_OPTIONS = [
       'Masa berlaku registrasi 3 tahun (bebas keluar-masuk maksimal 15 hari per kunjungan)',
     ],
   },
-  // Card 4: Kunjungan Keluarga / Teman (Light)
+  // Card 4: Tokutei Ginou (SSW 1) (Light)
+  {
+    id: 'tokutei-ginou',
+    title: 'Tokutei Ginou (SSW 1)',
+    subtitle: 'Specified Skilled Worker',
+    theme: 'light' as const,
+    topRightBadge: 'Kerja Formal',
+    icon: 'engineering',
+    pricePill: 'Mulai Rp 1,65jt',
+    durationPill: '1 - 5 Tahun',
+    desc: 'Pekerja berketerampilan spesifik: pengolahan makanan, perhotelan, perawat/kaigo, manufaktur & pertanian.',
+    tags: ['CoE Kerja', 'Sertifikat SSW', 'JFT / JLPT'],
+    category: 'kerja' as const,
+    syaratLengkap: [
+      'Paspor Asli berlaku min. 12 bulan & Pasfoto 4.5 x 3.5 cm latar putih',
+      'Asli Certificate of Eligibility (CoE) Tokutei Ginou dari Imigrasi Jepang',
+      'Kontrak Kerja Resmi (Koyou Keiyakusho) dengan perusahaan sponsor di Jepang',
+      'Sertifikat Kelulusan Ujian Keterampilan SSW & Ujian Bahasa Jepang (JFT-Basic / JLPT N4)',
+      'Surat E-KTLN dari BP2MI & Hasil MCU (Medical Check Up) resmi',
+      'Fotokopi KTP, Kartu Keluarga, dan Buku Tabungan',
+    ],
+  },
+  // Card 5: Visa Magang (Kenshuusei) (Dark)
+  {
+    id: 'visa-magang',
+    title: 'Visa Magang (Kenshuusei)',
+    subtitle: 'Trainee / Pemagangan Jepang',
+    theme: 'dark' as const,
+    topRightBadge: 'Pemagangan',
+    icon: 'handshake',
+    pricePill: 'Mulai Rp 1,65jt',
+    durationPill: '1 - 3 Tahun',
+    desc: 'Program pemagangan industri manufaktur, teknik, dan agrikultur Jepang via LPK / SO resmi berizin.',
+    tags: ['CoE Magang', 'Izin LPK / SO', 'Kontrak'],
+    category: 'kerja' as const,
+    syaratLengkap: [
+      'Paspor Asli pemohon berlaku min. 12 bulan & Pasfoto 4.5 x 3.5 cm latar putih',
+      'Asli Certificate of Eligibility (CoE) Technical Intern Training',
+      'Surat Perjanjian Pemagangan antara Sending Organization (SO/LPK) dan Accepting Organization Jepang',
+      'Rencana Pelatihan Praktik Kerja & Surat Izin Operasional SO yang aktif',
+      'E-KTLN BP2MI aktif & Rekening Bank',
+      'Fotokopi Identitas KTP & KK',
+    ],
+  },
+  // Card 6: Tekutei Katsudou (Light)
+  {
+    id: 'tekutei-katsudou',
+    title: 'Tekutei Katsudou',
+    subtitle: 'Designated Activities',
+    theme: 'light' as const,
+    topRightBadge: 'Aktivitas Khusus',
+    icon: 'badge',
+    pricePill: 'Mulai Rp 1,65jt',
+    durationPill: '6 Bulan - 1 Tahun',
+    desc: 'Aktivitas khusus magang lanjutan, transisi visa kerja, atau magang mahasiswa universitas di Jepang.',
+    tags: ['CoE Khusus', 'Surat Rekomendasi'],
+    category: 'kerja' as const,
+    syaratLengkap: [
+      'Paspor Asli pemohon min. 12 bulan & Pasfoto 4.5 x 3.5 cm',
+      'Asli Certificate of Eligibility (CoE) kategori Tokutei Katsudou',
+      'Surat Keterangan Aktivitas Khusus dari institusi penerima di Jepang',
+      'Bukti Penjaminan Finansial & Tempat Tinggal selama di Jepang',
+      'Dokumen pendukung kualifikasi akademik / sertifikat pelatihan relevan',
+    ],
+  },
+  // Card 7: Kunjungan Keluarga / Teman (Light)
   {
     id: 'kunjungan-keluarga',
     title: 'Kunjungan Keluarga / Teman',
@@ -395,11 +476,130 @@ const VISA_OPTIONS = [
   },
 ];
 
+// Helper format milestone Visa Approved (kelipatan 50: 200+, 250+, 300+, ... >= 1000 jadi 1K+, 1.1K+)
+export const formatApprovedMilestone = (count: number): string => {
+  if (count >= 1000) {
+    const thousands = Math.floor(count / 1000);
+    const remainder = Math.floor((count % 1000) / 100);
+    return remainder > 0 ? `${thousands}.${remainder}K+` : `${thousands}K+`;
+  }
+  const step = 50;
+  const floorStep = Math.max(step, Math.floor(count / step) * step);
+  return `${floorStep}+`;
+};
+
 export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAddNewPengajuan, onUpdatePengajuan }) => {
+  // Hitung otomatis milestone Visa Approved dari data riil pengajuan (kelipatan 50, saat ini 250+, nanti 301 jadi 300+, 1000 jadi 1k+)
+  const approvedMilestoneDisplay = useMemo(() => {
+    const selesaiCount = pengajuanList && pengajuanList.length > 0
+      ? pengajuanList.filter((p) => p.status === 'Selesai' || (p.status as any) === 'Approved').length
+      : 268;
+    return formatApprovedMilestone(selesaiCount > 0 ? selesaiCount : 268);
+  }, [pengajuanList]);
+
+  // Dynamic Visa List synced directly with Master Tarif (Supabase Cloud & localStorage)
+  const [currentPricingList, setCurrentPricingList] = useState<VisaPricingItem[]>(() => getVisaPricingList());
+
+  useEffect(() => {
+    const handlePricesUpdated = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setCurrentPricingList(e.detail);
+      } else {
+        setCurrentPricingList(getVisaPricingList());
+      }
+    };
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'mapahtrip_visa_prices' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCurrentPricingList(parsed);
+          }
+        } catch {
+          setCurrentPricingList(getVisaPricingList());
+        }
+      }
+    };
+
+    window.addEventListener('mapahtrip:visa-prices-updated', handlePricesUpdated);
+    window.addEventListener('storage', handleStorageChange);
+    setCurrentPricingList(getVisaPricingList());
+
+    return () => {
+      window.removeEventListener('mapahtrip:visa-prices-updated', handlePricesUpdated);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  const dynamicVisaOptions = useMemo(() => {
+    if (!currentPricingList || currentPricingList.length === 0) {
+      return VISA_OPTIONS;
+    }
+
+    const formatShort = (val: number) => {
+      if (!val) return 'Rp 0';
+      if (val >= 1000000) {
+        const jt = (val / 1000000).toFixed(1).replace('.0', '');
+        return `Rp ${jt}jt`;
+      }
+      return `Rp ${Math.round(val / 1000)}rb`;
+    };
+
+    return currentPricingList.map((item, index) => {
+      const base = VISA_OPTIONS.find(
+        (v) =>
+          v.id === item.id ||
+          v.title.toLowerCase().trim() === item.title.toLowerCase().trim()
+      );
+
+      const defaultIcon =
+        item.category === 'turis'
+          ? 'flight'
+          : item.category === 'kerja'
+          ? 'engineering'
+          : item.category === 'magang'
+          ? 'handshake'
+          : item.category === 'studi'
+          ? 'school'
+          : item.category === 'transit'
+          ? 'schedule'
+          : item.category === 'keluarga'
+          ? 'groups'
+          : item.category === 'medis'
+          ? 'local_hospital'
+          : item.category === 'khusus'
+          ? 'badge'
+          : 'business_center';
+
+      return {
+        id: item.id,
+        title: item.title,
+        subtitle: item.subtitle || base?.subtitle || item.keterangan || 'Layanan Visa Jepang',
+        theme: base?.theme || (index % 2 === 0 ? ('dark' as const) : ('light' as const)),
+        popularBadge: item.popularBadge || base?.popularBadge,
+        topRightBadge: item.topRightBadge || base?.topRightBadge || (item.isCustom ? 'Layanan Baru' : 'Resmi'),
+        icon: base?.icon || defaultIcon,
+        pricePill: `Mulai ${formatShort(item.regulerPrice)}`,
+        durationPill: item.durationPill || base?.durationPill || '15-90 Hari',
+        desc: item.desc || item.keterangan || base?.desc || 'Layanan pengurusan dan pendampingan visa Jepang resmi.',
+        tags: base?.tags || ['Paspor', 'Dokumen Pendukung'],
+        category: item.category,
+        syaratLengkap: base?.syaratLengkap || [
+          'Paspor Asli berlaku min. 6 bulan + Paspor Lama (jika ada)',
+          'Pasfoto 4.5 x 3.5 cm latar putih terbaru',
+          'Formulir Aplikasi Visa Jepang',
+          'Fotokopi KTP & Kartu Keluarga (KK)',
+          'Dokumen pendukung sesuai ketentuan konsulat',
+        ],
+      };
+    });
+  }, [currentPricingList]);
+
   const [trackingPaspor, setTrackingPaspor] = useState('');
   const [trackingResult, setTrackingResult] = useState<Pengajuan | null | 'NOT_FOUND'>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedVisaModal, setSelectedVisaModal] = useState<any | null>(null);
+  const [activeStoryHighlightId, setActiveStoryHighlightId] = useState<string | null>(null);
 
   // Kunci Rahasia Verifikasi Akses Dokumen (Mencegah Tebak IDOR MT-0280 -> MT-0281)
   const [currentAccessKey, setCurrentAccessKey] = useState<string>(() => {
@@ -445,32 +645,19 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
     }
   };
 
-  // Form Fields Sesuai Kolom Spreadsheet "Kelengkapan Berkas" (Upload File Berkas)
-  const [formFiles, setFormFiles] = useState<{
-    formVisa: File | null;
-    pasporFisik: File | null;
-    ktp: File | null;
-    ektln: File | null;
-    coe: File | null;
-    foto: File | null;
-  }>({
+  // Berkas pendaftaran diinput mandiri oleh staf/owner di portal internal (rahasia bisnis)
+  const formFiles = {
     formVisa: null,
     pasporFisik: null,
     ktp: null,
     ektln: null,
     coe: null,
     foto: null,
-  });
-
-  // State Pasfoto & Berkas Terkompresi Otomatis Di Bawah 100KB untuk Supabase Cloud
-  const [formFotoBase64, setFormFotoBase64] = useState<string | null>(null);
-  const [formUploadedDocs, setFormUploadedDocs] = useState<Record<string, { name: string; base64: string; sizeKB?: number }>>({});
-  const [formFotoSizeKB, setFormFotoSizeKB] = useState<{ original: number; compressed: number } | null>(null);
-  const [formDocsSizeKB, setFormDocsSizeKB] = useState<Record<string, { original: number; compressed: number }>>({});
-  const [compressingDocKey, setCompressingDocKey] = useState<string | null>(null);
-  const [isCompressingFoto, setIsCompressingFoto] = useState(false);
+  };
+  const formUploadedDocs: Record<string, { name: string; base64: string; sizeKB?: number }> = {};
 
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [formSuccessMessage, setFormSuccessMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [modalStep, setModalStep] = useState<'detail' | 'form' | 'success'>('detail');
@@ -631,7 +818,7 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
     return validateReferralCode(customerRefCode, pengajuanList);
   }, [hasRefChoice, customerRefCode, pengajuanList]);
 
-  const [activeVisaTab, setActiveVisaTab] = useState<'all' | 'turis' | 'bisnis' | 'keluarga'>('all');
+  const [activeVisaTab, setActiveVisaTab] = useState<'all' | 'turis' | 'kerja' | 'bisnis' | 'keluarga'>('all');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -757,6 +944,7 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
   };
 
   const hasAutoTracked = useRef(false);
+  const isVisaModalBackdropMouseDown = useRef(false);
 
   // Auto-search jika customer membuka URL khusus dengan parameter ?lacak=... / ?tracking=... / ?no=... / ?paspor=...
   // Hanya dijalankan 1x saat awal halaman dimuat, TIDAK dijalankan ulang saat customer upload berkas
@@ -822,28 +1010,19 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
     }
     setUploadingDocKey(docKey);
     try {
-      let base64 = '';
-      let sizeKB = Math.round(file.size / 1024);
-
-      if (file.type.startsWith('image/')) {
-        const comp = await compressImageUnder100KB(file);
-        base64 = comp.base64;
-        sizeKB = comp.compressedSizeKB;
-      } else {
-        base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
+      const optimized = await optimizeDocumentUpload(file);
+      const base64 = optimized.base64;
+      const sizeKB = optimized.sizeKB;
+      const finalFileName = optimized.file.name;
 
       // 1. Simpan ke Supabase Cloud & Local Storage
-      await updatePengajuanDocumentInDB(trackingResult.id, docKey, base64, file.name, sizeKB);
+      const uploadResult = await updatePengajuanDocumentInDB(trackingResult.id, docKey, base64, finalFileName, sizeKB);
+      const uploadedCloudUrl = uploadResult?.url;
 
       // 2. Buat objek data terbarukan
       const updatedItem: Pengajuan = {
         ...trackingResult,
+        fotoUrl: docKey === 'foto' ? (uploadedCloudUrl || trackingResult.fotoUrl) : trackingResult.fotoUrl,
         berkas: {
           ...trackingResult.berkas,
           [docKey]: true,
@@ -851,9 +1030,10 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
         uploadedDocs: {
           ...(trackingResult.uploadedDocs || {}),
           [docKey]: {
-            name: file.name,
+            name: finalFileName,
             base64: base64,
             sizeKB: sizeKB,
+            ...(uploadedCloudUrl ? { url: uploadedCloudUrl } : {}),
           },
         },
         ...(docKey === 'foto' ? { fotoBase64: base64, fotoSizeKB: sizeKB } : {}),
@@ -865,7 +1045,8 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
         onUpdatePengajuan(updatedItem);
       }
 
-      setUploadDocSuccessNotice(`✅ Berkas "${file.name}" berhasil diunggah! Status berkas Anda telah otomatis tercentang di sistem staf operasional.`);
+      const savingsMsg = optimized.reductionPercent > 0 ? ` (Kompresi hemat ${optimized.reductionPercent}%)` : '';
+      setUploadDocSuccessNotice(`✅ Berkas "${finalFileName}" berhasil diunggah${savingsMsg}! Status berkas Anda telah otomatis tercentang di sistem staf operasional.`);
       setTimeout(() => setUploadDocSuccessNotice(null), 5000);
     } catch (err: any) {
       alert('Gagal mengunggah berkas: ' + (err?.message || 'Terjadi kesalahan sistem.'));
@@ -903,7 +1084,7 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
 
   const handleKirimPendaftaran = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (formSubmitting) return;
+    if (isSubmittingRef.current || formSubmitting) return;
     if (!formNama.trim()) {
       setFormError('Nama Lengkap wajib diisi.');
       return;
@@ -934,28 +1115,37 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
       finalRefCode = check.isValid ? check.code : cleanInputCode;
     }
 
+    isSubmittingRef.current = true;
     setFormSubmitting(true);
     setFormError(null);
 
+    const programVisa = selectedVisaModal?.title || 'Visa Jepang';
+    const visaNominal = getNominalVisa(programVisa, formPaket);
+    // Pengeluaran (modal konsulat), fee staf & fee mitra belum diisi owner di awal pendaftaran
+    const feeBersihCalc = 0;
 
     // 1. Simpan pendaftaran langsung dan aman ke database Supabase Cloud
     const savedDb = await createPengajuanInDB({
       nama: formNama.trim(),
       domisili_ktp: finalDomisili,
       konsjen: formKonsjen,
+      staff_pic: (determineDefaultStaffPic(programVisa, formKonsjen) as string) || undefined,
       no_wa: formNoWa.trim(),
       no_paspor: formNoPaspor.trim() || '-',
       code_referral: finalRefCode,
-      form_visa: !!formFiles.formVisa,
-      ktp: !!formFiles.ktp,
-      ektln: !!formFiles.ektln,
-      coe: !!formFiles.coe,
-      foto: !!formFiles.foto,
-      program: selectedVisaModal?.title || 'Visa Jepang',
+      form_visa: !!formFiles.formVisa || Boolean(formUploadedDocs.formVisa),
+      ktp: !!formFiles.ktp || Boolean(formUploadedDocs.ktp),
+      ektln: !!formFiles.ektln || Boolean(formUploadedDocs.ektln),
+      coe: !!formFiles.coe || Boolean(formUploadedDocs.coe),
+      foto: !!formFiles.foto || Boolean(formUploadedDocs.foto),
+      program: programVisa,
       paket: formPaket,
-      foto_base64: formFotoBase64 || formUploadedDocs['foto']?.base64 || undefined,
-      original_size_kb: formFotoSizeKB?.original,
-      compressed_size_kb: formFotoSizeKB?.compressed,
+      status_pembayaran: 'Menunggu Pembayaran',
+      nominal_dibayar: visaNominal,
+      fee_bersih: feeBersihCalc,
+      foto_base64: undefined,
+      original_size_kb: undefined,
+      compressed_size_kb: undefined,
       uploaded_docs: formUploadedDocs,
     }).catch((err) => {
       console.warn('Gagal mencatat pengajuan ke Supabase:', err);
@@ -969,48 +1159,94 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
 
     // 2. Kirim notifikasi WhatsApp otomatis via Gateway API (Session: Mapahtrip)
     const namaPendaftar = formNama.trim();
-    const programVisa = selectedVisaModal?.title || 'Visa Jepang';
     const noPasporText = formNoPaspor.trim() && formNoPaspor.trim() !== '-' ? formNoPaspor.trim().toUpperCase() : '-';
+    const isWaiver = (programVisa || '').toLowerCase().includes('waiver') || (selectedVisaModal?.title || '').toLowerCase().includes('waiver');
 
-    const waMessage =
+    const waMessage = isWaiver ?
+`Halo Kak *${namaPendaftar}*! 👋🇯🇵
+
+Terima kasih telah mendaftar layanan pengurusan *Visa Waiver Jepang* di *Mapah Trip*. ✨
+
+Pendaftaran Kakak telah kami terima dengan detail:
+
+📋 *Detail Pendaftaran:*
+• *Program Visa:* ${programVisa}
+• *Pilihan Paket:* Paket ${formPaket}
+• *Biaya Layanan:* *${formatRupiah(visaNominal)}*
+• *Jalur Pengurusan:* Layanan Khusus MapahTrip (Tanpa Kirim Paspor Fisik)
+• *Domisili KTP:* ${finalDomisili}
+• *No. Paspor:* ${noPasporText}
+• *Kode Referral:* ${finalRefCode}
+• *ID Pendaftaran:* *${idPendaftaran}*
+
+📌 *Status:* Menunggu Verifikasi Dokumen Tim Pusat
+
+━━━━━━━━━━━━━━━━━━━━
+📍 *PANDUAN PROSES SELANJUTNYA:*
+━━━━━━━━━━━━━━━━━━━━
+Kakak *tidak perlu repot antre ke kedutaan atau mengirim paspor fisik*:
+
+1️⃣ *Pemeriksaan & Verifikasi Dokumen oleh Tim MapahTrip*
+Tim konsultan kami akan segera menghubungi WhatsApp Kakak untuk pengecekan data dan verifikasi kelayakan paspor elektronik (e-paspor) Kakak.
+
+2️⃣ *Proses Registrasi Resmi ke Kedutaan*
+Seluruh administrasi dan registrasi resmi ke pihak Kedutaan Jepang akan ditangani langsung dari awal sampai tuntas oleh tim ahli MapahTrip.
+
+3️⃣ *Penyerahan Sertifikat Bebas Visa (Visa Waiver)*
+Begitu disetujui oleh pihak Kedutaan Jepang, sertifikat resmi Visa Waiver akan langsung kami serahkan kepada Kakak via WhatsApp / Email.
+
+🙏 *Catatan Penting:*
+• Pastikan nomor WhatsApp Kakak selalu aktif agar tim kami dapat segera terhubung.
+
+Terima kasih atas kepercayaannya bersama Mapah Trip! 🇯🇵
+
+*Mapah Trip*
+_Spesialis Pengajuan Visa Jepang Resmi_`
+:
 `Halo Kak *${namaPendaftar}*! 👋🇯🇵
 
 Terima kasih telah mendaftar layanan pengajuan visa Jepang di *Mapah Trip*. ✨
 
-Pendaftaran Kakak berhasil kami terima dengan detail berikut:
+Pendaftaran Kakak telah kami terima dengan detail:
 
-📋 *Detail Pendaftaran*
-• *Program Visa:* ${programVisa} (${formPaket})
+📋 *Detail Pendaftaran:*
+• *Program Visa:* ${programVisa}
+• *Pilihan Paket:* Paket ${formPaket}
 • *Konsulat Tujuan:* Konsulat Jenderal Jepang di ${formKonsjen}
 • *Domisili KTP:* ${finalDomisili}
 • *No. Paspor:* ${noPasporText}
 • *Kode Referral:* ${finalRefCode}
 • *ID Pendaftaran:* *${idPendaftaran}*
 
-📌 *Status Pengajuan:*
-Menunggu verifikasi kelengkapan berkas oleh tim operasional Mapah Trip.
+📌 *Status:* Menunggu Dihubungi Staf Konsulat
 
-📍 *Tahapan Selanjutnya*
+━━━━━━━━━━━━━━━━━━━━
+📍 *PANDUAN PROSES SELANJUTNYA:*
+━━━━━━━━━━━━━━━━━━━━
+Kakak *tidak perlu upload berkas di website*. Seluruh proses dokumen dipandu langsung via WhatsApp:
 
-Tim kami akan memeriksa data dan kelengkapan berkas Kakak.
+1️⃣ *Staf Wilayah Segera Menghubungi*
+Staf konsultan resmi kami untuk wilayah *Konsulat Jenderal ${formKonsjen}* akan segera menghubungi WhatsApp Kakak secara personal untuk memandu daftar dokumen persyaratan yang dibutuhkan. *Mohon ditunggu ya Kak.* 🙏
 
-Jika terdapat kekurangan dokumen, tim kami akan menghubungi Kakak melalui WhatsApp.
+2️⃣ *Kirimkan Foto / Scan Dokumen ke Staf Terkait*
+Begitu dihubungi oleh staf PIC wilayah Kakak, Kakak cukup mengirimkan foto/scan dokumen persyaratan langsung ke chat WhatsApp staf tersebut.
 
-Setelah verifikasi selesai, Kakak akan mendapatkan arahan untuk tahapan pengajuan berikutnya.
+3️⃣ *Verifikasi & Input Resmi oleh Tim*
+Tim staf kami yang akan memeriksa kelengkapan, menyiapkan formulir resmi kedutaan, dan menginput berkas Kakak ke sistem secara aman & rahasia.
 
-🙏 *Mohon diperhatikan:*
-• Pastikan nomor WhatsApp Kakak tetap aktif.
-• Silakan menunggu informasi selanjutnya dari tim kami.
-• Demi keamanan data, kirimkan dokumen tambahan hanya melalui kanal resmi Mapah Trip.
+🙏 *Catatan Penting:*
+• Pastikan nomor WhatsApp Kakak selalu aktif agar staf wilayah kami dapat segera terhubung.
+• Jangan ragu berkonsultasi saat staf kami menghubungi ya. 🌸
 
-Jika ada pertanyaan, Kakak bisa langsung membalas pesan WhatsApp ini ya.
-
-Terima kasih telah mempercayakan proses pengajuan visa Jepang kepada Mapah Trip. 🇯🇵
+Terima kasih atas kepercayaannya bersama Mapah Trip! 🇯🇵
 
 *Mapah Trip*
-_Layanan Pengajuan Visa Jepang_`;
+_Spesialis Pengajuan Visa Jepang Resmi_`;
 
-    kirimPesanWA(formNoWa.trim(), waMessage).catch((waErr) => {
+    kirimPesanWA(formNoWa.trim(), waMessage, {
+      namaPemohon: namaPendaftar,
+      tahap: 'Pendaftaran',
+    }).catch((waErr) => {
       console.warn('Catatan pengiriman WhatsApp Gateway ke pemohon:', waErr);
       return null;
     });
@@ -1036,6 +1272,7 @@ Kabar gembira! Ada pemohon visa baru yang baru saja mendaftar di *MapahTrip* men
 • *ID Pengajuan:* *${idPendaftaran}*
 • *Nama Pemohon:* ${namaPendaftar}
 • *Program Visa:* ${programVisa} (${formPaket})
+• *Biaya Layanan:* ${formatRupiah(visaNominal)}
 • *Konsulat Tujuan:* Konsjen ${formKonsjen}
 • *Tanggal Daftar:* ${tanggalDaftar}
 
@@ -1044,14 +1281,17 @@ Kabar gembira! Ada pemohon visa baru yang baru saja mendaftar di *MapahTrip* men
 • *Status Komisi:* Tercatat di sistem (Menunggu verifikasi berkas & proses visa)
 
 Anda dapat memantau status pemohon binaan dan akumulasi komisi Anda secara realtime melalui Portal Affiliate MapahTrip:
-🌐 https://mapahtrip.com (Masuk ke menu Portal Affiliate)
+🌐 https://mapahtrip.id (Masuk ke menu Portal Affiliate)
 
 Terima kasih atas rekomendasi dan kerja samanya bersama MapahTrip! 🌸🤝
 
 Salam hangat,
 *Tim Kemitraan MapahTrip*`;
 
-          kirimPesanWA(affiliate.noWa.trim(), pesanWAAffiliate)
+          kirimPesanWA(affiliate.noWa.trim(), pesanWAAffiliate, {
+            namaPemohon: `Mitra (${affiliate.nama})`,
+            tahap: 'Notif Mitra',
+          })
             .then((res) => {
               console.log('[WA Gateway] Sukses kirim notifikasi pendaftar baru ke Mitra Affiliate:', affiliate.noWa, res);
             })
@@ -1064,66 +1304,60 @@ Salam hangat,
       });
     }
 
-    // 2c. Otomatis kirim WhatsApp ke Admin/Staf PIC MapahTrip sesuai wilayah Konsjen yang dipilih
+    // 2c. Otomatis kirim WhatsApp ke Admin/Staf PIC MapahTrip (HANYA jika bukan Visa Waiver)
+    // Khusus Visa Waiver: 100% online diproses langsung oleh Owner/Pusat di sistem JAVES, Staf PIC Daerah tidak perlu dinotifikasi.
     let assignedStaff: StaffMaster | undefined;
-    try {
-      let regionalStaffList = mockStaff;
-      if (typeof window !== 'undefined') {
-        const savedStaff = localStorage.getItem('mapahtrip_staff_list');
-        if (savedStaff) {
-          const parsed: StaffMaster[] = JSON.parse(savedStaff);
-          regionalStaffList = parsed.map((p) => {
-            const def = mockStaff.find((ms) => ms.id === p.id);
-            return { ...p, noWa: p.noWa || def?.noWa || '' };
-          });
+    if (!isWaiver) {
+      try {
+        let regionalStaffList = mockStaff;
+        if (typeof window !== 'undefined') {
+          const savedStaff = localStorage.getItem('mapahtrip_staff_list');
+          if (savedStaff) {
+            const parsed: StaffMaster[] = JSON.parse(savedStaff);
+            regionalStaffList = parsed.map((p) => {
+              const def = mockStaff.find((ms) => ms.id === p.id);
+              return { ...p, noWa: p.noWa || def?.noWa || '' };
+            });
+          }
         }
-      }
 
-      assignedStaff =
-        regionalStaffList.find((s) => s.aktif && s.konsjenTugas && s.konsjenTugas.includes(formKonsjen as KonsjenKota)) ||
-        regionalStaffList.find((s) => s.konsjenTugas && s.konsjenTugas.includes(formKonsjen as KonsjenKota));
+        const isKunjunganProgram = (selectedVisaModal?.title || '').toLowerCase().includes('kunjungan');
+        assignedStaff = isKunjunganProgram
+          ? (regionalStaffList.find((s) => s.nama.toLowerCase().includes('ulla') || s.nama.toLowerCase().includes('ulya')) ||
+             regionalStaffList.find((s) => s.role && s.role.toLowerCase().includes('kunjungan')))
+          : (regionalStaffList.find((s) => s.aktif && s.konsjenTugas && s.konsjenTugas.includes(formKonsjen as KonsjenKota)) ||
+             regionalStaffList.find((s) => s.konsjenTugas && s.konsjenTugas.includes(formKonsjen as KonsjenKota)));
 
-      if (assignedStaff && assignedStaff.noWa && assignedStaff.noWa.trim()) {
-        const tanggalDaftar = new Date().toLocaleDateString('id-ID', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        });
+        if (assignedStaff && assignedStaff.noWa && assignedStaff.noWa.trim()) {
+          const pesanWAStaff =
+`*PENDAFTARAN BARU* 🇯🇵📋
 
-        const pesanWAStaff =
-`*PEMBERITAHUAN PENDAFTARAN BARU DI WILAYAH ANDA* 🇯🇵📋
+Halo Kak *${assignedStaff.nama}*, ada pemohon visa baru:
 
-Halo Kak *${assignedStaff.nama}* (${assignedStaff.role || `PIC Konsjen ${formKonsjen}`}),
+• *ID:* *${idPendaftaran}*
+• *Nama:* ${namaPendaftar}
+• *Program:* ${programVisa} (${formPaket})
+• *Konsulat:* Konsjen ${formKonsjen}
+• *Paspor:* ${formNoPaspor.trim() || '-'}
+• *WA:* ${formNoWa.trim()}
 
-Ada permohonan visa Jepang baru yang baru saja masuk untuk wilayah tugas Anda (*Konsjen ${formKonsjen}*):
+👉 Hubungi pemohon: https://wa.me/${formNoWa.trim().replace(/^0/, '62').replace(/\D/g, '')}
+Pandu berkas & infokan alamat kirim paspor.`;
 
-📋 *Data Pemohon:*
-• *ID Pengajuan:* *${idPendaftaran}*
-• *Nama Pemohon:* ${namaPendaftar}
-• *No. WhatsApp Pemohon:* ${formNoWa.trim()}
-• *No. Paspor:* ${formNoPaspor.trim() || '-'}
-• *Wilayah Konsjen:* Konsjen ${formKonsjen}
-• *Program Visa:* ${programVisa} (${formPaket})
-${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Kode Mitra Referral:* ${finalRefCode}\n` : ''}• *Tanggal Daftar:* ${tanggalDaftar}
-
-Status Saat Ini: *Menunggu Berkas Fisik Tiba di Kantor*.
-Silakan pantau dan persiapkan verifikasi berkas begitu dokumen fisik tiba di kantor.
-
-Cek detail pemohon di Dashboard Staf:
-🌐 https://mapahtrip.com (Menu Dashboard Staf)
-
-*MapahTrip Internal Operational System*`;
-
-        kirimPesanWA(assignedStaff.noWa.trim(), pesanWAStaff)
-          .then((res) => {
-            console.log(`[WA Gateway] Sukses kirim notifikasi pendaftar baru ke PIC ${formKonsjen} (${assignedStaff?.nama}):`, assignedStaff?.noWa, res);
+          kirimPesanWA(assignedStaff.noWa.trim(), pesanWAStaff, {
+            namaPemohon: `Staf PIC (${assignedStaff.nama})`,
+            tahap: 'Notif Staf',
           })
-          .catch((err) => {
-            console.warn(`[WA Gateway] Gagal kirim notifikasi ke PIC ${formKonsjen}:`, err);
-          });
+            .then((res) => {
+              console.log(`[WA Gateway] Sukses kirim notifikasi pendaftar baru ke PIC ${formKonsjen} (${assignedStaff?.nama}):`, assignedStaff?.noWa, res);
+            })
+            .catch((err) => {
+              console.warn(`[WA Gateway] Gagal kirim notifikasi ke PIC ${formKonsjen}:`, err);
+            });
+        }
+      } catch (staffErr) {
+        console.warn('Gagal memproses notifikasi staff wilayah:', staffErr);
       }
-    } catch (staffErr) {
-      console.warn('Gagal memproses notifikasi staff wilayah:', staffErr);
     }
 
     // 2d. Otomatis kirim WhatsApp ke Owner MapahTrip (Notifikasi Eksekutif Seluruh Wilayah)
@@ -1142,38 +1376,24 @@ Cek detail pemohon di Dashboard Staf:
       }
 
       if (isOwnerNotifyActive && ownerWa && ownerWa.trim()) {
-        const tanggalDaftar = new Date().toLocaleDateString('id-ID', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        });
-
         const pesanWAOwner =
-`*PEMBERITAHUAN PENDAFTARAN BARU (NOTIFIKASI OWNER MAPAHTRIP)* 👑🇯🇵
+`*PENDAFTARAN BARU (OWNER)* 👑📋
 
-Halo Owner MapahTrip,
+Pendaftar baru masuk ke sistem:
 
-Ada permohonan visa Jepang baru yang baru saja masuk ke sistem MapahTrip:
+• *ID:* *${idPendaftaran}*
+• *Nama:* ${namaPendaftar}
+• *Program:* ${programVisa} (${formPaket})
+• *Konsulat:* Konsjen ${formKonsjen} (PIC: ${assignedStaff?.nama || 'Staf'})
+• *WA Pemohon:* ${formNoWa.trim()}
+• *Biaya:* ${formatRupiah(visaNominal)}
+${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${finalRefCode}\n` : ''}
+🌐 Kelola: https://mapahtrip.id/#owner`;
 
-📋 *Data Pemohon Baru:*
-• *ID Pengajuan:* *${idPendaftaran}*
-• *Nama Pemohon:* ${namaPendaftar}
-• *No. WhatsApp Pemohon:* ${formNoWa.trim()}
-• *No. Paspor:* ${formNoPaspor.trim() || '-'}
-• *Wilayah Konsjen:* Konsjen ${formKonsjen}
-• *Staf PIC Wilayah:* ${assignedStaff?.nama || 'Staf Wilayah'}
-• *Program Visa:* ${programVisa} (${formPaket})
-${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Kode Mitra Referral:* ${finalRefCode}\n` : ''}• *Tanggal Daftar:* ${tanggalDaftar}
-
-Status Saat Ini: *Menunggu Berkas Fisik Tiba di Kantor*.
-Data pemohon telah tersimpan dan siap dipantau.
-
-Pantau & kelola pengajuan di Dashboard Owner:
-🌐 https://mapahtrip.com/#owner
-
-*MapahTrip Executive Alert System*`;
-
-        kirimPesanWA(ownerWa.trim(), pesanWAOwner)
+        kirimPesanWA(ownerWa.trim(), pesanWAOwner, {
+          namaPemohon: 'Owner MapahTrip',
+          tahap: 'Notif Owner',
+        })
           .then((res) => {
             console.log('[WA Gateway] Sukses kirim notifikasi pendaftar baru ke Owner MapahTrip:', ownerWa, res);
           })
@@ -1191,12 +1411,6 @@ Pantau & kelola pengajuan di Dashboard Owner:
         : `MT${Math.floor(100000 + Math.random() * 900000)}`;
     const masked = paspor.length > 4 ? `${paspor.slice(0, 3)}***${paspor.slice(-2)}` : paspor;
 
-    const visaNominal = getNominalVisa(selectedVisaModal?.title, formPaket);
-    const nominalKeluarCalc = Math.round(visaNominal * 0.68);
-    const hasMitraCode = Boolean(finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP');
-    const refFeeAmount = hasMitraCode ? 100000 : 0;
-    const feeBersihCalc = visaNominal - nominalKeluarCalc - refFeeAmount;
-
     const newPengajuan: Pengajuan = {
       id: newApplicantId,
       noPengajuan: idPendaftaran,
@@ -1205,17 +1419,8 @@ Pantau & kelola pengajuan di Dashboard Owner:
       maskedPaspor: masked,
       noTelp: formNoWa.trim(),
       konsjen: formKonsjen,
-      staffPic:
-        formKonsjen === 'Surabaya'
-          ? 'Nanami Kay'
-          : formKonsjen === 'Denpasar'
-          ? 'Yulia'
-          : formKonsjen === 'Medan'
-          ? 'Heru'
-          : formKonsjen === 'Makassar'
-          ? 'Latifah'
-          : 'Rizky',
-      program: selectedVisaModal?.title || 'Visa Jepang',
+      staffPic: (determineDefaultStaffPic(programVisa, formKonsjen) as any),
+      program: programVisa,
       paket: formPaket,
       tglBerkasMasuk: '-',
       tglApply: '-',
@@ -1225,21 +1430,22 @@ Pantau & kelola pengajuan di Dashboard Owner:
       metodePembayaran: 'Transfer Bank',
       affiliateCode: finalRefCode,
       dibayarPemohon: visaNominal,
-      nominalKeluar: nominalKeluarCalc,
+      nominalKeluar: 0,
       cashback: 0,
-      feeBersih: feeBersihCalc > 0 ? feeBersihCalc : 0,
-      referralFee: refFeeAmount,
+      feeBersih: 0,
+      referralFee: 0,
+      staffFee: 0,
       berkas: {
-        formVisa: !!formFiles.formVisa,
-        pasporFisik: !!formFiles.pasporFisik,
-        ktp: !!formFiles.ktp,
-        ektln: !!formFiles.ektln,
-        coe: !!formFiles.coe,
-        foto: !!formFiles.foto,
+        formVisa: !!formFiles.formVisa || Boolean(formUploadedDocs.formVisa),
+        pasporFisik: !!formFiles.pasporFisik || Boolean(formUploadedDocs.pasporFisik),
+        ktp: !!formFiles.ktp || Boolean(formUploadedDocs.ktp),
+        ektln: !!formFiles.ektln || Boolean(formUploadedDocs.ektln),
+        coe: !!formFiles.coe || Boolean(formUploadedDocs.coe),
+        foto: !!formFiles.foto || Boolean(formUploadedDocs.foto),
       },
       catatan: `Pendaftaran mandiri via Website. Domisili: ${finalDomisili}`,
-      fotoBase64: formFotoBase64 || formUploadedDocs['foto']?.base64 || undefined,
-      fotoSizeKB: formFotoSizeKB?.compressed,
+      fotoBase64: undefined,
+      fotoSizeKB: undefined,
       uploadedDocs: formUploadedDocs,
     };
 
@@ -1251,6 +1457,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
       filtered.unshift(newPengajuan);
       localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(filtered));
       window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('mapahtrip:new_applicant', { detail: newPengajuan }));
     } catch {}
 
     // Panggil callback agar state pengajuanList di App.tsx terupdate secara realtime
@@ -1260,6 +1467,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
     setNewSubmittedApplicant(newPengajuan);
     setFormSubmitting(false);
+    isSubmittingRef.current = false;
     setModalStep('success');
   };
 
@@ -1370,7 +1578,6 @@ Pantau & kelola pengajuan di Dashboard Owner:
           >
             {[
               { label: 'Jenis Visa', href: '#jenis-visa', id: 'jenis-visa' },
-              { label: 'Alur Proses', href: '#alur', id: 'alur' },
               { label: 'Lacak Status', href: '#tracking', id: 'tracking' },
               { label: 'FAQ', href: '#faq', id: 'faq' },
             ].map((item, idx) => (
@@ -1533,7 +1740,6 @@ Pantau & kelola pengajuan di Dashboard Owner:
         <div className="mobile-nav-drawer">
           {[
             { label: 'Jenis Visa Jepang', href: '#jenis-visa', id: 'jenis-visa', icon: 'flight' },
-            { label: 'Alur Proses & Syarat', href: '#alur', id: 'alur', icon: 'sync_alt' },
             { label: 'Lacak Status Paspor', href: '#tracking', id: 'tracking', icon: 'search' },
             { label: 'Tanya Jawab (FAQ)', href: '#faq', id: 'faq', icon: 'help_outline' },
             { label: 'Ajukan Visa Jepang', href: '#jenis-visa', id: 'jenis-visa', icon: 'edit_document' },
@@ -1678,7 +1884,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
               <button
                 type="button"
-                onClick={() => handleOpenVisaModal(VISA_OPTIONS[0])}
+                onClick={() => handleOpenVisaModal(dynamicVisaOptions[0] || VISA_OPTIONS[0])}
                 className="wa-cta-btn"
                 style={{
                   display: 'inline-flex',
@@ -1698,7 +1904,8 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
                   edit_document
                 </span>
-                <span>Daftar Visa Sekarang</span>
+                <span className="cta-btn-text-full">Daftar Visa Sekarang</span>
+                <span className="cta-btn-text-mobile">Daftar Visa</span>
               </button>
 
             </div>
@@ -1707,7 +1914,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
             <div className="hero-metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px', width: '100%' }}>
               <div className="metric-card" style={{ padding: '16px 18px', borderRadius: '18px', background: '#ffffff', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <div className="font-serif" style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '2rem', fontWeight: 700, color: '#0B1220', lineHeight: 1.1 }}>
-                  99%
+                  100%
                 </div>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginTop: '4px' }}>Approval Rate</div>
                 <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>screening ketat</div>
@@ -1715,7 +1922,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
               <div className="metric-card" style={{ padding: '16px 18px', borderRadius: '18px', background: '#ffffff', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <div className="font-serif" style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '2rem', fontWeight: 700, color: '#0B1220', lineHeight: 1.1 }}>
-                  200+
+                  {approvedMilestoneDisplay}
                 </div>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginTop: '4px' }}>Visa Approved</div>
                 <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>data riil pemohon</div>
@@ -1848,17 +2055,19 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 justifyContent: 'space-between',
               }}
             >
-              {/* Background Image: MapahTrip.jpg */}
+              {/* Background Image: MapahTrip.jpg with 100% Embedded Fallback */}
               <div
                 style={{
                   position: 'absolute',
                   inset: 0,
                   zIndex: 0,
+                  background: 'linear-gradient(135deg, #0b1220 0%, #0f172a 40%, #0369a1 100%)',
                 }}
               >
                 <img
-                  src={buildingPhoto}
-                  alt="MapahTrip.id"
+                  src={buildingPhoto || './MapahTrip.jpg'}
+                  alt=""
+                  loading="eager"
                   onError={(e) => handleImageFallback(e, getBuildingPhotoFallbacks())}
                   style={{
                     width: '100%',
@@ -2038,40 +2247,49 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
+              <div className="trust-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined trust-icon" style={{ fontSize: '18px', color: '#0047BA' }}>
                   verified
                 </span>
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                <span className="trust-label" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
                   2x Review Dokumen
                 </span>
+                <span className="trust-tag">Resmi JVAC</span>
               </div>
 
               <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
+              <div className="trust-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined trust-icon" style={{ fontSize: '18px', color: '#0047BA' }}>
                   event_available
                 </span>
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                <span className="trust-label" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
                   Itinerary Harian JVAC
                 </span>
+                <span className="trust-tag">Format Kedutaan</span>
               </div>
 
               <span className="trust-dot-sep" style={{ color: '#CBD5E1', fontWeight: 300 }}>•</span>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0047BA' }}>
+              <div className="trust-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined trust-icon" style={{ fontSize: '18px', color: '#0047BA' }}>
                   lock
                 </span>
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                <span className="trust-label" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
                   Privasi Terenkripsi
                 </span>
+                <span className="trust-tag">100% Rahasia</span>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Sorotan Cerita & Testimoni Video (Instagram Stories Style) */}
+      <StoryHighlightsBar
+        highlights={STORY_HIGHLIGHTS}
+        onSelectHighlight={(id) => setActiveStoryHighlightId(id)}
+      />
 
       {/* 3. Section Cek Status / Tracking Paspor Customer */}
       <section id="tracking" style={{ backgroundColor: '#F8FAFC', padding: '60px 24px', borderTop: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0' }}>
@@ -2144,8 +2362,8 @@ Pantau & kelola pengajuan di Dashboard Owner:
           {typeof trackingResult === 'object' && trackingResult !== null && (() => {
             const st = getCustomerStages(trackingResult);
             const resiLower = (st.noResi || '').toLowerCase();
-            const isAirport = resiLower.includes('soetta') || resiLower.includes('bandara') || resiLower.includes('flight') || resiLower.includes('handover');
-            const isOffice = resiLower.includes('kantor') || resiLower.includes('langsung');
+            const isAirport = resiLower.includes('soetta') || resiLower.includes('soehatta') || resiLower.includes('soekarno') || resiLower.includes('bandara') || resiLower.includes('flight') || resiLower.includes('handover');
+            const isOffice = resiLower.includes('kantor') || resiLower.includes('langsung') || resiLower.includes('diambil');
 
             const stageSteps = [
               { key: 'sampai', label: '1. Berkas Sampai', ok: st.isSampai, date: st.tglSampai, desc: 'Dokumen & paspor fisik diterima di kantor MapahTrip', icon: 'inventory_2', color: '#0284C7', bg: '#E0F2FE' },
@@ -2342,8 +2560,8 @@ Pantau & kelola pengajuan di Dashboard Owner:
                     <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>
                       {st.isKirim && st.noResi ? (() => {
                         const lower = st.noResi.toLowerCase();
-                        const isAirportResi = lower.includes('soetta') || lower.includes('bandara') || lower.includes('flight') || lower.includes('handover');
-                        const isOfficeResi = lower.includes('kantor') || lower.includes('langsung');
+                        const isAirportResi = lower.includes('soetta') || lower.includes('soehatta') || lower.includes('soekarno') || lower.includes('bandara') || lower.includes('flight') || lower.includes('handover');
+                        const isOfficeResi = lower.includes('kantor') || lower.includes('langsung') || lower.includes('diambil');
                         const icon = isAirportResi ? 'flight_takeoff' : isOfficeResi ? 'storefront' : 'local_shipping';
                         const bg = isAirportResi ? '#EFF6FF' : isOfficeResi ? '#F0FDF4' : '#F3E8FF';
                         const color = isAirportResi ? '#1D4ED8' : isOfficeResi ? '#15803D' : '#6B21A8';
@@ -3104,13 +3322,25 @@ Pantau & kelola pengajuan di Dashboard Owner:
           </p>
 
           {/* Category Tabs */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '24px' }}>
+          <div className="visa-category-tabs">
             {[
-              { id: 'all', label: 'Semua Visa (8)' },
+              { id: 'all', label: `Semua Visa (${dynamicVisaOptions.length})` },
               { id: 'turis', label: 'Turis & Waiver' },
-              { id: 'bisnis', label: 'Bisnis & Studi' },
-              { id: 'keluarga', label: 'Keluarga & Transit' },
-            ].map((tab) => (
+              { id: 'kerja', label: 'Kerja Formal' },
+              { id: 'magang', label: 'Pemagangan' },
+              { id: 'studi', label: 'Studi (Long Stay)' },
+              { id: 'transit', label: 'Transit' },
+              { id: 'keluarga', label: 'Keluarga' },
+              { id: 'bisnis', label: 'Bisnis' },
+              { id: 'medis', label: 'Medis' },
+            ].filter((tab) => {
+              if (tab.id === 'all') return true;
+              return dynamicVisaOptions.some((item) => {
+                if (item.category === tab.id) return true;
+                if (tab.id === 'kerja' && (item.category === 'khusus' || item.category === 'kerja')) return true;
+                return false;
+              });
+            }).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveVisaTab(tab.id as any)}
@@ -3141,10 +3371,15 @@ Pantau & kelola pengajuan di Dashboard Owner:
           </div>
         </div>
 
-        {/* 8 Cards: Luxury Editorial Service Catalog (No Checkerboard, Unified Bespoke Layout) */}
+        {/* Dynamic Visa Cards synced directly from Master Tarif */}
         <div className="visa-cards-grid">
-          {VISA_OPTIONS
-            .filter((item) => activeVisaTab === 'all' || item.category === activeVisaTab).map((item) => {
+          {dynamicVisaOptions
+            .filter((item) => {
+              if (activeVisaTab === 'all') return true;
+              if (item.category === activeVisaTab) return true;
+              if (activeVisaTab === 'kerja' && item.category === 'khusus') return true;
+              return false;
+            }).map((item) => {
               const isFeatured = item.id === 'tourist-single' || item.id === 'evisa-waiver';
 
               return (
@@ -3369,27 +3604,6 @@ Pantau & kelola pengajuan di Dashboard Owner:
                         </span>
                       </div>
                     </div>
-
-                    {/* Requirements Micro-Tags (Aligned with Fixed Min-Height) */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '18px', minHeight: '52px', alignContent: 'flex-start' }}>
-                      {item.tags.map((tag, tIdx) => (
-                        <span
-                          key={tIdx}
-                          className="visa-tag-pill"
-                          style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            backgroundColor: '#FFFFFF',
-                            border: '1px solid #E2E8F0',
-                            color: '#475569',
-                          }}
-                        >
-                          ✓ {tag}
-                        </span>
-                      ))}
-                    </div>
                   </div>
 
                   {/* Button Cek Syarat & Detail */}
@@ -3446,9 +3660,28 @@ Pantau & kelola pengajuan di Dashboard Owner:
             justifyContent: 'center',
             padding: '16px',
           }}
-          onClick={() => setSelectedVisaModal(null)}
+          onMouseDown={(e) => {
+            isVisaModalBackdropMouseDown.current = e.target === e.currentTarget;
+          }}
+          onClick={(e) => {
+            // Hanya tangani jika klik dimulai dan berakhir tepat di backdrop luar
+            if (e.target !== e.currentTarget || !isVisaModalBackdropMouseDown.current) {
+              isVisaModalBackdropMouseDown.current = false;
+              return;
+            }
+            isVisaModalBackdropMouseDown.current = false;
+
+            // Jika sedang di tahap pengisian formulir pendaftaran, JANGAN pernah tutup otomatis via klik luar
+            // agar data yang diketik pemohon tidak hilang tanpa sengaja saat scrolling / tap dropdown / keyboard muncul
+            if (modalStep === 'form') {
+              return;
+            }
+
+            setSelectedVisaModal(null);
+          }}
         >
           <div
+            className="modal-apply-dialog"
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '24px',
@@ -3457,18 +3690,18 @@ Pantau & kelola pengajuan di Dashboard Owner:
               maxHeight: '92vh',
               overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-              padding: '28px',
               position: 'relative',
+              boxSizing: 'border-box',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Modal */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0, paddingRight: '4px' }}>
                 <div
                   style={{
-                    width: '44px',
-                    height: '44px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '12px',
                     backgroundColor: '#EFF6FF',
                     color: '#2563EB',
@@ -3478,15 +3711,15 @@ Pantau & kelola pengajuan di Dashboard Owner:
                     flexShrink: 0,
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
                     {selectedVisaModal.icon}
                   </span>
                 </div>
-                <div>
-                  <h3 className="font-serif" style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 className="modal-header-title font-serif" style={{ fontSize: '1.20rem', fontWeight: 800, color: '#0F172A', margin: 0, lineHeight: 1.25 }}>
                     {selectedVisaModal.title}
                   </h3>
-                  <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <span>{selectedVisaModal.subtitle}</span>
                     <span>&bull;</span>
                     <strong style={{ color: '#005BB5' }}>{selectedVisaModal.pricePill}</strong>
@@ -3550,30 +3783,48 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   </div>
                 </div>
 
-                {/* Checklist Persyaratan */}
-                <div style={{ marginBottom: '20px' }}>
-                  <h4 style={{ fontSize: '0.925rem', fontWeight: 700, color: '#0F172A', marginBottom: '10px' }}>
-                    📋 Dokumen Persyaratan yang Diperlukan:
+                {/* Keunggulan & Layanan Pendampingan (Rahasia Dokumen Terlindungi) */}
+                <div style={{ marginBottom: '18px' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                      verified_user
+                    </span>
+                    <span>Layanan Pengurusan Visa MapahTrip:</span>
                   </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {selectedVisaModal.syaratLengkap.map((syarat: string, sIdx: number) => (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '14px',
+                      border: '1px solid #E2E8F0',
+                      padding: '2px 14px',
+                    }}
+                  >
+                    {[
+                      'Screening & Verifikasi Berkas Sesuai SOP JVAC',
+                      'Itinerary Harian & Formulir Resmi Disiapkan Tim',
+                      'Panduan & Pengiriman Dokumen Praktis via WhatsApp',
+                      '100% Kerahasiaan Data & Paspor Terenkripsi Aman',
+                    ].map((text, idx) => (
                       <div
-                        key={sIdx}
+                        key={idx}
                         style={{
                           display: 'flex',
-                          alignItems: 'flex-start',
+                          alignItems: 'center',
                           gap: '10px',
-                          fontSize: '0.85rem',
-                          color: '#334155',
-                          lineHeight: 1.45,
-                          backgroundColor: '#F8FAFC',
-                          padding: '10px 14px',
-                          borderRadius: '10px',
-                          border: '1px solid #EDF2F7',
+                          padding: '11px 0',
+                          borderBottom: idx < 3 ? '1px solid #EDF2F7' : 'none',
+                          fontSize: '0.82rem',
+                          color: '#1E293B',
+                          fontWeight: 600,
+                          lineHeight: 1.4,
                         }}
                       >
-                        <span style={{ color: '#16A34A', fontWeight: 800, marginTop: '1px' }}>✓</span>
-                        <span>{syarat}</span>
+                        <span className="material-symbols-outlined" style={{ color: '#16A34A', fontSize: '18px', flexShrink: 0 }}>
+                          check_circle
+                        </span>
+                        <span>{text}</span>
                       </div>
                     ))}
                   </div>
@@ -3923,7 +4174,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
                         loyalty
                       </span>
                       <span>
-                        Mitra Affiliate: <strong>{referralValidation.code}</strong> {referralValidation.partnerName ? `(${referralValidation.partnerName})` : ''}
+                        Mitra Affiliate: <strong>{referralValidation.code}</strong> {referralValidation.partnerName && referralValidation.partnerName !== '-' ? `(${referralValidation.partnerName})` : ''}
                       </span>
                     </div>
                     <span
@@ -4035,17 +4286,17 @@ Pantau & kelola pengajuan di Dashboard Owner:
 
                       {/* Input Kode Referral Mitra (Affiliate) */}
                       <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
                           <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
-                            Kode Referral Mitra / Rekomendasi (Opsional)
+                            Kode Referral Mitra (Opsional)
                           </label>
                           {customerRefCode.trim() && (
                             referralValidation.isValid ? (
-                              <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '1px 8px', borderRadius: '9999px' }}>
-                                ✓ Terhubung: {referralValidation.partnerName}
+                              <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap' }}>
+                                ✓ {referralValidation.partnerName && referralValidation.partnerName !== '-' ? `Mitra: ${referralValidation.partnerName}` : 'Mitra Terhubung'}
                               </span>
                             ) : (
-                              <span style={{ fontSize: '0.7rem', color: '#DC2626', fontWeight: 700, backgroundColor: '#FEE2E2', padding: '1px 8px', borderRadius: '9999px' }}>
+                              <span style={{ fontSize: '0.7rem', color: '#DC2626', fontWeight: 700, backgroundColor: '#FEE2E2', padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap' }}>
                                 ✕ Kode Tidak Dikenali
                               </span>
                             )
@@ -4190,126 +4441,241 @@ Pantau & kelola pengajuan di Dashboard Owner:
                         </div>
                       </div>
 
-                      {/* Baris 2 Kolom: Wilayah Konsulat & Domisili KTP */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        {/* Wilayah Konsulat Pengajuan (Konsjen) */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
-                            Wilayah Konsulat <span style={{ color: '#EF4444' }}>*</span>
-                          </label>
-                          <select
-                            value={formKonsjen}
-                            onChange={(e) => setFormKonsjen(e.target.value as KonsjenKota)}
+                      {/* Program Khusus Visa Waiver: 100% Online JAVES Pusat, Tidak Perlu Konsulat Fisik */}
+                      {((selectedVisaModal?.title || '').toLowerCase().includes('waiver') || (selectedVisaModal?.id || '').toLowerCase().includes('waiver')) ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                              Domisili KTP <span style={{ color: '#EF4444' }}>*</span>
+                            </label>
+                            <select
+                              value={formDomisili}
+                              onChange={(e) => handleSelectDomisili(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                borderRadius: '10px',
+                                border: '1px solid #CBD5E1',
+                                fontSize: '0.86rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                backgroundColor: '#F8FAFC',
+                                color: '#0F172A',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <optgroup label="Konsulat Jakarta & Sekitarnya">
+                                <option value="DKI Jakarta">DKI Jakarta / Jakarta</option>
+                                <option value="Jawa Barat">Jawa Barat</option>
+                                <option value="Banten">Banten</option>
+                                <option value="Jawa Tengah">Jawa Tengah</option>
+                                <option value="DI Yogyakarta">DI Yogyakarta</option>
+                                <option value="Lampung">Lampung</option>
+                                <option value="Sumatera Selatan">Sumatera Selatan</option>
+                              </optgroup>
+                              <optgroup label="Konsulat Surabaya & Sekitarnya">
+                                <option value="Surabaya">Surabaya</option>
+                                <option value="Jawa Timur">Jawa Timur</option>
+                                <option value="Kalimantan Timur">Kalimantan Timur</option>
+                                <option value="Kalimantan Barat / Selatan">Kalimantan Barat / Selatan</option>
+                              </optgroup>
+                              <optgroup label="Konsulat Denpasar & Sekitarnya">
+                                <option value="Denpasar">Denpasar</option>
+                                <option value="Bali">Bali</option>
+                                <option value="Nusa Tenggara Barat (NTB)">Nusa Tenggara Barat (NTB)</option>
+                                <option value="Nusa Tenggara Timur (NTT)">Nusa Tenggara Timur (NTT)</option>
+                              </optgroup>
+                              <optgroup label="Konsulat Medan & Sekitarnya">
+                                <option value="Medan">Medan</option>
+                                <option value="Sumatera Utara">Sumatera Utara</option>
+                                <option value="Sumatera Barat">Sumatera Barat</option>
+                                <option value="Riau / Kepulauan Riau">Riau / Kepulauan Riau</option>
+                                <option value="Aceh">Aceh</option>
+                              </optgroup>
+                              <optgroup label="Kantor Konsuler Makassar & Sekitarnya">
+                                <option value="Makassar">Makassar</option>
+                                <option value="Sulawesi Selatan">Sulawesi Selatan</option>
+                                <option value="Sulawesi Utara / Tengah">Sulawesi Utara / Tengah</option>
+                                <option value="Maluku / Papua">Maluku / Papua</option>
+                              </optgroup>
+                              <optgroup label="Lainnya">
+                                <option value="Lainnya">Lainnya / Tulis Sendiri...</option>
+                              </optgroup>
+                            </select>
+                          </div>
+
+                          <div
                             style={{
-                              width: '100%',
-                              padding: '10px 14px',
-                              borderRadius: '10px',
-                              border: '1.5px solid #005BB5',
-                              fontSize: '0.86rem',
-                              fontWeight: 600,
-                              outline: 'none',
-                              boxSizing: 'border-box',
-                              backgroundColor: '#EFF6FF',
-                              color: '#005BB5',
-                              cursor: 'pointer',
+                              backgroundColor: '#F0FDF4',
+                              border: '1.5px solid #86EFAC',
+                              borderRadius: '12px',
+                              padding: '12px 14px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
                             }}
                           >
-                            <option value="Jakarta">Jakarta (Kedutaan / JVAC Kuningan)</option>
-                            <option value="Surabaya">Surabaya (Konsulat Jenderal Surabaya)</option>
-                            <option value="Denpasar">Denpasar (Konsulat Jenderal Bali)</option>
-                            <option value="Medan">Medan (Konsulat Jenderal Medan)</option>
-                            <option value="Makassar">Makassar (Kantor Konsuler Makassar)</option>
-                          </select>
+                            <div
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '10px',
+                                backgroundColor: '#DCFCE7',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                color: '#16A34A',
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                                cloud_done
+                              </span>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#166534' }}>
+                                Layanan Pengurusan Khusus (Tanpa Kirim Paspor Fisik)
+                              </div>
+                              <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: '2px', lineHeight: 1.4 }}>
+                                Bebas antre konsulat &amp; tanpa kirim paspor fisik. Pengurusan diproses langsung oleh Tim Konsultan Pusat MapahTrip.
+                              </div>
+                            </div>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          {/* Baris 2 Kolom: Wilayah Konsulat & Domisili KTP */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            {/* Wilayah Konsulat Pengajuan (Konsjen) */}
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                                Wilayah Konsulat <span style={{ color: '#EF4444' }}>*</span>
+                              </label>
+                              <select
+                                value={formKonsjen}
+                                onChange={(e) => setFormKonsjen(e.target.value as KonsjenKota)}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  borderRadius: '10px',
+                                  border: '1.5px solid #005BB5',
+                                  fontSize: '0.86rem',
+                                  fontWeight: 600,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  backgroundColor: '#EFF6FF',
+                                  color: '#005BB5',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <option value="Jakarta">Jakarta (Kedutaan / JVAC Kuningan)</option>
+                                <option value="Surabaya">Surabaya (Konsulat Jenderal Surabaya)</option>
+                                <option value="Denpasar">Denpasar (Konsulat Jenderal Bali)</option>
+                                <option value="Medan">Medan (Konsulat Jenderal Medan)</option>
+                                <option value="Makassar">Makassar (Kantor Konsuler Makassar)</option>
+                              </select>
+                            </div>
 
-                        {/* Domisili KTP */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
-                            Domisili KTP <span style={{ color: '#EF4444' }}>*</span>
-                          </label>
-                          <select
-                            value={formDomisili}
-                            onChange={(e) => handleSelectDomisili(e.target.value)}
+                            {/* Domisili KTP */}
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                                Domisili KTP <span style={{ color: '#EF4444' }}>*</span>
+                              </label>
+                              <select
+                                value={formDomisili}
+                                onChange={(e) => handleSelectDomisili(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  borderRadius: '10px',
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: '0.86rem',
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  backgroundColor: '#F8FAFC',
+                                  color: '#0F172A',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <optgroup label="Konsulat Jakarta & Sekitarnya">
+                                  <option value="DKI Jakarta">DKI Jakarta / Jakarta</option>
+                                  <option value="Jawa Barat">Jawa Barat</option>
+                                  <option value="Banten">Banten</option>
+                                  <option value="Jawa Tengah">Jawa Tengah</option>
+                                  <option value="DI Yogyakarta">DI Yogyakarta</option>
+                                  <option value="Lampung">Lampung</option>
+                                  <option value="Sumatera Selatan">Sumatera Selatan</option>
+                                </optgroup>
+                                <optgroup label="Konsulat Surabaya & Sekitarnya">
+                                  <option value="Surabaya">Surabaya</option>
+                                  <option value="Jawa Timur">Jawa Timur</option>
+                                  <option value="Kalimantan Timur">Kalimantan Timur</option>
+                                  <option value="Kalimantan Barat / Selatan">Kalimantan Barat / Selatan</option>
+                                </optgroup>
+                                <optgroup label="Konsulat Denpasar & Sekitarnya">
+                                  <option value="Denpasar">Denpasar</option>
+                                  <option value="Bali">Bali</option>
+                                  <option value="Nusa Tenggara Barat (NTB)">Nusa Tenggara Barat (NTB)</option>
+                                  <option value="Nusa Tenggara Timur (NTT)">Nusa Tenggara Timur (NTT)</option>
+                                </optgroup>
+                                <optgroup label="Konsulat Medan & Sekitarnya">
+                                  <option value="Medan">Medan</option>
+                                  <option value="Sumatera Utara">Sumatera Utara</option>
+                                  <option value="Sumatera Barat">Sumatera Barat</option>
+                                  <option value="Riau / Kepulauan Riau">Riau / Kepulauan Riau</option>
+                                  <option value="Aceh">Aceh</option>
+                                </optgroup>
+                                <optgroup label="Kantor Konsuler Makassar & Sekitarnya">
+                                  <option value="Makassar">Makassar</option>
+                                  <option value="Sulawesi Selatan">Sulawesi Selatan</option>
+                                  <option value="Sulawesi Utara / Tengah">Sulawesi Utara / Tengah</option>
+                                  <option value="Maluku / Papua">Maluku / Papua</option>
+                                </optgroup>
+                                <optgroup label="Lainnya">
+                                  <option value="Lainnya">Lainnya / Tulis Sendiri...</option>
+                                </optgroup>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Notifikasi PIC & Status Antrean Konsulat Terpilih */}
+                          <div
                             style={{
-                              width: '100%',
-                              padding: '10px 14px',
+                              backgroundColor: '#F0F9FF',
+                              border: '1px solid #BAE6FD',
                               borderRadius: '10px',
-                              border: '1px solid #CBD5E1',
-                              fontSize: '0.86rem',
-                              outline: 'none',
-                              boxSizing: 'border-box',
-                              backgroundColor: '#F8FAFC',
-                              color: '#0F172A',
-                              cursor: 'pointer',
+                              padding: '8px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '0.78rem',
+                              color: '#0369A1',
+                              flexWrap: 'wrap',
+                              gap: '6px',
                             }}
                           >
-                            <optgroup label="Konsulat Jakarta & Sekitarnya">
-                              <option value="DKI Jakarta">DKI Jakarta / Jakarta</option>
-                              <option value="Jawa Barat">Jawa Barat</option>
-                              <option value="Banten">Banten</option>
-                              <option value="Jawa Tengah">Jawa Tengah</option>
-                              <option value="DI Yogyakarta">DI Yogyakarta</option>
-                              <option value="Lampung">Lampung</option>
-                              <option value="Sumatera Selatan">Sumatera Selatan</option>
-                            </optgroup>
-                            <optgroup label="Konsulat Surabaya & Sekitarnya">
-                              <option value="Surabaya">Surabaya</option>
-                              <option value="Jawa Timur">Jawa Timur</option>
-                              <option value="Kalimantan Timur">Kalimantan Timur</option>
-                              <option value="Kalimantan Barat / Selatan">Kalimantan Barat / Selatan</option>
-                            </optgroup>
-                            <optgroup label="Konsulat Denpasar & Sekitarnya">
-                              <option value="Denpasar">Denpasar</option>
-                              <option value="Bali">Bali</option>
-                              <option value="Nusa Tenggara Barat (NTB)">Nusa Tenggara Barat (NTB)</option>
-                              <option value="Nusa Tenggara Timur (NTT)">Nusa Tenggara Timur (NTT)</option>
-                            </optgroup>
-                            <optgroup label="Konsulat Medan & Sekitarnya">
-                              <option value="Medan">Medan</option>
-                              <option value="Sumatera Utara">Sumatera Utara</option>
-                              <option value="Sumatera Barat">Sumatera Barat</option>
-                              <option value="Riau / Kepulauan Riau">Riau / Kepulauan Riau</option>
-                              <option value="Aceh">Aceh</option>
-                            </optgroup>
-                            <optgroup label="Kantor Konsuler Makassar & Sekitarnya">
-                              <option value="Makassar">Makassar</option>
-                              <option value="Sulawesi Selatan">Sulawesi Selatan</option>
-                              <option value="Sulawesi Utara / Tengah">Sulawesi Utara / Tengah</option>
-                              <option value="Maluku / Papua">Maluku / Papua</option>
-                            </optgroup>
-                            <optgroup label="Lainnya">
-                              <option value="Lainnya">Lainnya / Tulis Sendiri...</option>
-                            </optgroup>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Notifikasi PIC & Status Antrean Konsulat Terpilih */}
-                      <div
-                        style={{
-                          backgroundColor: '#F0F9FF',
-                          border: '1px solid #BAE6FD',
-                          borderRadius: '10px',
-                          padding: '8px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          fontSize: '0.78rem',
-                          color: '#0369A1',
-                          flexWrap: 'wrap',
-                          gap: '6px',
-                        }}
-                      >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0284C7' }}>
-                            domain
-                          </span>
-                          <span>Konsulat Pengajuan: <strong>{formKonsjen}</strong></span>
-                        </span>
-                        <span style={{ fontWeight: 600, color: '#0369A1' }}>
-                          PIC Konsuler: <strong>{formKonsjen === 'Surabaya' ? 'Nanami Kay' : formKonsjen === 'Denpasar' ? 'Yulia' : formKonsjen === 'Medan' ? 'Heru' : formKonsjen === 'Makassar' ? 'Latifah' : 'Rizky'}</strong>
-                        </span>
-                      </div>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0284C7' }}>
+                                domain
+                              </span>
+                              <span>Konsulat Pengajuan: <strong>{formKonsjen}</strong></span>
+                            </span>
+                            <span style={{ fontWeight: 600, color: '#0369A1' }}>
+                              PIC Konsuler: <strong>{selectedVisaModal?.title?.toLowerCase().includes('kunjungan')
+                                ? 'Ulla (Spesialis Visa Kunjungan Seluruh Wilayah)'
+                                : (formKonsjen === 'Surabaya'
+                                  ? 'Nanami Kay'
+                                  : formKonsjen === 'Denpasar'
+                                  ? 'Yulia'
+                                  : formKonsjen === 'Medan'
+                                  ? 'Heru'
+                                  : formKonsjen === 'Makassar'
+                                  ? 'Latifah'
+                                  : 'Rizky')}</strong>
+                            </span>
+                          </div>
+                        </>
+                      )}
 
                       {formDomisili === 'Lainnya' && (
                         <div>
@@ -4408,442 +4774,162 @@ Pantau & kelola pengajuan di Dashboard Owner:
                       </h4>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                    <div className="modal-paket-grid">
                       {[
-                        { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit' },
-                        { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat' },
-                        { id: 'TAC' as const, title: 'TAC', desc: 'Pendampingan All-in' },
+                        { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit', price: getNominalVisa(selectedVisaModal?.title, 'Reguler') },
+                        { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat', price: getNominalVisa(selectedVisaModal?.title, 'Premium') },
+                        { id: 'TAC' as const, title: 'TAC', desc: 'Pendampingan All-in', price: getNominalVisa(selectedVisaModal?.title, 'TAC') },
                       ].map((pkg) => {
                         const isSelected = formPaket === pkg.id;
                         return (
                           <div
                             key={pkg.id}
+                            className="modal-paket-card"
                             onClick={() => setFormPaket(pkg.id)}
                             style={{
-                              padding: '10px 8px',
-                              borderRadius: '12px',
                               border: isSelected ? '2px solid #005BB5' : '1px solid #E2E8F0',
                               backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC',
-                              cursor: 'pointer',
-                              textAlign: 'center',
-                              transition: 'all 0.15s ease',
+                              boxShadow: isSelected ? '0 2px 8px rgba(0, 91, 181, 0.15)' : 'none',
                             }}
                           >
-                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isSelected ? '#005BB5' : '#1E293B' }}>
-                              {pkg.title}
+                            <div className="modal-paket-card-left">
+                              <div
+                                className="modal-paket-card-radio"
+                                style={{
+                                  border: isSelected ? '5px solid #005BB5' : '2px solid #CBD5E1',
+                                  backgroundColor: '#FFFFFF',
+                                }}
+                              />
+                              <div className="modal-paket-card-info">
+                                <div className="modal-paket-title" style={{ color: isSelected ? '#005BB5' : '#1E293B' }}>
+                                  {pkg.title}
+                                </div>
+                                <div className="modal-paket-desc" style={{ color: isSelected ? '#1E40AF' : '#64748B' }}>
+                                  {pkg.desc}
+                                </div>
+                              </div>
                             </div>
-                            <div style={{ fontSize: '0.68rem', color: isSelected ? '#1E40AF' : '#64748B', marginTop: '2px' }}>
-                              {pkg.desc}
+                            <div
+                              className="modal-paket-card-price"
+                              style={{
+                                color: isSelected ? '#005BB5' : '#15803D',
+                                fontFamily: 'monospace',
+                              }}
+                            >
+                              {formatRupiah(pkg.price)}
                             </div>
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Total Biaya Card Sesuai Paket Terpilih */}
+                    <div
+                      style={{
+                        marginTop: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        backgroundColor: '#F8FAFC',
+                        border: '1.5px solid #E2E8F0',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '12px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Total Biaya Layanan ({formPaket})
+                        </div>
+                        <div style={{ fontSize: '1.20rem', fontWeight: 900, color: '#0F172A', fontFamily: 'monospace', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                          {formatRupiah(getNominalVisa(selectedVisaModal?.title, formPaket))}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.72rem',
+                          color: '#15803D',
+                          backgroundColor: '#DCFCE7',
+                          border: '1px solid #86EFAC',
+                          borderRadius: '9999px',
+                          padding: '4px 10px',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>verified</span>
+                        <span>Resmi &amp; Transparan</span>
+                      </div>
+                    </div>
+
+                    {/* Catatan Transparansi Biaya & Penyesuaian Kasus (Opsi B) */}
+                    <div
+                      style={{
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: '#F8FAFC',
+                        border: '1px dashed #CBD5E1',
+                        fontSize: '0.72rem',
+                        color: '#475569',
+                        lineHeight: 1.45,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '6px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#0284C7', marginTop: '1px', flexShrink: 0 }}>
+                        info
+                      </span>
+                      <div>
+                        <strong>Estimasi Biaya Layanan:</strong> Nominal di atas merupakan tarif dasar jasa pengurusan. Total biaya akhir dapat disesuaikan oleh tim konsultan MapahTrip berdasarkan jenis program visa, kelengkapan dokumen persyaratan, serta biaya resmi loket Kedutaan/JVAC saat konsultasi berkas via WhatsApp.
+                      </div>
                     </div>
                   </div>
 
-                  {/* SECTION 3: KELENGKAPAN BERKAS DENGAN FILE UPLOAD */}
-                  <div style={{ marginBottom: '22px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
-                          upload_file
-                        </span>
-                        <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                          3. Kelengkapan Berkas (Unggah Dokumen)
-                        </h4>
+                  {/* PANDUAN PENGIRIMAN BERKAS LANGSUNG VIA WHATSAPP */}
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: '#F0FDF4',
+                      border: '1px solid #BBF7D0',
+                      marginBottom: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        backgroundColor: '#DCFCE7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#16A34A' }}>
+                        chat
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#15803D', lineHeight: 1.45, flex: 1, textAlign: 'left' }}>
+                      <strong>Pengiriman Berkas Praktis via WhatsApp:</strong>
+                      <div style={{ color: '#475569', marginTop: '2px', textAlign: 'left' }}>
+                        Tidak perlu unggah berkas di website. Tim konsultan kami akan menghubungi Anda via WhatsApp untuk panduan &amp; penerimaan dokumen.
                       </div>
-                      <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Pilih / Upload File:</span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {[
-                        { key: 'formVisa' as const, label: 'Form Visa', sub: 'Wajib Format Dokumen PDF (2 Halaman)', accept: '.pdf,application/pdf' },
-                        { key: 'pasporFisik' as const, label: 'Paspor Fisik Asli', sub: 'Scan / foto halaman biodata paspor asli', accept: 'image/*,.pdf' },
-                        { key: 'ktp' as const, label: 'KTP & KK', sub: 'Fotokopi / scan e-KTP & KK', accept: 'image/*,.pdf' },
-                        { key: 'ektln' as const, label: 'E-KTLN', sub: 'Elektronik Kartu Tenaga Kerja Luar Negeri BP2MI', accept: '.pdf,image/*' },
-                        { key: 'coe' as const, label: 'COE', sub: 'Certificate of Eligibility resmi MOJ Jepang', accept: '.pdf,image/*' },
-                        { key: 'foto' as const, label: 'Pas Foto', sub: 'Pasfoto 4.5 × 3.5 cm latar putih polos (< 100KB)', accept: 'image/*' },
-                      ].map((item) => {
-                        const file = formFiles[item.key];
-                        const docUploaded = formUploadedDocs[item.key];
-                        const isImageDoc = docUploaded?.base64 && docUploaded.base64.startsWith('data:image/');
-
-                        return (
-                          <div
-                            key={item.key}
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '10px',
-                              padding: '12px 14px',
-                              borderRadius: '12px',
-                              border: file ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
-                              backgroundColor: file ? '#F0FDF4' : '#F8FAFC',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '10px',
-                                width: '100%',
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                                <span
-                                  className="material-symbols-outlined"
-                                  style={{
-                                    fontSize: '20px',
-                                    color: file ? '#16A34A' : '#005BB5',
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {file ? 'check_circle' : 'attach_file'}
-                                </span>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                    <strong style={{ fontSize: '0.85rem', color: '#0F172A' }}>
-                                      {item.label}
-                                    </strong>
-                                    <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                                      &bull; {item.sub}
-                                    </span>
-                                  </div>
-                                  {/* Loading state saat kompresi */}
-                                  {(compressingDocKey === item.key || (item.key === 'foto' && isCompressingFoto)) && (
-                                    <div style={{ fontSize: '0.72rem', color: '#005BB5', fontWeight: 600, marginTop: '2px' }}>
-                                      ⏳ Sedang mengompresi otomatis di bawah 100 KB...
-                                    </div>
-                                  )}
-                                  {file && (
-                                    <div>
-                                      <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        📄 {file.name} ({(file.size / 1024).toFixed(0)} KB)
-                                      </div>
-                                      {/* Preview Thumbnail Berkas Terunggah */}
-                                      {isImageDoc && (
-                                        <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          <img
-                                            src={docUploaded.base64}
-                                            alt={`Preview ${item.label}`}
-                                            style={{
-                                              width: item.key === 'foto' ? '32px' : '44px',
-                                              height: item.key === 'foto' ? '40px' : '32px',
-                                              objectFit: 'cover',
-                                              borderRadius: '4px',
-                                              border: '1.5px solid #16A34A',
-                                            }}
-                                          />
-                                          {/* Badge Hasil Kompresi Gambar (< 100 KB) */}
-                                          {(formDocsSizeKB[item.key] || (item.key === 'foto' && formFotoSizeKB)) && (() => {
-                                            const stat = formDocsSizeKB[item.key] || formFotoSizeKB!;
-                                            return (
-                                              <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                                                <span style={{ textDecoration: 'line-through', color: '#94A3B8' }}>{stat.original} KB</span>
-                                                <span style={{ fontWeight: 800, color: '#16A34A' }}>➔ {stat.compressed} KB</span>
-                                                <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                                                  ⚡ Auto-Compressed (&lt; 100 KB)
-                                                </span>
-                                              </div>
-                                            );
-                                          })()}
-                                        </div>
-                                      )}
-                                      {/* Badge Dokumen PDF & Validasi Ukuran Ideal */}
-                                      {(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && (
-                                        <div style={{ fontSize: '0.7rem', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                                          <span style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                                            📄 Dokumen PDF ({(file.size / 1024).toFixed(0)} KB)
-                                          </span>
-                                          {file.size <= 2 * 1024 * 1024 ? (
-                                            <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                                              ✅ Ukuran Sangat Pas (&lt; 2 MB)
-                                            </span>
-                                          ) : (
-                                            <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                                              ⚠️ Disarankan &lt; 2 MB
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <input
-                                  type="file"
-                                  id={`upload-${item.key}`}
-                                  accept={item.accept}
-                                  style={{ display: 'none' }}
-                                  onChange={async (e) => {
-                                    const f = e.target.files?.[0] || null;
-                                    if (!f) {
-                                      setFormFiles((prev) => ({ ...prev, [item.key]: null }));
-                                      setFormUploadedDocs((prev) => {
-                                        const next = { ...prev };
-                                        delete next[item.key];
-                                        return next;
-                                      });
-                                      setFormDocsSizeKB((prev) => {
-                                        const next = { ...prev };
-                                        delete next[item.key];
-                                        return next;
-                                      });
-                                      if (item.key === 'foto') {
-                                        setFormFotoBase64(null);
-                                        setFormFotoSizeKB(null);
-                                      }
-                                      return;
-                                    }
-
-                                    // Validasi khusus Form Visa: Wajib PDF
-                                    if (item.key === 'formVisa' && !f.name.toLowerCase().endsWith('.pdf') && f.type !== 'application/pdf') {
-                                      alert('Dokumen Form Visa wajib diunggah dalam format PDF (2 halaman). Silakan simpan hasil scan Anda sebagai berkas PDF.');
-                                      return;
-                                    }
-
-                                    // Konversi & kompresi gambar agar langsung tersimpan di Supabase
-                                    if (item.key === 'foto' || f.type.startsWith('image/')) {
-                                      try {
-                                        setCompressingDocKey(item.key);
-                                        if (item.key === 'foto') setIsCompressingFoto(true);
-                                        const res = await compressImageUnder100KB(f);
-                                        setFormFiles((prev) => ({ ...prev, [item.key]: res.file }));
-                                        setFormUploadedDocs((prev) => ({
-                                          ...prev,
-                                          [item.key]: {
-                                            name: f.name,
-                                            base64: res.base64,
-                                            sizeKB: res.compressedSizeKB,
-                                          },
-                                        }));
-                                        setFormDocsSizeKB((prev) => ({
-                                          ...prev,
-                                          [item.key]: {
-                                            original: res.originalSizeKB,
-                                            compressed: res.compressedSizeKB,
-                                          },
-                                        }));
-                                        if (item.key === 'foto') {
-                                          setFormFotoBase64(res.base64);
-                                          setFormFotoSizeKB({
-                                            original: res.originalSizeKB,
-                                            compressed: res.compressedSizeKB,
-                                          });
-                                        }
-                                      } catch (err) {
-                                        console.warn('Gagal kompresi dokumen:', err);
-                                        const reader = new FileReader();
-                                        reader.onload = (re) => {
-                                          const b64 = re.target?.result as string;
-                                          if (b64) {
-                                            setFormUploadedDocs((prev) => ({
-                                              ...prev,
-                                              [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
-                                            }));
-                                            if (item.key === 'foto') setFormFotoBase64(b64);
-                                          }
-                                        };
-                                        reader.readAsDataURL(f);
-                                        setFormFiles((prev) => ({ ...prev, [item.key]: f }));
-                                      } finally {
-                                        setCompressingDocKey(null);
-                                        if (item.key === 'foto') setIsCompressingFoto(false);
-                                      }
-                                    } else {
-                                      // File non-gambar (misal PDF)
-                                      setFormFiles((prev) => ({ ...prev, [item.key]: f }));
-                                      const reader = new FileReader();
-                                      reader.onload = (re) => {
-                                        const b64 = re.target?.result as string;
-                                        if (b64) {
-                                          setFormUploadedDocs((prev) => ({
-                                            ...prev,
-                                            [item.key]: { name: f.name, base64: b64, sizeKB: Math.round(f.size / 1024) },
-                                          }));
-                                        }
-                                      };
-                                      reader.readAsDataURL(f);
-                                    }
-                                  }}
-                                />
-                                {file ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span
-                                      style={{
-                                        fontSize: '0.72rem',
-                                        fontWeight: 700,
-                                        color: '#15803D',
-                                        backgroundColor: '#DCFCE7',
-                                        padding: '3px 8px',
-                                        borderRadius: '6px',
-                                      }}
-                                    >
-                                      Terunggah
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setFormFiles((prev) => ({ ...prev, [item.key]: null }));
-                                        setFormUploadedDocs((prev) => {
-                                          const next = { ...prev };
-                                          delete next[item.key];
-                                          return next;
-                                        });
-                                        setFormDocsSizeKB((prev) => {
-                                          const next = { ...prev };
-                                          delete next[item.key];
-                                          return next;
-                                        });
-                                        if (item.key === 'foto') {
-                                          setFormFotoBase64(null);
-                                          setFormFotoSizeKB(null);
-                                        }
-                                      }}
-                                      style={{
-                                        border: 'none',
-                                        background: '#FEE2E2',
-                                        color: '#EF4444',
-                                        borderRadius: '50%',
-                                        width: '24px',
-                                        height: '24px',
-                                        cursor: 'pointer',
-                                        fontSize: '12px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                      }}
-                                      title="Hapus file"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <label
-                                    htmlFor={`upload-${item.key}`}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      backgroundColor: '#FFFFFF',
-                                      border: '1.5px solid #005BB5',
-                                      fontSize: '0.76rem',
-                                      fontWeight: 700,
-                                      color: '#005BB5',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                                      upload
-                                    </span>
-                                    <span>Pilih File</span>
-                                  </label>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Khusus Form Visa: Box Unduh Formulir & Tatacara Pengisian */}
-                            {item.key === 'formVisa' && (
-                              <div
-                                style={{
-                                  marginTop: '4px',
-                                  padding: '12px 14px',
-                                  borderRadius: '10px',
-                                  backgroundColor: '#F0F7FF',
-                                  border: '1px solid #BAE6FD',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '10px',
-                                  width: '100%',
-                                  boxSizing: 'border-box',
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                  <span
-                                    className="material-symbols-outlined"
-                                    style={{ fontSize: '18px', color: '#0284C7', flexShrink: 0, marginTop: '1px' }}
-                                  >
-                                    assignment_turned_in
-                                  </span>
-                                  <div style={{ fontSize: '0.75rem', color: '#0369A1', lineHeight: 1.45 }}>
-                                    <strong>Wajib Menggunakan Formulir Resmi Kedutaan Jepang (Format PDF):</strong> Silakan unduh form kosong &amp; ikuti panduan pengisian di bawah. Cetak, isi lengkap, tempel pasfoto 4.5 × 3.5 cm, tanda tangani, lalu unggah kembali dalam format dokumen PDF (2 halaman).
-                                    <div style={{ marginTop: '5px', fontSize: '0.72rem', color: '#1E40AF', backgroundColor: '#E0F2FE', padding: '4px 8px', borderRadius: '6px' }}>
-                                      💡 <strong>Ketentuan Berkas:</strong> Wajib format <strong>PDF (2 Halaman)</strong>. Ukuran ideal <strong>300 KB – 800 KB</strong> (maksimal 2 MB agar teks formulir dan pasfoto tetap tajam &amp; jelas).
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '2px' }}>
-                                  <a
-                                    href={`${import.meta.env.BASE_URL}documents/Formulir_Aplikasi_Visa_Jepang_MapahTrip.pdf`}
-                                    download="Formulir_Aplikasi_Visa_Jepang_MapahTrip.pdf"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '7px 12px',
-                                      borderRadius: '8px',
-                                      backgroundColor: '#FFFFFF',
-                                      color: '#0284C7',
-                                      border: '1.5px solid #0284C7',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 700,
-                                      textDecoration: 'none',
-                                      boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
-                                    <span>Unduh Form Kosong (PDF)</span>
-                                  </a>
-
-                                  <a
-                                    href={`${import.meta.env.BASE_URL}documents/Panduan_Tatacara_Pengisian_Formulir_Visa_Jepang.pdf`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '7px 12px',
-                                      borderRadius: '8px',
-                                      backgroundColor: '#FEF3C7',
-                                      color: '#92400E',
-                                      border: '1.5px solid #F59E0B',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 700,
-                                      textDecoration: 'none',
-                                      boxShadow: '0 1px 3px rgba(245, 158, 11, 0.1)',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>menu_book</span>
-                                    <span>Lihat Tatacara Pengisian (PDF)</span>
-                                  </a>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '8px' }}>
-                      💡 Unggah berkas yang sudah Anda miliki (Format: PDF, JPG, PNG). Dokumen yang belum siap dapat dibimbing penyusunannya oleh tim MapahTrip.
                     </div>
                   </div>
 
                   {/* ACTION BUTTONS */}
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                     <button
                       type="submit"
                       disabled={formSubmitting}
@@ -4851,28 +4937,31 @@ Pantau & kelola pengajuan di Dashboard Owner:
                         flex: 1,
                         backgroundColor: '#005BB5',
                         color: '#FFFFFF',
-                        padding: '14px 20px',
+                        minHeight: '46px',
+                        padding: '10px 16px',
                         borderRadius: '9999px',
                         fontWeight: 700,
-                        fontSize: '0.92rem',
+                        fontSize: '0.88rem',
                         border: 'none',
                         cursor: formSubmitting ? 'not-allowed' : 'pointer',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 14px rgba(0, 91, 181, 0.28)',
+                        gap: '6px',
+                        boxShadow: '0 4px 14px rgba(0, 91, 181, 0.25)',
+                        whiteSpace: 'nowrap',
                         transition: 'all 0.15s ease',
                         opacity: formSubmitting ? 0.7 : 1,
+                        boxSizing: 'border-box',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#00478F')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#005BB5')}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                         send
                       </span>
                       <span>
-                        {formSubmitting ? 'Mengunggah Berkas & Mendaftar...' : 'Kirim Formulir Pendaftaran'}
+                        {formSubmitting ? 'Memproses...' : 'Kirim Pendaftaran'}
                       </span>
                     </button>
 
@@ -4880,14 +4969,20 @@ Pantau & kelola pengajuan di Dashboard Owner:
                       type="button"
                       onClick={() => setModalStep('detail')}
                       style={{
-                        padding: '14px 20px',
+                        minHeight: '46px',
+                        padding: '10px 18px',
                         borderRadius: '9999px',
-                        border: '1px solid #E2E8F0',
+                        border: '1px solid #CBD5E1',
                         backgroundColor: '#FFFFFF',
-                        color: '#64748B',
+                        color: '#475569',
                         fontWeight: 600,
-                        fontSize: '0.88rem',
+                        fontSize: '0.86rem',
                         cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        whiteSpace: 'nowrap',
+                        boxSizing: 'border-box',
                       }}
                     >
                       Kembali
@@ -5028,7 +5123,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
                       <div>
                         <strong style={{ color: '#0F172A' }}>Kirim Berkas Fisik &amp; Paspor Asli:</strong>
                         <div style={{ color: '#64748B', marginTop: '2px' }}>
-                          Kirimkan paspor asli &amp; berkas fisik persyaratan ke kantor operasional MapahTrip (Satrio Tower Kuningan, Jakarta Selatan atau kantor konsulat terkait) via kurir ekspedisi (JNE, J&amp;T, TIKI, Gosend/Grab) atau diserahkan langsung.
+                          Kirimkan paspor asli &amp; berkas fisik persyaratan ke kantor operasional MapahTrip (Ruko Palumboncity, Jl. Manunggal VII No. 3, Palumbonsari, Karawang Timur, Jawa Barat 41314) via kurir ekspedisi (JNE, J&amp;T, TIKI, Gosend/Grab) atau diserahkan langsung.
                         </div>
                       </div>
                     </div>
@@ -5151,7 +5246,9 @@ Pantau & kelola pengajuan di Dashboard Owner:
       {/* Email Contact Modal */}
       {showEmailModal && (
         <div
-          onClick={() => setShowEmailModal(false)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowEmailModal(false);
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -5429,15 +5526,14 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 >
                   <div
                     style={{
-                      fontFamily: "'Source Serif 4', Georgia, serif",
                       fontSize: '1.85rem',
                       fontWeight: 900,
-                      color: '#005bb5',
+                      color: '#0284c7',
                       lineHeight: 1.1,
                       marginBottom: '4px',
                     }}
                   >
-                    99.2%
+                    100%
                   </div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0B1220', marginBottom: '2px' }}>
                     Tingkat Kelulusan
@@ -5677,253 +5773,6 @@ Pantau & kelola pengajuan di Dashboard Owner:
         </div>
       </section>
 
-      {/* 4. ALUR PENGAJUAN / CARA KERJA SECTION */}
-      <section
-        id="alur"
-        style={{
-          padding: '80px 24px',
-          maxWidth: '1200px',
-          margin: '0 auto',
-        }}
-      >
-        {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: '44px' }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 16px',
-              borderRadius: '9999px',
-              background: '#e0f2fe',
-              border: '1px solid #bae6fd',
-              color: '#0284c7',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              marginBottom: '12px',
-            }}
-          >
-            <span>ALUR PENGAJUAN</span>
-            <span>•</span>
-            <span>CARA KERJA</span>
-          </div>
-          <h2
-            className="font-serif alur-heading"
-            style={{
-              fontSize: 'clamp(1.75rem, 3.4vw, 2.6rem)',
-              fontWeight: 800,
-              color: '#0B1220',
-              letterSpacing: '-0.025em',
-              margin: '0 0 12px',
-              textWrap: 'balance',
-            }}
-          >
-            <span>4 Langkah,</span> <span style={{ whiteSpace: 'nowrap' }}>Visa Jepang Jadi.</span>
-          </h2>
-          <p
-            className="alur-subtitle"
-            style={{
-              fontSize: '1rem',
-              color: '#64748B',
-              maxWidth: '580px',
-              margin: '0 auto',
-              lineHeight: 1.55,
-            }}
-          >
-            Tanpa antri, tanpa bingung form Jepang. Semua via WhatsApp &amp; online.
-          </p>
-
-          {/* Mobile Horizontal Swipe Indicator Hint */}
-          <div
-            className="alur-mobile-swipe-hint"
-            style={{
-              display: 'none',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              marginTop: '12px',
-              padding: '4px 12px',
-              borderRadius: '9999px',
-              background: '#e0f2fe',
-              color: '#0284c7',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-              swipe
-            </span>
-            <span>Geser ke samping (Langkah 01 - 04)</span>
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-              arrow_forward
-            </span>
-          </div>
-        </div>
-
-        {/* 4 Steps Container (Garis Alur di Tengah Antar Kotak) */}
-        <div className="alur-scroll-wrapper">
-          <div className="alur-steps-inner">
-            {/* Horizontal Guide Line through center of cards */}
-            <div
-              className="alur-steps-line"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '60px',
-                right: '60px',
-                height: '2px',
-                borderTop: '2px dashed #CBD5E1',
-                transform: 'translateY(-50%)',
-                zIndex: 0,
-              }}
-            />
-
-            {/* 4 Steps Grid */}
-            <div className="alur-steps-grid">
-              {[
-                {
-                  step: '01',
-                  title: 'Konsultasi Gratis',
-                  desc: 'Chat WA, ceritakan tujuan & paspor kamu (e-paspor/reguler). Kami rekomendasikan jenis visa terbaik.',
-                  icon: 'chat',
-                },
-                {
-                  step: '02',
-                  title: 'Kumpulkan & Cek Dokumen',
-                  desc: 'Kirim foto dokumen. Expert kami cek, revisi itinerary, dan buatkan dummy jika perlu.',
-                  icon: 'fact_check',
-                },
-                {
-                  step: '03',
-                  title: 'Kami Urus ke JVAC / Kedutaan',
-                  desc: 'Tim MAPAHTRIP datang ke JVAC Jakarta, submit biometrik, bayar PNBP. Kamu nggak perlu cuti.',
-                  icon: 'account_balance',
-                },
-                {
-                  step: '04',
-                  title: 'Visa Jadi, Paspor Dikirim',
-                  desc: 'Approval rata-rata 5-7 hari kerja. Paspor kami kirim balik dengan kurir aman + e-visa PDF.',
-                  icon: 'verified',
-                },
-              ].map((item, idx) => (
-                <div
-                  key={idx}
-                  className="step-card"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '20px',
-                    border: '1.5px solid #E2E8F0',
-                    padding: '28px 24px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-start',
-                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.03)',
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.borderColor = '#005bb5';
-                    e.currentTarget.style.boxShadow = '0 12px 28px -6px rgba(0, 91, 181, 0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.borderColor = '#E2E8F0';
-                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.03)';
-                  }}
-                >
-                  {/* Connector Arrow to next card (Di tengah tinggi kotak) */}
-                  {idx < 3 && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        right: '-16px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        zIndex: 10,
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        backgroundColor: '#FFFFFF',
-                        border: '1.5px solid #005bb5',
-                        color: '#005bb5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(0, 91, 181, 0.15)',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', fontWeight: 800 }}>
-                        arrow_forward
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Top Row: Step Number & Icon */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                      <span
-                        style={{
-                          fontFamily: "'Source Serif 4', Georgia, serif",
-                          fontSize: '1.75rem',
-                          fontWeight: 900,
-                          color: '#005bb5',
-                          lineHeight: 1,
-                        }}
-                      >
-                        {item.step}
-                      </span>
-                      <div
-                        style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '12px',
-                          backgroundColor: '#EFF6FF',
-                          color: '#005bb5',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
-                          {item.icon}
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3
-                      style={{
-                        fontSize: '1.1rem',
-                        fontWeight: 800,
-                        color: '#0B1220',
-                        lineHeight: 1.35,
-                        margin: '0 0 10px',
-                      }}
-                    >
-                      {item.title}
-                    </h3>
-
-                    <p
-                      style={{
-                        fontSize: '0.88rem',
-                        color: '#64748B',
-                        lineHeight: 1.55,
-                        margin: 0,
-                      }}
-                    >
-                      {item.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* FAQ VISA JEPANG SECTION (2-Column Grid) */}
       <section
         id="faq"
@@ -6017,7 +5866,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
               {
                 idx: 4,
                 q: 'Bagaimana jika visa ditolak?',
-                a: 'Approval rate kami 99% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
+                a: 'Approval rate kami 100% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
               },
             ].map((item) => {
               const isOpen = openFaqIndex === item.idx;
@@ -6568,7 +6417,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
                 </span>
               </div>
             </div>
-            <p className="footer-brand-desc" style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6, marginTop: '8px', maxWidth: '440px' }}>
+            <p className="footer-brand-desc" style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6, marginTop: '8px', maxWidth: '100%' }}>
               Layanan jasa pengurusan visa Jepang independen &amp; profesional. Fokus 100% visa Jepang: Tourist, Waiver, e-Visa, Bisnis, Kunjungan Keluarga, Pelajar, Transit, dan Dependent.
             </p>
             <div style={{ marginTop: '14px' }}>
@@ -6601,7 +6450,7 @@ Pantau & kelola pengajuan di Dashboard Owner:
             <div className="footer-col-visa" style={{ flex: '0 0 auto', minWidth: '140px' }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Jenis Visa</div>
               <div className="footer-visa-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
-                {VISA_OPTIONS.map((item) => (
+                {dynamicVisaOptions.map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -6642,9 +6491,9 @@ Pantau & kelola pengajuan di Dashboard Owner:
               </div>
             </div>
 
-            {/* Column 3: Sosial Media */}
+            {/* Column 3: Sosial Media & Kontak */}
             <div className="footer-col-social" style={{ flex: '0 0 auto', minWidth: '150px' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Sosial Media</div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '14px', color: '#ffffff' }}>Sosial Media &amp; Kontak</div>
               <div className="footer-social-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
                 <a
                   href="https://www.instagram.com/mapahtrip.id/"
@@ -6662,7 +6511,10 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   onMouseLeave={(e) => (e.currentTarget.style.color = '#ffffff')}
                 >
                   <InstagramBrandIcon size={18} />
-                  <strong style={{ color: 'inherit' }}>@mapahtrip.id</strong>
+                  <span>
+                    <span style={{ color: '#94A3B8', fontWeight: 500, marginRight: '4px' }}>Instagram:</span>
+                    <strong style={{ color: 'inherit' }}>@mapahtrip.id</strong>
+                  </span>
                 </a>
                 <a
                   href="https://www.tiktok.com/@mapahtrip.id"
@@ -6680,7 +6532,10 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   onMouseLeave={(e) => (e.currentTarget.style.color = '#ffffff')}
                 >
                   <TikTokBrandIcon size={18} />
-                  <strong style={{ color: 'inherit' }}>@mapahtrip.id</strong>
+                  <span>
+                    <span style={{ color: '#94A3B8', fontWeight: 500, marginRight: '4px' }}>TikTok:</span>
+                    <strong style={{ color: 'inherit' }}>@mapahtrip.id</strong>
+                  </span>
                 </a>
                 <a
                   href="https://mail.google.com/mail/?extsrc=mailto&url=mailto%3Amapahtripid%40gmail.com"
@@ -6705,7 +6560,10 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   title="Kirim Email via Gmail (mapahtripid@gmail.com)"
                 >
                   <GmailBrandIcon size={18} />
-                  <strong style={{ color: 'inherit' }}>mapahtripid@gmail.com</strong>
+                  <span>
+                    <span style={{ color: '#94A3B8', fontWeight: 500, marginRight: '4px' }}>Email:</span>
+                    <strong style={{ color: 'inherit', fontFamily: 'monospace' }}>mapahtripid@gmail.com</strong>
+                  </span>
                 </a>
               </div>
             </div>
@@ -6721,14 +6579,6 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}
                 >
                   Kenapa Kami
-                </a>
-                <a
-                  href="#alur"
-                  style={{ color: '#cbd5e1', textDecoration: 'none', transition: 'color 0.15s ease' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#38bdf8')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}
-                >
-                  Cara Kerja
                 </a>
                 <a
                   href="#faq"
@@ -6766,11 +6616,8 @@ Pantau & kelola pengajuan di Dashboard Owner:
             </div>
 
             {/* Column 5: Kantor & JVAC */}
-            <div className="footer-col-kantor" style={{ flex: '0 0 auto', minWidth: '190px', maxWidth: '240px' }}>
-              <a
-                href="https://maps.app.goo.gl/7vuLeQV1Km1PzGu68"
-                target="_blank"
-                rel="noopener noreferrer"
+            <div className="footer-col-kantor" style={{ flex: '0 0 auto', minWidth: '190px', maxWidth: '100%' }}>
+              <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -6779,45 +6626,35 @@ Pantau & kelola pengajuan di Dashboard Owner:
                   fontSize: '0.9rem',
                   marginBottom: '14px',
                   color: '#ffffff',
-                  textDecoration: 'none',
-                  transition: 'color 0.15s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#38bdf8')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#ffffff')}
-                title="Buka Lokasi di Google Maps"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <circle cx="12" cy="12" r="10" />
                   <circle cx="12" cy="10" r="2.5" fill="#0ea5e9" />
                   <path d="M12 12.5v3.5" />
                 </svg>
-                <span>Kantor Mapahtrip &amp; JVAC</span>
-              </a>
+                <span>Kantor Operasional Mapahtrip</span>
+              </div>
               <div className="footer-kantor-details" style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.5 }}>
-                <a
-                  href="https://maps.app.goo.gl/7vuLeQV1Km1PzGu68"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <div
                   className="footer-kantor-cardlet"
-                  style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-                  title="Lihat di Google Maps"
+                  style={{ display: 'block' }}
                 >
                   <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span>Lokasi kantor</span>
-                    <span style={{ fontSize: '0.7rem', color: '#38bdf8' }}>↗</span>
                   </div>
-                  <div style={{ color: '#ffffff', fontWeight: 600 }}>Satrio Tower, Jakarta Selatan</div>
-                  <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Kuningan, Jakarta Selatan, DKI Jakarta 12950</div>
-                </a>
+                  <div style={{ color: '#ffffff', fontWeight: 600 }}>Ruko Palumboncity</div>
+                  <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Jl. Manunggal VII No. 3, Palumbonsari, Kec. Karawang Timur, Kab. Karawang, Jawa Barat 41314</div>
+                </div>
 
                 <div className="footer-kantor-cardlet">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '3px' }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="#0ea5e9" style={{ flexShrink: 0 }}>
                       <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.99L21 3z" />
                     </svg>
-                    <span>Patokan lokasi</span>
+                    <span>Wilayah &amp; Akses</span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Dekat Japan Visa Application Center (JVAC), Kuningan.</div>
+                  <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Karawang Timur (Penerimaan berkas fisik &amp; koordinasi konsulat se-Indonesia).</div>
                 </div>
 
                 <div className="footer-kantor-cardlet">
@@ -6929,7 +6766,9 @@ Pantau & kelola pengajuan di Dashboard Owner:
       {/* Preview Dokumen Upload Customer Modal */}
       {previewCustomerDoc && (
         <div
-          onClick={() => setPreviewCustomerDoc(null)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPreviewCustomerDoc(null);
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -7031,6 +6870,16 @@ Pantau & kelola pengajuan di Dashboard Owner:
             </div>
           </div>
         </div>
+      )}
+
+      {/* Instagram Story Viewer Modal */}
+      {activeStoryHighlightId && (
+        <InstagramStoryViewer
+          highlights={STORY_HIGHLIGHTS}
+          activeHighlightId={activeStoryHighlightId}
+          onClose={() => setActiveStoryHighlightId(null)}
+          onSelectHighlight={(id) => setActiveStoryHighlightId(id)}
+        />
       )}
 
     </div>

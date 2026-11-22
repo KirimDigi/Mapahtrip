@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Pengajuan, StatusPengajuan, KonsjenKota, StaffName, PaketVisa, AffiliateUser } from '../types';
 import { REAL_SPREADSHEET_PENGAJUAN, REAL_SPREADSHEET_AFFILIATES } from '../data/spreadsheetData';
+import { uploadApplicantDocToStorage, removeOldApplicantDocFromStorage } from './supabaseStorage';
+import { determineDefaultStaffPic } from '../utils/staffAssignment';
 
 const SUPABASE_URL = 'https://vswmndovcmchqhyzlawo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzd21uZG92Y21jaHFoeXpsYXdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwODg0MDksImV4cCI6MjEwNzY2NDQwOX0.79-tEuh-1M3MeJaBnIIbVtrFwUfKK_I-VmC-zm_fQhQ';
@@ -58,27 +60,54 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     mappedStatus = 'Menunggu Verifikasi';
   }
 
+  // Cocokkan dengan REAL_SPREADSHEET_PENGAJUAN jika data historis awal (no_urut <= 299).
+  // Data baru yang didaftarkan mandiri / via portal staf TIDAK boleh mencocokkan ke spreadsheet lama!
+  const isRegisteredViaSystem = Boolean(
+    db.keterangan && (
+      db.keterangan.includes('Website Mapahtrip') ||
+      db.keterangan.includes('Pendaftaran mandiri') ||
+      db.keterangan.includes('Portal Staf')
+    )
+  );
+  const applicantNo = Number(db.no_urut || db.id);
+  const isHistoricalRow = !isRegisteredViaSystem && applicantNo <= 299;
+  const found = isHistoricalRow
+    ? (REAL_SPREADSHEET_PENGAJUAN.find((p) => p.id === String(applicantNo)) ||
+       REAL_SPREADSHEET_PENGAJUAN.find((p) => p.namaPemohon && db.nama && p.namaPemohon.trim().toLowerCase() === db.nama.trim().toLowerCase()))
+    : undefined;
+
   let kons: KonsjenKota = 'Jakarta';
-  const k = (db.konsjen || '').toLowerCase();
+  const k = (db.konsjen || found?.konsjen || '').toLowerCase();
   if (k.includes('surabaya')) kons = 'Surabaya';
   else if (k.includes('denpasar') || k.includes('bali')) kons = 'Denpasar';
   else if (k.includes('medan')) kons = 'Medan';
   else if (k.includes('makassar')) kons = 'Makassar';
 
-  let staff: StaffName = 'Rizky';
-  const s = (db.staff_pic || '').toLowerCase();
-  if (s.includes('nanami')) staff = 'Nanami Kay';
-  else if (s.includes('yulia')) staff = 'Yulia';
-  else if (s.includes('heru')) staff = 'Heru';
-  else if (s.includes('latifah')) staff = 'Latifah';
-  else if (s.includes('ulla')) staff = 'Ulla';
-  else if (s.includes('rizky')) staff = 'Rizky';
-  else {
-    if (kons === 'Surabaya') staff = 'Nanami Kay';
-    else if (kons === 'Denpasar') staff = 'Yulia';
-    else if (kons === 'Medan') staff = 'Heru';
-    else if (kons === 'Makassar') staff = 'Latifah';
-    else staff = 'Rizky';
+  const resolvedProgram = db.program || found?.program || 'Tokutei Ginou';
+  const cleanProg = resolvedProgram.toLowerCase();
+  const isWaiver = cleanProg.includes('waiver') || cleanProg.includes('e-visa') || cleanProg.includes('evisa');
+
+  let staff: StaffName | string = '';
+  if (!isWaiver) {
+    if (isHistoricalRow && found?.staffPic) {
+      staff = found.staffPic;
+    } else {
+      const rawPic = (db.staff_pic || found?.staffPic || '').trim();
+      const s = rawPic.toLowerCase();
+      if (s.includes('nanami')) staff = 'Nanami Kay';
+      else if (s.includes('yulia')) staff = 'Yulia';
+      else if (s.includes('heru')) staff = 'Heru';
+      else if (s.includes('latifah')) staff = 'Latifah';
+      else if (s.includes('ulla') || s.includes('ulya')) staff = 'Ulla';
+      else if (s.includes('rizky')) staff = 'Rizky';
+      else if (rawPic) staff = rawPic;
+      else if (cleanProg.includes('kunjungan')) staff = 'Ulla';
+      else {
+        staff = determineDefaultStaffPic(resolvedProgram, kons);
+      }
+    }
+  } else {
+    staff = 'Admin';
   }
 
   const paspor = db.no_paspor || `E${6000000 + db.id}`;
@@ -93,6 +122,21 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   let statusBayarData: 'Lunas' | 'Menunggu Pembayaran' | undefined = undefined;
   let metodeBayarData: string | undefined = undefined;
   let tglBayarData: string | undefined = undefined;
+  let staffFeeData: number | undefined = undefined;
+  let referralFeeData: number | undefined = undefined;
+  let staffPayoutStatusData: string | undefined = undefined;
+  let staffPayoutTanggalData: string | undefined = undefined;
+  let staffPayoutNoRefData: string | undefined = undefined;
+  let staffPayoutBuktiUrlData: string | undefined = undefined;
+  let staffPayoutByData: string | undefined = undefined;
+  let staffPayoutCatatanData: string | undefined = undefined;
+
+  let payoutStatusData: string | undefined = undefined;
+  let payoutTanggalData: string | undefined = undefined;
+  let payoutNoRefData: string | undefined = undefined;
+  let payoutBuktiUrlData: string | undefined = undefined;
+  let payoutByData: string | undefined = undefined;
+  let payoutCatatanData: string | undefined = undefined;
 
   try {
     if (db.keterangan && db.keterangan.startsWith('{') && db.keterangan.endsWith('}')) {
@@ -107,12 +151,23 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
       if (parsed.statusPembayaran) statusBayarData = parsed.statusPembayaran;
       if (parsed.metodePembayaran) metodeBayarData = parsed.metodePembayaran;
       if (parsed.tglBayarPemohon) tglBayarData = parsed.tglBayarPemohon;
+      if (parsed.staffFee !== undefined) staffFeeData = Number(parsed.staffFee);
+      if (parsed.referralFee !== undefined) referralFeeData = Number(parsed.referralFee);
+      if (parsed.staffPayoutStatus) staffPayoutStatusData = parsed.staffPayoutStatus;
+      if (parsed.staffPayoutTanggal) staffPayoutTanggalData = parsed.staffPayoutTanggal;
+      if (parsed.staffPayoutNoRef) staffPayoutNoRefData = parsed.staffPayoutNoRef;
+      if (parsed.staffPayoutBuktiUrl) staffPayoutBuktiUrlData = parsed.staffPayoutBuktiUrl;
+      if (parsed.staffPayoutBy) staffPayoutByData = parsed.staffPayoutBy;
+      if (parsed.staffPayoutCatatan) staffPayoutCatatanData = parsed.staffPayoutCatatan;
+
+      if (parsed.payoutStatus) payoutStatusData = parsed.payoutStatus;
+      if (parsed.payoutTanggal) payoutTanggalData = parsed.payoutTanggal;
+      if (parsed.payoutNoRef) payoutNoRefData = parsed.payoutNoRef;
+      if (parsed.payoutBuktiUrl) payoutBuktiUrlData = parsed.payoutBuktiUrl;
+      if (parsed.payoutBy) payoutByData = parsed.payoutBy;
+      if (parsed.payoutCatatan) payoutCatatanData = parsed.payoutCatatan;
     }
   } catch {}
-
-  const found = REAL_SPREADSHEET_PENGAJUAN.find(
-    (p) => p.id === String(db.id) || p.noPengajuan === `MT-${String(db.no_urut || db.id).padStart(4, '0')}`
-  );
 
   const normalizeDate = (d?: string): string => {
     if (!d) return '';
@@ -135,6 +190,10 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   const rawTglKirim = normalizeDate(db.tgl_kirim) || (found ? normalizeDate(found.tglKirim) : '');
 
   const affCode = (() => {
+    // Untuk data historis spreadsheet bawaan (<= 299), selalu prioritaskan mapping resmi spreadsheet
+    if (isHistoricalRow && found?.affiliateCode) {
+      return found.affiliateCode;
+    }
     const c = (db.code_referral || '').trim();
     if (!c || /^\d+$/.test(c)) {
       return found?.affiliateCode || 'MAPAHTRIP';
@@ -143,15 +202,36 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
   })();
 
   const hasAffiliate = Boolean(affCode && affCode.toUpperCase() !== 'MAPAHTRIP');
-  const dibayar = Number(db.nominal_dibayar) || found?.dibayarPemohon || 1650000;
-  const keluar = Number(db.nominal_keluar) || found?.nominalKeluar || 1135000;
+  const dibayar = (db.nominal_dibayar !== null && db.nominal_dibayar !== undefined)
+    ? Number(db.nominal_dibayar)
+    : (found?.dibayarPemohon ?? (isHistoricalRow ? 1650000 : 0));
+  const keluar = (db.nominal_keluar !== null && db.nominal_keluar !== undefined)
+    ? Number(db.nominal_keluar)
+    : (found?.nominalKeluar ?? (isHistoricalRow ? 1135000 : 0));
   const ref = hasAffiliate ? (found?.referralFee || 100000) : (found?.referralFee || 0);
-  const cb = Number(db.cashback) !== undefined && !isNaN(Number(db.cashback)) && Number(db.cashback) > 0
-    ? Number(db.cashback)
-    : (hasAffiliate ? 0 : (found?.cashback ?? 0));
-  const fee = Number(db.fee_bersih) || found?.feeBersih || (dibayar - keluar - ref);
+  const cb = isHistoricalRow && found?.cashback !== undefined
+    ? Number(found.cashback)
+    : (Number(db.cashback) !== undefined && !isNaN(Number(db.cashback))
+      ? Number(db.cashback)
+      : (found?.cashback ?? 0));
+  const fee = (db.fee_bersih !== null && db.fee_bersih !== undefined)
+    ? Number(db.fee_bersih)
+    : (found?.feeBersih ?? (isHistoricalRow && dibayar > 0 ? Math.max(0, dibayar - keluar - ref + cb) : 0));
 
-  return {
+  const resolvedPaymentStatus: 'Lunas' | 'Menunggu Pembayaran' = statusBayarData ||
+    (db.payment_status === false ? 'Menunggu Pembayaran' :
+      (db.payment_status === true && dibayar > 0 ? 'Lunas' :
+        (found?.statusPembayaran || (dibayar > 0 ? 'Lunas' : 'Menunggu Pembayaran'))));
+
+  const staffFeeResolved = isHistoricalRow && found?.cashback !== undefined
+    ? Number(found.cashback)
+    : (staffFeeData !== undefined
+      ? staffFeeData
+      : (cb > 0 ? cb : (isHistoricalRow && !isWaiver && staff ? 50000 : 0)));
+
+  const hasHistoricalStaffPayout = isHistoricalRow && !isWaiver && Boolean(staff) && staffFeeResolved > 0;
+
+    return {
     id: String(db.id),
     noPengajuan: `MT-${String(db.no_urut || db.id).padStart(4, '0')}`,
     namaPemohon: db.nama,
@@ -159,8 +239,8 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     maskedPaspor: masked,
     noTelp: db.no_wa || found?.noTelp || '',
     konsjen: kons,
-    staffPic: staff,
-    program: db.program || found?.program || 'Tokutei Ginou',
+    staffPic: (staff as any),
+    program: resolvedProgram,
     paket: (db.paket as PaketVisa) || found?.paket || 'Reguler',
     tglBerkasMasuk: rawTglMasuk,
     tglApply: rawTglApply,
@@ -174,24 +254,46 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     nominalKeluar: keluar,
     cashback: cb,
     feeBersih: fee,
-    referralFee: ref,
-    berkas: {
-      formVisa: db.form_visa ?? true,
-      ktp: db.ktp ?? true,
-      ektln: db.ektln ?? true,
-      coe: db.coe ?? true,
-      foto: db.foto ?? true,
-      pasporFisik: true,
-    },
+    referralFee: referralFeeData !== undefined ? referralFeeData : ref,
+    staffFee: staffFeeResolved,
+    staffPayoutStatus: (staffPayoutStatusData as any) || (found as any)?.staffPayoutStatus || (hasHistoricalStaffPayout ? 'Berhasil Ditransfer' : undefined),
+    staffPayoutTanggal: staffPayoutTanggalData || (found as any)?.staffPayoutTanggal || (hasHistoricalStaffPayout ? (rawTglSelesai || rawTglMasuk || '2026-09-30') : undefined),
+    staffPayoutNoRef: staffPayoutNoRefData || (found as any)?.staffPayoutNoRef || (hasHistoricalStaffPayout ? `TRX-LEGACY-MT-${String(db.no_urut || db.id).padStart(4, '0')}` : undefined),
+    staffPayoutBuktiUrl: staffPayoutBuktiUrlData || (found as any)?.staffPayoutBuktiUrl || undefined,
+    staffPayoutBy: staffPayoutByData || (found as any)?.staffPayoutBy || (hasHistoricalStaffPayout ? 'Owner MapahTrip' : undefined),
+    staffPayoutCatatan: staffPayoutCatatanData || (found as any)?.staffPayoutCatatan || undefined,
+    berkas: isHistoricalRow
+      ? {
+          formVisa: db.form_visa ?? true,
+          ktp: db.ktp ?? true,
+          ektln: db.ektln ?? true,
+          coe: db.coe ?? true,
+          foto: db.foto ?? true,
+          pasporFisik: true,
+        }
+      : {
+          formVisa: Boolean(db.form_visa || uploadedDocsData?.formVisa),
+          ktp: Boolean(db.ktp || uploadedDocsData?.ktp),
+          ektln: Boolean(db.ektln || uploadedDocsData?.ektln),
+          coe: Boolean(db.coe || uploadedDocsData?.coe),
+          foto: Boolean(db.foto || fotoData || uploadedDocsData?.foto),
+          pasporFisik: Boolean((db as any).paspor_fisik || uploadedDocsData?.pasporFisik),
+        },
     catatan: noteText,
     fotoBase64: fotoData,
     fotoSizeKB: fotoSize,
     uploadedDocs: uploadedDocsData,
-    statusPembayaran: statusBayarData || (db as any).status_pembayaran || 'Lunas',
-    metodePembayaran: metodeBayarData || (db as any).metode_pembayaran || 'Transfer BCA',
-    tglBayarPemohon: tglBayarData || (db as any).tgl_bayar_pemohon || rawTglMasuk || '',
+    statusPembayaran: resolvedPaymentStatus,
+    metodePembayaran: metodeBayarData || (db as any).metode_pembayaran || (isHistoricalRow ? 'Transfer BCA' : 'Transfer BTN (119001500015870) - Tokyo Asia Connection'),
+    tglBayarPemohon: tglBayarData || (db as any).tgl_bayar_pemohon || (isHistoricalRow ? rawTglMasuk : '') || '',
     buktiBayarPemohon: buktiBayarData || (db as any).bukti_bayar_pemohon || (found as any)?.buktiBayarPemohon || undefined,
     buktiBayarNama: buktiBayarNamaData || (db as any).bukti_bayar_nama || undefined,
+    payoutStatus: (payoutStatusData as any) || (db as any).payout_status || (found as any)?.payoutStatus || (isHistoricalRow ? 'Berhasil Ditransfer' : undefined),
+    payoutTanggal: payoutTanggalData || (db as any).payout_tanggal || (found as any)?.payoutTanggal || (isHistoricalRow ? (rawTglSelesai || rawTglMasuk || '2026-09-30') : undefined),
+    payoutNoRef: payoutNoRefData || (db as any).payout_no_ref || (found as any)?.payoutNoRef || (isHistoricalRow ? `TRX-LEGACY-MT-${String(db.no_urut || db.id).padStart(4, '0')}` : undefined),
+    payoutBuktiUrl: payoutBuktiUrlData || (found as any)?.payoutBuktiUrl || undefined,
+    payoutBy: payoutByData || (db as any).payout_by || (found as any)?.payoutBy || (isHistoricalRow ? 'Owner MapahTrip' : undefined),
+    payoutCatatan: payoutCatatanData || (found as any)?.payoutCatatan || undefined,
   };
 }
 
@@ -220,6 +322,7 @@ export async function searchPasporInDB(query: string): Promise<Pengajuan | null>
     .from('pengajuan_visa')
     .select('*')
     .or(orFilter)
+    .order('id', { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -241,6 +344,7 @@ export async function createPengajuanInDB(payload: {
   program: string;
   paket: string;
   konsjen?: string;
+  staff_pic?: string;
   keterangan?: string;
   foto_base64?: string;
   original_size_kb?: number;
@@ -250,24 +354,27 @@ export async function createPengajuanInDB(payload: {
   bukti_bayar_nama?: string;
   status_pembayaran?: string;
   metode_pembayaran?: string;
+  nominal_dibayar?: number;
+  nominal_keluar?: number;
+  cashback?: number;
+  fee_bersih?: number;
 }) {
   try {
-    let ketString = payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id';
+    const isLunas = payload.status_pembayaran === 'Lunas';
+    const statusBayar = payload.status_pembayaran || 'Menunggu Pembayaran';
     const fotoFinal = payload.foto_base64 || payload.uploaded_docs?.foto?.base64;
-    if (fotoFinal || payload.uploaded_docs || payload.bukti_bayar_pemohon) {
-      ketString = JSON.stringify({
-        note: payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id',
-        fotoBase64: fotoFinal,
-        originalSizeKB: payload.original_size_kb,
-        compressedSizeKB: payload.compressed_size_kb,
-        uploadedDocs: payload.uploaded_docs || {},
-        buktiBayarPemohon: payload.bukti_bayar_pemohon,
-        buktiBayarNama: payload.bukti_bayar_nama,
-        statusPembayaran: payload.status_pembayaran,
-        metodePembayaran: payload.metode_pembayaran,
-        uploadedAt: new Date().toISOString(),
-      });
-    }
+    const ketString = JSON.stringify({
+      note: payload.keterangan || 'Pendaftaran mandiri via Website Mapahtrip.id',
+      fotoBase64: fotoFinal,
+      originalSizeKB: payload.original_size_kb,
+      compressedSizeKB: payload.compressed_size_kb,
+      uploadedDocs: payload.uploaded_docs || {},
+      buktiBayarPemohon: payload.bukti_bayar_pemohon,
+      buktiBayarNama: payload.bukti_bayar_nama,
+      statusPembayaran: statusBayar,
+      metodePembayaran: payload.metode_pembayaran || 'Transfer Bank',
+      uploadedAt: new Date().toISOString(),
+    });
 
     const { data, error } = await supabase
       .from('pengajuan_visa')
@@ -285,9 +392,16 @@ export async function createPengajuanInDB(payload: {
           foto: payload.foto,
           program: payload.program,
           paket: payload.paket,
+          payment_status: isLunas,
+          nominal_dibayar: payload.nominal_dibayar || 0,
+          nominal_keluar: payload.nominal_keluar || 0,
+          cashback: payload.cashback || 0,
+          fee_bersih: payload.fee_bersih !== undefined ? payload.fee_bersih : ((payload.nominal_dibayar || 0) - (payload.nominal_keluar || 0)),
           konsjen: payload.konsjen || 'Jakarta',
           staff_pic:
-            payload.konsjen === 'Surabaya'
+            payload.staff_pic ||
+            (determineDefaultStaffPic(payload.program, payload.konsjen) as string) ||
+            (payload.konsjen === 'Surabaya'
               ? 'Nanami Kay'
               : payload.konsjen === 'Denpasar'
               ? 'Yulia'
@@ -295,7 +409,7 @@ export async function createPengajuanInDB(payload: {
               ? 'Heru'
               : payload.konsjen === 'Makassar'
               ? 'Latifah'
-              : 'Rizky',
+              : 'Rizky'),
           status: 'Menunggu Verifikasi',
           keterangan: ketString,
           tgl_sampai: null,
@@ -308,6 +422,27 @@ export async function createPengajuanInDB(payload: {
       console.warn('Supabase insert note:', error);
       return null;
     }
+
+    // Pastikan no_urut selalu terisi dan berurutan rapi (+1 dari no_urut tertinggi yang ada)
+    if (data && !data.no_urut && data.id) {
+      try {
+        const { data: maxRow } = await supabase
+          .from('pengajuan_visa')
+          .select('no_urut')
+          .not('no_urut', 'is', null)
+          .order('no_urut', { ascending: false })
+          .limit(1)
+          .single();
+
+        const nextNoUrut = maxRow?.no_urut ? Number(maxRow.no_urut) + 1 : Number(data.id);
+        await supabase.from('pengajuan_visa').update({ no_urut: nextNoUrut }).eq('id', data.id);
+        data.no_urut = nextNoUrut;
+      } catch {
+        await supabase.from('pengajuan_visa').update({ no_urut: data.id }).eq('id', data.id);
+        data.no_urut = data.id;
+      }
+    }
+
     return data;
   } catch (err) {
     console.warn('DB error:', err);
@@ -347,6 +482,22 @@ export async function updatePengajuanDocumentInDB(
   try {
     const finalSizeKB = sizeKB || Math.round((base64Data.length * 0.75) / 1024);
 
+    // Upload fisik ke Supabase Cloud Storage (Bucket mapahtrip-storage)
+    let storageUrl: string | undefined = undefined;
+    try {
+      const uploadRes = await uploadApplicantDocToStorage({
+        applicantId: id,
+        docKey,
+        file: base64Data,
+        fileName: docName,
+      });
+      if (uploadRes.url) {
+        storageUrl = uploadRes.url;
+      }
+    } catch (e) {
+      console.warn('Supabase storage upload attempt error:', e);
+    }
+
     // 1. Selalu sinkronkan ke local cache agar antarmuka staf & pendaftar selalu sinkron tanpa jeda
     try {
       const raw = localStorage.getItem('mapahtrip_local_registrations');
@@ -359,10 +510,12 @@ export async function updatePengajuanDocumentInDB(
             name: docName,
             base64: base64Data,
             sizeKB: finalSizeKB,
+            ...(storageUrl ? { url: storageUrl } : {}),
           };
           if (docKey === 'foto') {
             list[idx].fotoBase64 = base64Data;
             list[idx].fotoSizeKB = finalSizeKB;
+            if (storageUrl) list[idx].fotoUrl = storageUrl;
           }
           if (list[idx].berkas) {
             list[idx].berkas[docKey] = true;
@@ -376,7 +529,7 @@ export async function updatePengajuanDocumentInDB(
     const numId = Number(id);
     if (isNaN(numId)) {
       // Jika id non-numerik (misal ID lokal / mock), penyimpanan lokal sudah berhasil
-      return true;
+      return { success: true, url: storageUrl };
     }
 
     // 2. Ambil keterangan saat ini dari Supabase Cloud
@@ -400,11 +553,13 @@ export async function updatePengajuanDocumentInDB(
       name: docName,
       base64: base64Data,
       sizeKB: finalSizeKB,
+      ...(storageUrl ? { url: storageUrl } : {}),
     };
 
     if (docKey === 'foto') {
       parsed.fotoBase64 = base64Data;
       parsed.compressedSizeKB = finalSizeKB;
+      if (storageUrl) parsed.fotoUrl = storageUrl;
     }
 
     const updatedKet = JSON.stringify(parsed);
@@ -436,10 +591,108 @@ export async function updatePengajuanDocumentInDB(
       console.warn('Supabase update note warning:', updateError);
     }
 
-    return true;
+    return { success: true, url: storageUrl };
   } catch (err) {
     console.warn('updatePengajuanDocumentInDB error:', err);
-    return false;
+    return { success: false, url: undefined };
+  }
+}
+
+/**
+ * Hapus dokumen fisik dan record dokumen pemohon dari Database Supabase dan Storage
+ */
+export async function deletePengajuanDocumentInDB(
+  id: string | number,
+  docKey: string
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    // 1. Hapus file fisik dari Supabase Storage Bucket
+    try {
+      await removeOldApplicantDocFromStorage(id, docKey);
+    } catch (e) {
+      console.warn('Gagal menghapus file fisik di storage:', e);
+    }
+
+    // 2. Bersihkan dari local storage cache
+    try {
+      const raw = localStorage.getItem('mapahtrip_local_registrations');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((item: any) => String(item.id) === String(id));
+        if (idx !== -1) {
+          if (list[idx].uploadedDocs && list[idx].uploadedDocs[docKey]) {
+            delete list[idx].uploadedDocs[docKey];
+          }
+          if (docKey === 'foto') {
+            delete list[idx].fotoBase64;
+            delete list[idx].fotoUrl;
+          }
+          if (list[idx].berkas) {
+            list[idx].berkas[docKey] = false;
+          }
+          localStorage.setItem('mapahtrip_local_registrations', JSON.stringify(list));
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
+    } catch {}
+
+    const numId = Number(id);
+    if (isNaN(numId)) {
+      return { success: true };
+    }
+
+    // 3. Ambil data keterangan dari Supabase Cloud
+    const { data: row } = await supabase
+      .from('pengajuan_visa')
+      .select('keterangan')
+      .eq('id', numId)
+      .maybeSingle();
+
+    let parsed: any = {};
+    if (row?.keterangan && row.keterangan.startsWith('{') && row.keterangan.endsWith('}')) {
+      try {
+        parsed = JSON.parse(row.keterangan);
+      } catch {}
+    }
+
+    if (parsed.uploadedDocs && parsed.uploadedDocs[docKey]) {
+      delete parsed.uploadedDocs[docKey];
+    }
+    if (docKey === 'foto') {
+      delete parsed.fotoBase64;
+      delete parsed.fotoUrl;
+    }
+
+    const validDbColumns: Record<string, string> = {
+      formVisa: 'form_visa',
+      ktp: 'ktp',
+      ektln: 'ektln',
+      coe: 'coe',
+      foto: 'foto',
+    };
+
+    const updatePayload: Record<string, any> = {
+      keterangan: JSON.stringify(parsed),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (validDbColumns[docKey]) {
+      updatePayload[validDbColumns[docKey]] = false;
+    }
+
+    const { error: updateError } = await supabase
+      .from('pengajuan_visa')
+      .update(updatePayload)
+      .eq('id', numId);
+
+    if (updateError) {
+      console.warn('Supabase delete doc warning:', updateError);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('deletePengajuanDocumentInDB error:', err);
+    return { success: false, error: err };
   }
 }
 
@@ -455,6 +708,12 @@ export async function updatePengajuanPaymentInDB(
     buktiBayarPemohon?: string;
     buktiBayarNama?: string;
     dibayarPemohon?: number;
+    nominalKeluar?: number;
+    cashback?: number;
+    feeBersih?: number;
+    staffFee?: number;
+    referralFee?: number;
+    staffPayoutStatus?: 'Berhasil Ditransfer' | 'Menunggu Transfer';
   }
 ) {
   try {
@@ -509,13 +768,34 @@ export async function updatePengajuanPaymentInDB(
     if (paymentData.buktiBayarNama !== undefined) {
       parsed.buktiBayarNama = paymentData.buktiBayarNama;
     }
+    if (paymentData.staffFee !== undefined) {
+      parsed.staffFee = paymentData.staffFee;
+    }
+    if (paymentData.referralFee !== undefined) {
+      parsed.referralFee = paymentData.referralFee;
+    }
+    if (paymentData.staffPayoutStatus !== undefined) {
+      parsed.staffPayoutStatus = paymentData.staffPayoutStatus;
+    }
 
     const payload: Record<string, any> = {
       keterangan: JSON.stringify(parsed),
       updated_at: new Date().toISOString(),
     };
+    if (paymentData.statusPembayaran !== undefined) {
+      payload.payment_status = paymentData.statusPembayaran === 'Lunas';
+    }
     if (paymentData.dibayarPemohon !== undefined) {
       payload.nominal_dibayar = paymentData.dibayarPemohon;
+    }
+    if (paymentData.nominalKeluar !== undefined) {
+      payload.nominal_keluar = paymentData.nominalKeluar;
+    }
+    if (paymentData.cashback !== undefined) {
+      payload.cashback = paymentData.cashback;
+    }
+    if (paymentData.feeBersih !== undefined) {
+      payload.fee_bersih = paymentData.feeBersih;
     }
     await supabase.from('pengajuan_visa').update(payload).eq('id', numId);
     return true;
@@ -695,40 +975,149 @@ export async function updateMitraProfileInDB(
 }
 
 export async function updateMitraBankInDB(
-  userId: string | number,
+  userIdOrCode: string | number,
   bankData: {
     jenis_pencairan?: string;
     nama_bank: string;
     nomor_rekening: string;
     atas_nama: string;
+    kode_referral?: string;
+    nama?: string;
+    email?: string;
+    no_wa?: string;
+    lembaga?: string;
+    status_mitra?: string;
   }
 ): Promise<{ user: AffiliateUser | null; error?: string }> {
   try {
     const updatePayload: Record<string, any> = {
       jenis_pencairan: bankData.jenis_pencairan || 'Rekening Bank',
-      nama_bank: bankData.nama_bank,
-      nomor_rekening: bankData.nomor_rekening,
-      atas_nama: bankData.atas_nama,
+      nama_bank: bankData.nama_bank.trim(),
+      nomor_rekening: bankData.nomor_rekening.trim(),
+      atas_nama: bankData.atas_nama.trim(),
       updated_at: new Date().toISOString(),
     };
+    if (bankData.no_wa !== undefined) {
+      updatePayload.no_wa = bankData.no_wa.trim();
+    }
+
+    const isNumericId = typeof userIdOrCode === 'number' || (!isNaN(Number(userIdOrCode)) && Number(userIdOrCode) > 0 && !String(userIdOrCode).startsWith('MPH') && !String(userIdOrCode).startsWith('aff_'));
 
     let query = supabase.from('mitra_affiliate').update(updatePayload);
 
-    if (!isNaN(Number(userId))) {
-      query = query.eq('id', Number(userId));
+    if (isNumericId) {
+      query = query.eq('id', Number(userIdOrCode));
     } else {
-      return { user: null, error: 'ID mitra tidak valid untuk pembaruan rekening.' };
+      const codeOrId = (bankData.kode_referral || String(userIdOrCode)).replace(/^aff_/, '').trim();
+      query = query.ilike('kode_referral', codeOrId);
     }
 
     const { data, error } = await query.select().maybeSingle();
 
     if (error) {
-      return { user: null, error: error.message };
+      console.warn('Update mitra bank warning in Supabase:', error.message);
     }
 
-    return { user: data ? mapDBToAffiliate(data) : null };
+    if (data) {
+      return { user: mapDBToAffiliate(data) };
+    }
+
+    // Jika belum ada row di Supabase (misal baseline spreadsheet), coba insert data mitra baru dengan info rekening
+    const code = (bankData.kode_referral || String(userIdOrCode)).replace(/^aff_/, '').trim().toUpperCase();
+    if (bankData.nama || code) {
+      const insertPayload: Record<string, any> = {
+        kode_referral: code,
+        nama: bankData.nama || code,
+        email: bankData.email || `${code.toLowerCase()}@mapahtrip.id`,
+        no_wa: bankData.no_wa || '',
+        status_mitra: bankData.status_mitra || 'Umum',
+        lembaga_lpk: bankData.lembaga || '',
+        nama_bank: bankData.nama_bank.trim(),
+        nomor_rekening: bankData.nomor_rekening.trim(),
+        atas_nama: bankData.atas_nama.trim(),
+        jenis_pencairan: bankData.jenis_pencairan || 'Rekening Bank',
+        is_profile_complete: true,
+      };
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('mitra_affiliate')
+        .insert([insertPayload])
+        .select()
+        .maybeSingle();
+
+      if (!insertError && inserted) {
+        return { user: mapDBToAffiliate(inserted) };
+      }
+    }
+
+    return { user: null };
   } catch (err: any) {
+    console.warn('DB error updateMitraBank:', err);
     return { user: null, error: err?.message || 'Gagal memperbarui rekening ke Supabase.' };
+  }
+}
+
+export async function updateMitraWaInDB(
+  userIdOrCode: string | number,
+  noWa: string,
+  extra?: { nama?: string; email?: string; kode_referral?: string; lembaga?: string; status_mitra?: string }
+): Promise<{ user: AffiliateUser | null; error?: string }> {
+  try {
+    const cleanWa = noWa.trim();
+    const updatePayload: Record<string, any> = {
+      no_wa: cleanWa,
+      updated_at: new Date().toISOString(),
+    };
+
+    const isNumericId = typeof userIdOrCode === 'number' || (!isNaN(Number(userIdOrCode)) && Number(userIdOrCode) > 0 && !String(userIdOrCode).startsWith('MPH') && !String(userIdOrCode).startsWith('aff_'));
+
+    let query = supabase.from('mitra_affiliate').update(updatePayload);
+
+    if (isNumericId) {
+      query = query.eq('id', Number(userIdOrCode));
+    } else {
+      const codeOrId = (extra?.kode_referral || String(userIdOrCode)).replace(/^aff_/, '').trim();
+      query = query.ilike('kode_referral', codeOrId);
+    }
+
+    const { data, error } = await query.select().maybeSingle();
+
+    if (error) {
+      console.warn('Update mitra WA warning in Supabase:', error.message);
+    }
+
+    if (data) {
+      return { user: mapDBToAffiliate(data) };
+    }
+
+    // Jika belum ada row di Supabase (misal baseline spreadsheet lama), insert baris baru
+    const code = (extra?.kode_referral || String(userIdOrCode)).replace(/^aff_/, '').trim().toUpperCase();
+    if (code || extra?.nama) {
+      const insertPayload: Record<string, any> = {
+        kode_referral: code,
+        nama: extra?.nama || code,
+        email: extra?.email || `${code.toLowerCase()}@mapahtrip.id`,
+        no_wa: cleanWa,
+        status_mitra: extra?.status_mitra || 'Umum',
+        lembaga_lpk: extra?.lembaga || '',
+        is_profile_complete: true,
+      };
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('mitra_affiliate')
+        .insert([insertPayload])
+        .select()
+        .maybeSingle();
+
+      if (!insertError && inserted) {
+        return { user: mapDBToAffiliate(inserted) };
+      }
+    }
+
+    return { user: null };
+  } catch (err: any) {
+    console.warn('DB error updateMitraWa:', err);
+    return { user: null, error: err?.message || 'Gagal memperbarui nomor WA ke Supabase.' };
   }
 }
 
@@ -739,23 +1128,30 @@ export async function findAffiliateByCode(code: string): Promise<AffiliateUser |
   const clean = (code || '').trim().toUpperCase();
   if (!clean || clean === 'MAPAHTRIP') return null;
 
-  // 1. Cek dari REAL_SPREADSHEET_AFFILIATES
-  const fromSpreadsheet = REAL_SPREADSHEET_AFFILIATES.find(
-    (a) => (a.affiliateCode || '').trim().toUpperCase() === clean
-  );
-  if (fromSpreadsheet) return fromSpreadsheet;
+  // Helper untuk menerapkan override lokal (nomor WA atau Bank yang baru saja diedit admin di browser)
+  const applyOverrides = (user: AffiliateUser): AffiliateUser => {
+    try {
+      const waRaw = localStorage.getItem('mapahtrip_mitra_wa_overrides');
+      if (waRaw) {
+        const waOverrides = JSON.parse(waRaw);
+        if (waOverrides[clean]) {
+          user.noWa = waOverrides[clean];
+        }
+      }
+      const bankRaw = localStorage.getItem('mapahtrip_mitra_bank_overrides');
+      if (bankRaw) {
+        const bankOverrides = JSON.parse(bankRaw);
+        if (bankOverrides[clean]) {
+          user.namaBank = bankOverrides[clean].namaBank;
+          user.nomorRekening = bankOverrides[clean].nomorRekening;
+          user.atasNamaRekening = bankOverrides[clean].atasNamaRekening;
+        }
+      }
+    } catch {}
+    return user;
+  };
 
-  // 2. Cek dari localStorage (jika ada mitra mendaftar baru di sesi lokal)
-  try {
-    const rawLocal = localStorage.getItem('mapahtrip_local_affiliates');
-    if (rawLocal) {
-      const list: AffiliateUser[] = JSON.parse(rawLocal);
-      const found = list.find((a) => (a.affiliateCode || '').trim().toUpperCase() === clean);
-      if (found) return found;
-    }
-  } catch {}
-
-  // 3. Cek dari Supabase Cloud (tabel mitra_affiliate)
+  // 1. Cek dari Supabase Cloud (tabel mitra_affiliate) TERLEBIH DAHULU agar nomor WA terbaru yang digunakan
   try {
     const { data } = await supabase
       .from('mitra_affiliate')
@@ -764,13 +1160,113 @@ export async function findAffiliateByCode(code: string): Promise<AffiliateUser |
       .maybeSingle();
 
     if (data) {
-      return mapDBToAffiliate(data);
+      return applyOverrides(mapDBToAffiliate(data));
     }
   } catch (err) {
     console.warn('DB error findAffiliateByCode:', err);
   }
 
+  // 2. Cek dari localStorage (jika ada mitra terupdate di browser)
+  try {
+    const allRaw = localStorage.getItem('mapahtrip_all_affiliates');
+    if (allRaw) {
+      const list: AffiliateUser[] = JSON.parse(allRaw);
+      const found = list.find((a) => (a.affiliateCode || '').trim().toUpperCase() === clean);
+      if (found) return applyOverrides({ ...found });
+    }
+    const rawLocal = localStorage.getItem('mapahtrip_local_affiliates');
+    if (rawLocal) {
+      const list: AffiliateUser[] = JSON.parse(rawLocal);
+      const found = list.find((a) => (a.affiliateCode || '').trim().toUpperCase() === clean);
+      if (found) return applyOverrides({ ...found });
+    }
+  } catch {}
+
+  // 3. Fallback ke REAL_SPREADSHEET_AFFILIATES jika belum ada di cloud
+  const fromSpreadsheet = REAL_SPREADSHEET_AFFILIATES.find(
+    (a) => (a.affiliateCode || '').trim().toUpperCase() === clean
+  );
+  if (fromSpreadsheet) {
+    return applyOverrides({ ...fromSpreadsheet });
+  }
+
   return null;
+}
+
+/**
+ * Simpan bukti transfer dan status payout (mitra referral / staf PIC) ke Supabase Cloud
+ */
+export async function updatePayoutInDB(
+  id: string | number,
+  payoutData: {
+    isStaff: boolean;
+    status: 'Berhasil Ditransfer' | 'Belum Ditransfer';
+    tanggal: string;
+    noRef: string;
+    buktiUrl?: string;
+    by?: string;
+    catatan?: string;
+    nominal?: number;
+  }
+): Promise<boolean> {
+  try {
+    const numId = Number(id);
+    if (isNaN(numId)) return true;
+
+    const { data: row } = await supabase
+      .from('pengajuan_visa')
+      .select('keterangan')
+      .eq('id', numId)
+      .maybeSingle();
+
+    let parsed: any = {};
+    if (row?.keterangan && row.keterangan.startsWith('{') && row.keterangan.endsWith('}')) {
+      try {
+        parsed = JSON.parse(row.keterangan);
+      } catch {}
+    } else {
+      parsed = { note: row?.keterangan || 'Update payout komisi / fee' };
+    }
+
+    if (payoutData.isStaff) {
+      parsed.staffPayoutStatus = payoutData.status;
+      parsed.staffPayoutTanggal = payoutData.tanggal;
+      parsed.staffPayoutNoRef = payoutData.noRef;
+      if (payoutData.buktiUrl) {
+        parsed.staffPayoutBuktiUrl = payoutData.buktiUrl;
+      } else {
+        delete parsed.staffPayoutBuktiUrl;
+      }
+      parsed.staffPayoutBy = payoutData.by || 'Owner MapahTrip';
+      if (payoutData.catatan !== undefined) parsed.staffPayoutCatatan = payoutData.catatan;
+      if (payoutData.nominal !== undefined) parsed.staffFee = payoutData.nominal;
+    } else {
+      parsed.payoutStatus = payoutData.status;
+      parsed.payoutTanggal = payoutData.tanggal;
+      parsed.payoutNoRef = payoutData.noRef;
+      if (payoutData.buktiUrl) {
+        parsed.payoutBuktiUrl = payoutData.buktiUrl;
+      } else {
+        delete parsed.payoutBuktiUrl;
+      }
+      parsed.payoutBy = payoutData.by || 'Owner MapahTrip';
+      if (payoutData.catatan !== undefined) parsed.payoutCatatan = payoutData.catatan;
+      if (payoutData.nominal !== undefined) parsed.referralFee = payoutData.nominal;
+    }
+
+    await supabase
+      .from('pengajuan_visa')
+      .update({
+        keterangan: JSON.stringify(parsed),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', numId);
+
+    return true;
+  } catch (err) {
+    console.warn('Gagal sync payout ke Supabase:', err);
+    return false;
+  }
 }
 
 

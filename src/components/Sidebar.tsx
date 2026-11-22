@@ -16,6 +16,7 @@ interface SidebarProps {
   onSelectTab: (tab: NavItemKey) => void;
   totalPengajuanCount?: number;
   totalAffiliateCount?: number;
+  pendingPayoutCount?: number;
   isOwner?: boolean;
   currentStaff?: StaffMaster | null;
   onRequestOwnerLogin?: () => void;
@@ -30,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   totalPengajuanCount = 223,
   totalAffiliateCount = 62,
+  pendingPayoutCount,
   isOwner = false,
   currentStaff = null,
   onRequestOwnerLogin,
@@ -57,18 +59,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Mode ciut (collapsed icon rail) HANYA untuk layar desktop / laptop.
   const effectiveCollapsed = isMobileScreen ? false : isCollapsed;
 
+  const pendingCount = pendingPayoutCount !== undefined ? pendingPayoutCount : undefined;
+  const affiliateBadge = pendingCount !== undefined ? (pendingCount > 0 ? pendingCount : undefined) : (isOwner && totalAffiliateCount && totalAffiliateCount > 0 ? totalAffiliateCount : undefined);
+  const affiliateBadgeColor = pendingCount !== undefined && pendingCount > 0 ? '#E05656' : undefined;
+
   const allMenuItems: {
     key: NavItemKey;
     label: string;
     icon: string;
     badge?: number | string;
+    badgeColor?: string;
     isOwnerOnly?: boolean;
   }[] = [
       { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-      { key: 'pengajuan', label: 'Pengajuan', icon: 'description', badge: totalPengajuanCount },
+      { key: 'pengajuan', label: 'Pengajuan', icon: 'description', badge: totalPengajuanCount && totalPengajuanCount > 0 ? totalPengajuanCount : undefined },
       { key: 'keuangan', label: 'Keuangan', icon: 'account_balance_wallet', isOwnerOnly: true },
       { key: 'rekap', label: 'Rekap', icon: 'bar_chart', isOwnerOnly: true },
-      { key: 'affiliate', label: 'Affiliate', icon: 'group', badge: totalAffiliateCount },
+      { key: 'affiliate', label: isOwner ? 'Komisi & Fee' : 'Fee Staf PIC', icon: 'payments', badge: affiliateBadge, badgeColor: affiliateBadgeColor },
       { key: 'pengaturan', label: 'Pengaturan', icon: 'settings' },
     ];
 
@@ -317,7 +324,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         minWidth: '16px',
                         height: '16px',
                         borderRadius: '8px',
-                        background: '#2563EB',
+                        background: item.badgeColor || '#2563EB',
                         color: '#FFFFFF',
                         fontSize: '0.62rem',
                         fontWeight: 800,
@@ -325,7 +332,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         padding: '0 3px',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        boxShadow: item.badgeColor ? '0 1px 3px rgba(224, 86, 86, 0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
                         lineHeight: 1,
                       }}
                     >
@@ -336,11 +343,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       style={{
                         padding: '2px 8px',
                         borderRadius: '9999px',
-                        background: isActive ? '#2563EB' : '#0284C7',
+                        background: item.badgeColor ? item.badgeColor : (isActive ? '#2563EB' : '#0284C7'),
                         color: '#ffffff',
                         fontSize: '0.725rem',
-                        fontWeight: 700,
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                        fontWeight: 800,
+                        boxShadow: item.badgeColor ? '0 1px 3px rgba(224, 86, 86, 0.25)' : '0 1px 2px rgba(0,0,0,0.06)',
                       }}
                     >
                       {item.badge}

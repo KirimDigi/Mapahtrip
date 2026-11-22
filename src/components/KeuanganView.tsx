@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import type { Pengajuan } from '../types';
+import {
+  getEffectiveFeeBersih,
+  getEffectiveReferralFee,
+  getEffectiveStaffFee,
+} from '../utils/financialCalculations';
 
 interface KeuanganViewProps {
   pengajuanList: Pengajuan[];
@@ -17,6 +22,7 @@ interface MonthlyStat {
   totalNominalKeluar: number;
   totalCashback: number;
   totalReferralFee: number;
+  totalStaffFee: number;
   totalFeeBersih: number;
   marginPersen: number;
 }
@@ -131,22 +137,29 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
   };
 
   // Daftar Tahun yang tersedia dari data transaksi
+  // Hanya pengajuan yang berstatus Lunas (uang telah diterima) yang masuk perhitungan buku kas & pembukuan keuangan
+  const lunasPengajuanList = useMemo(() => {
+    return pengajuanList.filter((item) => item.statusPembayaran !== 'Menunggu Pembayaran');
+  }, [pengajuanList]);
+
+  const belumLunasCount = pengajuanList.length - lunasPengajuanList.length;
+
   const availableYears = useMemo(() => {
     const years = new Set<string>();
-    pengajuanList.forEach((item) => {
+    lunasPengajuanList.forEach((item) => {
       const mKey = getMonthKey(item);
       const [y] = mKey.split('-');
       if (y && y.length === 4) years.add(y);
     });
     if (years.size === 0) years.add('2026');
     return Array.from(years).sort().reverse();
-  }, [pengajuanList]);
+  }, [lunasPengajuanList]);
 
-  // Agregasi Bulanan (Sesuai Tahun Terpilih)
+  // Agregasi Bulanan (Sesuai Tahun Terpilih - Hanya Transaksi Lunas)
   const monthlyStats = useMemo<MonthlyStat[]>(() => {
     const map = new Map<string, MonthlyStat>();
 
-    pengajuanList.forEach((item) => {
+    lunasPengajuanList.forEach((item) => {
       const mKey = getMonthKey(item);
       const [year, mPart] = mKey.split('-');
       const label = `${NAMA_BULAN[mPart] || mPart} ${year}`;
@@ -165,6 +178,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
           totalNominalKeluar: 0,
           totalCashback: 0,
           totalReferralFee: 0,
+          totalStaffFee: 0,
           totalFeeBersih: 0,
           marginPersen: 0,
         };
@@ -175,19 +189,20 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       stat.totalDibayar += item.dibayarPemohon || 0;
       stat.totalNominalKeluar += item.nominalKeluar || 0;
       stat.totalCashback += item.cashback || 0;
-      stat.totalReferralFee += item.referralFee || 0;
-      stat.totalFeeBersih += item.feeBersih || 0;
+      stat.totalReferralFee += getEffectiveReferralFee(item);
+      stat.totalStaffFee += getEffectiveStaffFee(item);
+      stat.totalFeeBersih += getEffectiveFeeBersih(item);
     });
 
     const arr = Array.from(map.values())
-      .filter((s) => s.year === selectedYear) // Menampilkan bulan-bulan pada tahun terpilih
+      .filter((s) => selectedYear === 'all' || s.year === selectedYear) // Menampilkan bulan-bulan pada tahun terpilih atau semua tahun
       .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
     arr.forEach((s) => {
       s.marginPersen = s.totalDibayar > 0 ? (s.totalFeeBersih / s.totalDibayar) * 100 : 0;
     });
 
     return arr;
-  }, [pengajuanList, selectedYear]);
+  }, [lunasPengajuanList, selectedYear]);
 
   // Highlight Stats (Bulan Tertinggi)
   const bestMonthStats = useMemo(() => {
@@ -203,13 +218,14 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
     return { highestOmzet, highestLaba };
   }, [monthlyStats]);
 
-  // Transaksi yang tersaring berdasarkan selectedYear dan selectedMonth
+  // Transaksi yang tersaring berdasarkan selectedYear dan selectedMonth (Hanya Transaksi Lunas)
   const transactionsInSelectedMonth = useMemo(() => {
     if (selectedMonth === 'all') {
-      return pengajuanList.filter((item) => getMonthKey(item).startsWith(selectedYear));
+      if (selectedYear === 'all') return lunasPengajuanList;
+      return lunasPengajuanList.filter((item) => getMonthKey(item).startsWith(selectedYear));
     }
-    return pengajuanList.filter((item) => getMonthKey(item) === selectedMonth);
-  }, [pengajuanList, selectedMonth, selectedYear]);
+    return lunasPengajuanList.filter((item) => getMonthKey(item) === selectedMonth);
+  }, [lunasPengajuanList, selectedMonth, selectedYear]);
 
   // Filter pencarian tabel
   const filteredTransactions = useMemo(() => {
@@ -243,6 +259,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
     let totalDibayar = 0;
     let totalNominalKeluar = 0;
     let totalCashback = 0;
+    let totalReferralFee = 0;
+    let totalStaffFee = 0;
     let totalFeeBersih = 0;
     const count = transactionsInSelectedMonth.length;
 
@@ -250,7 +268,9 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       totalDibayar += p.dibayarPemohon || 0;
       totalNominalKeluar += p.nominalKeluar || 0;
       totalCashback += p.cashback || 0;
-      totalFeeBersih += p.feeBersih || 0;
+      totalReferralFee += getEffectiveReferralFee(p);
+      totalStaffFee += getEffectiveStaffFee(p);
+      totalFeeBersih += getEffectiveFeeBersih(p);
     });
 
     const marginPersen = totalDibayar > 0 ? (totalFeeBersih / totalDibayar) * 100 : 0;
@@ -259,6 +279,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       totalDibayar,
       totalNominalKeluar,
       totalCashback,
+      totalReferralFee,
+      totalStaffFee,
       totalFeeBersih,
       marginPersen: marginPersen.toFixed(1) + '%',
       count,
@@ -301,29 +323,29 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       'Tgl Masuk/Apply',
       'Dibayar Pemohon (Rp)',
       'Nominal Keluar / Modal (Rp)',
-      'Cashback Mitra (Rp)',
-      'Komisi Affiliate (Rp)',
+      'Komisi Mitra (Rp)',
+      'Fee Staf PIC (Rp)',
       'Fee Bersih MapahTrip (Rp)',
       'Status',
     ];
 
     let sumDibayar = 0;
     let sumKeluar = 0;
-    let sumCashback = 0;
     let sumReferral = 0;
+    let sumStaffFee = 0;
     let sumFeeBersih = 0;
 
     const txRows = transactionsInSelectedMonth.map((item, index) => {
       const dibayar = Number(item.dibayarPemohon) || 0;
       const keluar = Number(item.nominalKeluar) || 0;
-      const cb = Number(item.cashback) || 0;
-      const ref = Number(item.referralFee) || 0;
-      const fee = Number(item.feeBersih) || 0;
+      const ref = getEffectiveReferralFee(item);
+      const stFee = getEffectiveStaffFee(item);
+      const fee = getEffectiveFeeBersih(item);
 
       sumDibayar += dibayar;
       sumKeluar += keluar;
-      sumCashback += cb;
       sumReferral += ref;
+      sumStaffFee += stFee;
       sumFeeBersih += fee;
 
       return [
@@ -337,8 +359,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
         item.tglApply || item.tglBerkasMasuk || '-',
         dibayar,
         keluar,
-        cb,
         ref,
+        stFee,
         fee,
         item.status || '-',
       ];
@@ -356,8 +378,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       '',
       sumDibayar,
       sumKeluar,
-      sumCashback,
       sumReferral,
+      sumStaffFee,
       sumFeeBersih,
       '',
     ];
@@ -376,8 +398,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       { wch: 16 }, // Tgl
       { wch: 22 }, // Dibayar Pemohon
       { wch: 24 }, // Nominal Keluar
-      { wch: 20 }, // Cashback Mitra
-      { wch: 20 }, // Komisi Affiliate
+      { wch: 20 }, // Komisi Mitra
+      { wch: 20 }, // Fee Staf PIC
       { wch: 24 }, // Fee Bersih
       { wch: 18 }, // Status
     ];
@@ -389,8 +411,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       'Jumlah Pemohon',
       'Omzet Masuk (Rp)',
       'Modal Keluar (Rp)',
-      'Cashback Mitra (Rp)',
-      'Komisi Affiliate (Rp)',
+      'Komisi Mitra (Rp)',
+      'Fee Staf PIC (Rp)',
       'Fee Bersih MapahTrip (Rp)',
       'Margin Laba (%)',
     ];
@@ -401,8 +423,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       m.count,
       m.totalDibayar,
       m.totalNominalKeluar,
-      m.totalCashback,
       m.totalReferralFee,
+      m.totalStaffFee,
       m.totalFeeBersih,
       `${m.marginPersen.toFixed(1)}%`,
     ]);
@@ -413,8 +435,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       grandTotal.count,
       grandTotal.totalDibayar,
       grandTotal.totalNominalKeluar,
-      grandTotal.totalCashback,
       grandTotal.totalReferralFee,
+      grandTotal.totalStaffFee,
       grandTotal.totalFeeBersih,
       grandMargin,
     ];
@@ -449,6 +471,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
         totalNominalKeluar: acc.totalNominalKeluar + curr.totalNominalKeluar,
         totalCashback: acc.totalCashback + curr.totalCashback,
         totalReferralFee: acc.totalReferralFee + curr.totalReferralFee,
+        totalStaffFee: acc.totalStaffFee + curr.totalStaffFee,
         totalFeeBersih: acc.totalFeeBersih + curr.totalFeeBersih,
       }),
       {
@@ -457,6 +480,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
         totalNominalKeluar: 0,
         totalCashback: 0,
         totalReferralFee: 0,
+        totalStaffFee: 0,
         totalFeeBersih: 0,
       }
     );
@@ -466,7 +490,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
 
   const currentMonthLabel =
     selectedMonth === 'all'
-      ? `Seluruh Periode (Tahun ${selectedYear})`
+      ? (selectedYear === 'all' ? 'Semua Periode' : `Tahun ${selectedYear}`)
       : monthlyStats.find((m) => m.monthKey === selectedMonth)?.label || selectedMonth;
 
   return (
@@ -474,14 +498,6 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       {/* Header & Main Control Bar */}
       <div className="keuangan-top-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>
-              analytics
-            </span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--primary)' }}>
-              Arus Kas &amp; Finansial Visa Per Bulan
-            </span>
-          </div>
           <h1 className="keuangan-main-title" style={{ fontSize: '1.9rem', fontWeight: 700, color: 'var(--on-surface)', margin: 0 }}>
             Laporan Keuangan &amp; Grafik
           </h1>
@@ -492,13 +508,13 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
 
         <div className="keuangan-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {/* Dropdown 1: Pilihan Tahun Pembukuan */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div className="keuangan-filter-select-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span
               className="material-symbols-outlined"
               style={{
                 position: 'absolute',
                 left: '11px',
-                fontSize: '16px',
+                fontSize: '17px',
                 color: 'var(--primary)',
                 pointerEvents: 'none',
               }}
@@ -512,11 +528,13 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                 setSelectedMonth('all');
               }}
               style={{
-                padding: '8px 14px 8px 32px',
+                padding: '8px 16px 8px 32px',
+                height: '38px',
+                boxSizing: 'border-box',
                 borderRadius: '9999px',
                 border: '1.5px solid #CBD5E1',
                 fontSize: '0.84rem',
-                fontWeight: 700,
+                fontWeight: 600,
                 color: 'var(--primary)',
                 backgroundColor: '#F8FAFC',
                 cursor: 'pointer',
@@ -525,6 +543,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
               }}
               title="Pilih Tahun Pembukuan"
             >
+              <option value="all">Semua Tahun</option>
               {availableYears.map((y) => (
                 <option key={y} value={y}>
                   Tahun {y}
@@ -534,12 +553,12 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
           </div>
 
           {/* Dropdown 2: Pilihan Bulan (Maksimal 12 Bulan per Tahun) */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div className="keuangan-filter-select-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span
               className="material-symbols-outlined"
               style={{
                 position: 'absolute',
-                left: '12px',
+                left: '11px',
                 fontSize: '17px',
                 color: selectedMonth !== 'all' ? 'var(--primary)' : '#64748B',
                 pointerEvents: 'none',
@@ -551,7 +570,9 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               style={{
-                padding: '8px 18px 8px 36px',
+                padding: '8px 16px 8px 32px',
+                height: '38px',
+                boxSizing: 'border-box',
                 borderRadius: '9999px',
                 border: selectedMonth !== 'all' ? '1.5px solid var(--primary)' : '1px solid #CBD5E1',
                 fontSize: '0.84rem',
@@ -564,7 +585,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
               }}
               title={`Pilih Bulan di Tahun ${selectedYear}`}
             >
-              <option value="all">Semua Bulan ({selectedYear})</option>
+              <option value="all">Semua Bulan</option>
               {monthlyStats.map((m) => (
                 <option key={m.monthKey} value={m.monthKey}>
                   {m.label} ({m.count} Pemohon)
@@ -575,6 +596,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
 
           {selectedMonth !== 'all' && (
             <button
+              className="keuangan-reset-btn"
               onClick={() => setSelectedMonth('all')}
               style={{
                 border: '1px solid #BFDBFE',
@@ -596,7 +618,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
             </button>
           )}
 
-          <button className="btn btn-secondary" onClick={handleExportKeuangan} title="Unduh format spreadsheet">
+          <button className="btn btn-secondary keuangan-export-btn" onClick={handleExportKeuangan} title="Unduh format spreadsheet">
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
               download
             </span>
@@ -609,7 +631,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
           <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)', flexShrink: 0 }}>
               analytics
             </span>
             <span>Ringkasan Finansial: <strong style={{ color: selectedMonth !== 'all' ? 'var(--primary)' : 'var(--on-surface)' }}>{currentMonthLabel}</strong></span>
@@ -646,15 +668,15 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
             </div>
           </div>
 
-          <div className="card" style={{ padding: '18px', borderLeft: '4px solid var(--success)' }}>
+          <div className="card" style={{ padding: '18px', borderLeft: '4px solid #D97706' }}>
             <div className="kpi-label" style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--on-surface-variant)' }}>
-              Total Cashback Mitra
+              Total Alokasi Komisi &amp; Fee Staf
             </div>
-            <div className="font-mono-tabular kpi-value" style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--success)', margin: '6px 0 2px', whiteSpace: 'nowrap' }}>
-              {formatRupiah(activeStats.totalCashback)}
+            <div className="font-mono-tabular kpi-value" style={{ fontSize: '1.45rem', fontWeight: 700, color: '#D97706', margin: '6px 0 2px', whiteSpace: 'nowrap' }}>
+              {formatRupiah(activeStats.totalReferralFee + activeStats.totalStaffFee)}
             </div>
-            <div className="kpi-sub" style={{ fontSize: '0.74rem', color: 'var(--on-surface-variant)' }}>
-              Insentif &amp; reward volume mitra
+            <div className="kpi-sub" style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)' }}>
+              Mitra: {formatRupiah(activeStats.totalReferralFee)} &bull; Staf: {formatRupiah(activeStats.totalStaffFee)}
             </div>
           </div>
 
@@ -1263,9 +1285,15 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                 search
               </span>
             </div>
-            <span style={{ fontSize: '0.78rem', backgroundColor: '#F1F5F9', color: '#475569', padding: '6px 12px', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-              {filteredTransactions.length} Transaksi
+            <span style={{ fontSize: '0.78rem', backgroundColor: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0', padding: '6px 12px', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#16A34A' }}>check_circle</span>
+              <span>{filteredTransactions.length} Transaksi Lunas</span>
             </span>
+            {belumLunasCount > 0 && (
+              <span style={{ fontSize: '0.72rem', backgroundColor: '#FFFBEB', color: '#B45309', border: '1px solid #FCD34D', padding: '6px 10px', borderRadius: '20px', fontWeight: 600, whiteSpace: 'nowrap' }} title="Pendaftaran yang belum bayar lunas tidak dimasukkan ke perhitungan buku kas">
+                ⏳ {belumLunasCount} belum bayar (tidak dihitung)
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -1361,7 +1389,7 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
               </div>
             ) : (
               paginatedTransactions.map((item, index) => {
-                const globalNo = (currentPage - 1) * pageSize + index + 1;
+                const applicantNo = Number((item.noPengajuan || '').replace(/[^0-9]/g, '')) || Number(item.id) || ((currentPage - 1) * pageSize + index + 1);
                 return (
                   <div
                     key={`mobile-trx-${item.id}`}
@@ -1380,8 +1408,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94A3B8' }}>
-                            #{globalNo}
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94A3B8' }} title={`Nomor Urut Pemohon: No. ${applicantNo}`}>
+                            #{applicantNo}
                           </span>
                           <span style={{ fontWeight: 700, fontSize: '0.74rem', background: '#F1F5F9', color: '#1E293B', padding: '2px 7px', borderRadius: '5px' }}>
                             {item.noPengajuan}
@@ -1540,8 +1568,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                   <th style={{ textAlign: 'right', width: '125px', padding: '11px 10px', background: '#F8FAFC', borderBottom: '2px solid #CBD5E1', whiteSpace: 'nowrap', fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>
                     MODAL KELUAR
                   </th>
-                  <th style={{ textAlign: 'right', width: '120px', padding: '11px 10px', background: '#F8FAFC', borderBottom: '2px solid #CBD5E1', whiteSpace: 'nowrap', fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>
-                    CASHBACK &amp; KOMISI
+                  <th style={{ textAlign: 'right', width: '130px', padding: '11px 10px', background: '#F8FAFC', borderBottom: '2px solid #CBD5E1', whiteSpace: 'nowrap', fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>
+                    KOMISI &amp; FEE STAF
                   </th>
                   <th style={{ textAlign: 'right', width: '110px', padding: '11px 10px', background: '#F8FAFC', borderBottom: '2px solid #CBD5E1', borderTopRightRadius: '11px', whiteSpace: 'nowrap', fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>
                     FEE BERSIH
@@ -1557,14 +1585,18 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                   </tr>
                 ) : (
                   paginatedTransactions.map((item, index) => {
-                    const globalNo = (currentPage - 1) * pageSize + index + 1;
+                    const applicantNo = Number((item.noPengajuan || '').replace(/[^0-9]/g, '')) || Number(item.id) || ((currentPage - 1) * pageSize + index + 1);
+                    const refF = getEffectiveReferralFee(item);
+                    const stF = getEffectiveStaffFee(item);
+                    const effectiveFee = getEffectiveFeeBersih(item);
+
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                         {/* No. & Registrasi */}
                         <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', minWidth: '20px' }}>
-                              #{globalNo}
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', minWidth: '20px' }} title={`Nomor Urut Pemohon: No. ${applicantNo}`}>
+                              #{applicantNo}
                             </span>
                             <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.76rem', background: '#F1F5F9', color: '#1E293B', padding: '2px 6px', borderRadius: '5px' }}>
                               {item.noPengajuan}
@@ -1598,21 +1630,26 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                           - {formatRupiah(item.nominalKeluar)}
                         </td>
 
-                        {/* Cashback & Komisi */}
+                        {/* Komisi Mitra & Fee Staf */}
                         <td style={{ textAlign: 'right', fontSize: '0.74rem', fontFamily: 'monospace', padding: '8px 8px', whiteSpace: 'nowrap' }}>
-                          <div style={{ color: 'var(--success)', whiteSpace: 'nowrap' }}>
-                            + {formatRupiah(item.cashback)} <span style={{ fontSize: '0.64rem', color: '#64748B' }}>CB</span>
-                          </div>
-                          {item.referralFee > 0 && (
-                            <div style={{ color: 'var(--warning)', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                              - {formatRupiah(item.referralFee)} <span style={{ fontSize: '0.64rem', color: '#64748B' }}>KMS</span>
+                          {refF > 0 && (
+                            <div style={{ color: '#D97706', whiteSpace: 'nowrap' }}>
+                              - {formatRupiah(refF)} <span style={{ fontSize: '0.62rem', color: '#64748B' }}>Mitra</span>
                             </div>
+                          )}
+                          {stF > 0 && (
+                            <div style={{ color: '#4F46E5', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                              - {formatRupiah(stF)} <span style={{ fontSize: '0.62rem', color: '#64748B' }}>Staf</span>
+                            </div>
+                          )}
+                          {refF === 0 && stF === 0 && (
+                            <span style={{ color: '#94A3B8' }}>Rp 0</span>
                           )}
                         </td>
 
                         {/* Fee Bersih */}
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)', fontSize: '0.84rem', padding: '8px 8px', whiteSpace: 'nowrap' }}>
-                          {formatRupiah(item.feeBersih)}
+                          {formatRupiah(effectiveFee)}
                         </td>
                       </tr>
                     );
@@ -1755,8 +1792,8 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                   <th style={{ textAlign: 'center', padding: '8px 5px', whiteSpace: 'nowrap' }}>Pemohon</th>
                   <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Omzet</th>
                   <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Modal</th>
-                  <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Cashback</th>
-                  <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Komisi</th>
+                  <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Komisi Mitra</th>
+                  <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Fee Staf</th>
                   <th style={{ textAlign: 'right', padding: '8px 5px', whiteSpace: 'nowrap' }}>Laba Bersih</th>
                   <th style={{ textAlign: 'center', padding: '8px 4px', whiteSpace: 'nowrap' }}>Margin</th>
                   <th style={{ textAlign: 'center', padding: '8px 6px', whiteSpace: 'nowrap' }}>Aksi</th>
@@ -1806,11 +1843,11 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                     <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#E11D48', padding: '7px 5px', whiteSpace: 'nowrap' }}>
                       {formatRupiah(item.totalNominalKeluar)}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', color: 'var(--success)', padding: '7px 5px', whiteSpace: 'nowrap' }}>
-                      {formatRupiah(item.totalCashback)}
-                    </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', color: 'var(--warning)', padding: '7px 5px', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#D97706', padding: '7px 5px', whiteSpace: 'nowrap' }}>
                       {formatRupiah(item.totalReferralFee)}
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#4F46E5', padding: '7px 5px', whiteSpace: 'nowrap' }}>
+                      {formatRupiah(item.totalStaffFee)}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)', padding: '7px 5px', whiteSpace: 'nowrap' }}>
                       {formatRupiah(item.totalFeeBersih)}
@@ -1888,11 +1925,11 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#E11D48', padding: '8px 5px', whiteSpace: 'nowrap' }}>
                     {formatRupiah(grandTotal.totalNominalKeluar)}
                   </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: 'var(--success)', padding: '8px 5px', whiteSpace: 'nowrap' }}>
-                    {formatRupiah(grandTotal.totalCashback)}
-                  </td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: 'var(--warning)', padding: '8px 5px', whiteSpace: 'nowrap' }}>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#D97706', padding: '8px 5px', whiteSpace: 'nowrap' }}>
                     {formatRupiah(grandTotal.totalReferralFee)}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#4F46E5', padding: '8px 5px', whiteSpace: 'nowrap' }}>
+                    {formatRupiah(grandTotal.totalStaffFee)}
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.84rem', padding: '8px 5px', whiteSpace: 'nowrap' }}>
                     {formatRupiah(grandTotal.totalFeeBersih)}

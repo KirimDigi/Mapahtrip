@@ -1,0 +1,57 @@
+📊 PENJELASAN MENU DASHBOARD SUPABASE (MAPAHTRIP)
+==================================================
+
+1. Egress
+• Angka Anda: 2.743 / 5 GB (55%)
+• Status: Aman
+• Penjelasan: Total data yang ditarik KELUAR dari database ke browser/laptop selama 1 bulan periode tagihan. Batas gratis 5 GB, masih sisa 2,26 GB.
+
+2. Database Size
+• Angka Anda: 0.028 / 0.5 GB (6%)
+• Status: Sangat Lega
+• Penjelasan: Berat fisik seluruh data di server (324 pemohon + 69 mitra). Hanya memakan 28 MB dari kuota 500 MB (sisa ruang kosong masih 94%).
+
+3. Storage Size
+• Angka Anda: 0 / 1 GB (<1%)
+• Status: Kosong
+• Penjelasan: Ruang penyimpanan untuk file foto berkas/bukti transfer di cloud storage Supabase. Masih kosong (0%).
+
+4. Realtime Concurrent Peak Connections
+• Angka Anda: 7 / 200 (4%)
+• Status: Sangat Aman
+• Penjelasan: Rekor perangkat/tab yang pernah tersambung bersamaan ke database. Tertinggi pernah 7 perangkat aktif sekaligus dari batas maksimal 200.
+
+5. Log Ingestion
+• Angka Anda: 0.041 / 1 GB (4%)
+• Status: Sangat Hemat
+• Penjelasan: Catatan aktivitas dan rekaman sistem database otomatis. Hanya terpakai 41 MB dari kuota 1 GB (1.000 MB).
+
+6. Cached Egress
+• Angka Anda: 0.002 / 5 GB (<1%)
+• Status: Sangat Kecil
+• Penjelasan: Data yang diambil melalui cache cepat Supabase agar loading lebih kencang. Hanya 2 MB.
+
+7. Monthly Active Users (MAU)
+• Angka Anda: 0 / 50.000 MAU
+• Status: Nol (Normal)
+• Penjelasan: Pengguna yang login lewat sistem login bawaan Supabase Auth. Karena MapahTrip memakai sistem tabel login sendiri, ini tercatat 0.
+
+8. Realtime Messages
+• Angka Anda: 0 / 2.000.000
+• Status: Nol (Normal)
+• Penjelasan: Pesan broadcast realtime otomatis. Belum ada kuota yang terpotong.
+
+9. Edge Function Invocations
+• Angka Anda: 0 / 500.000
+• Status: Nol (Normal)
+• Penjelasan: Panggilan fungsi serverless di cloud. Kita tidak menggunakan Edge Function, jadi kuotanya utuh 100%.
+
+10. Log Query
+• Angka Anda: 0 / 100 GB
+• Status: Nol (Normal)
+• Penjelasan: Kuota untuk mencari riwayat log sistem di dashboard Supabase.
+
+==================================================
+KESIMPULAN:
+Seluruh metrik database MapahTrip dalam kondisi SANGAT SEHAT dan SEGAR. Tidak ada satu pun kuota yang melebihi batas (over-quota).
+==================================================
