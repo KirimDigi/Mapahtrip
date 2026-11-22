@@ -289,11 +289,9 @@ export function App() {
 
     let count = 0;
     pengajuanList.forEach((p) => {
-      const isVisaSelesai = p.status === 'Selesai' || Boolean(p.tglSelesai && p.tglSelesai !== '-');
-      if (!isVisaSelesai) return;
-
       // 1. Antrean Payout Mitra (Hanya untuk Owner)
       if (isOwnerMode) {
+        const isVisaSelesai = p.status === 'Selesai' || Boolean(p.tglSelesai && p.tglSelesai !== '-');
         const code = (p.affiliateCode || '').trim().toUpperCase();
         const hasAffiliate = Boolean(code && code !== 'MAPAHTRIP');
         const isSelfReg = Boolean(p.catatan && (p.catatan.includes('Website Mapahtrip') || p.catatan.includes('Pendaftaran mandiri') || p.catatan.includes('Portal Staf')));
@@ -301,7 +299,7 @@ export function App() {
         const numPeng = Number((p.noPengajuan || '').replace(/\D/g, ''));
         const isHistorical = !isSelfReg && (isSpreadsheet || (!isNaN(numPeng) && numPeng > 0 && numPeng <= 225));
 
-        if (hasAffiliate && !isHistorical && p.payoutStatus !== 'Berhasil Ditransfer' && !mitraStored[p.id]) {
+        if (hasAffiliate && !isHistorical && isVisaSelesai && p.payoutStatus !== 'Berhasil Ditransfer' && !mitraStored[p.id]) {
           count++;
         }
       }
@@ -315,7 +313,10 @@ export function App() {
           ? p.staffFee
           : (p.cashback !== undefined ? p.cashback : 0);
 
-        if (feeAmount > 0) {
+        const isVisaSelesai = p.status === 'Selesai' || Boolean(p.tglSelesai && p.tglSelesai !== '-');
+        const hasExplicitStaffFee = Boolean(p.staffFee && p.staffFee > 0);
+
+        if ((hasExplicitStaffFee || isVisaSelesai) && feeAmount > 0) {
           if (!isOwnerMode && currentStaff) {
             if (isApplicantAssignedToStaff(p, currentStaff)) {
               count++;
@@ -435,8 +436,19 @@ export function App() {
       reloadLivePengajuan();
     };
 
+    const handleLocalApplicantUpdated = (e: any) => {
+      const updated = e.detail as Pengajuan;
+      if (updated && updated.id) {
+        setLivePendingPayoutCount(null);
+        setPengajuanList((prev) =>
+          prev.map((item) => (String(item.id) === String(updated.id) ? { ...item, ...updated } : item))
+        );
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('mapahtrip:new_applicant', handleLocalNewApplicant);
+    window.addEventListener('mapahtrip:pengajuan-updated', handleLocalApplicantUpdated);
 
     // Supabase Realtime Channel: Mendengarkan perubahan data langsung dari cloud (otomatis reload database saat ada pendaftar baru)
     const channel = supabase
@@ -488,6 +500,7 @@ export function App() {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('mapahtrip:new_applicant', handleLocalNewApplicant);
+      window.removeEventListener('mapahtrip:pengajuan-updated', handleLocalApplicantUpdated);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -649,6 +662,7 @@ export function App() {
   };
 
   const handleUpdatePengajuan = async (updatedItem: Pengajuan) => {
+    setLivePendingPayoutCount(null);
     setPengajuanList((prev) =>
       prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
     );

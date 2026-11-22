@@ -1216,8 +1216,6 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
     }> = [];
 
     pengajuanList.forEach((cand) => {
-      const isVisaSelesai = cand.status === 'Selesai' || Boolean(cand.tglSelesai && cand.tglSelesai !== '-');
-      if (!isVisaSelesai) return;
       if (!cand.staffPic) return;
 
       const prog = (cand.program || '').toLowerCase();
@@ -1226,16 +1224,21 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
       if (cand.staffPayoutStatus === 'Berhasil Ditransfer') return;
       if (stored[cand.id]) return;
 
+      const feeAmount = cand.staffFee !== undefined && cand.staffFee !== null
+        ? cand.staffFee
+        : (cand.cashback !== undefined && cand.cashback !== null ? cand.cashback : 0);
+
+      const isVisaSelesai = cand.status === 'Selesai' || Boolean(cand.tglSelesai && cand.tglSelesai !== '-');
+      const hasExplicitStaffFee = Boolean(cand.staffFee && cand.staffFee > 0);
+
+      // Otomatis muncul di antrean payout jika: fee staf sudah diinput (> 0) ATAU status visa sudah selesai
+      if (!hasExplicitStaffFee && !isVisaSelesai) return;
+      if (feeAmount <= 0) return;
+
       const staff = findStaffForApplicant(cand.staffPic);
       if (!isOwner && !isAssignedToCurrentStaff(cand, staff)) {
         return;
       }
-
-      const feeAmount = cand.staffFee !== undefined
-        ? cand.staffFee
-        : (cand.cashback !== undefined ? cand.cashback : 0);
-
-      if (feeAmount <= 0) return;
 
       queue.push({
         candidate: cand,
@@ -3789,8 +3792,8 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                       <th style={{ padding: '10px 12px', width: '45px', textAlign: 'center' }}>No.</th>
                       <th style={{ padding: '10px 12px' }}>Staf PIC Penerima Fee</th>
                       <th style={{ padding: '10px 12px' }}>Rekening Tujuan Payout</th>
-                      <th style={{ padding: '10px 12px' }}>Pemohon Visa Selesai</th>
-                      <th style={{ padding: '10px 12px' }}>Tgl Selesai</th>
+                      <th style={{ padding: '10px 12px' }}>Pemohon & Berkas</th>
+                      <th style={{ padding: '10px 12px' }}>Status Berkas</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Nominal Acuan</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center', width: '160px' }}>{isOwner ? 'Aksi Owner' : 'Status Payout'}</th>
                     </tr>
@@ -3840,8 +3843,26 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                             {item.candidate.program} ({item.candidate.konsjen}) &bull; {item.candidate.noPengajuan || '#' + item.candidate.id}
                           </div>
                         </td>
-                        <td style={{ padding: '12px', color: '#16A34A', fontWeight: 700, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                          {formatTanggalIndo(item.candidate.tglSelesai || '') || '-'}
+                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              backgroundColor: item.candidate.status === 'Selesai' ? '#DCFCE7' : '#EFF6FF',
+                              color: item.candidate.status === 'Selesai' ? '#15803D' : '#1D4ED8',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.70rem',
+                              fontWeight: 800,
+                              display: 'inline-block',
+                              marginBottom: '2px',
+                            }}
+                          >
+                            {item.candidate.status || 'Proses'}
+                          </span>
+                          <div style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                            {item.candidate.tglSelesai && item.candidate.tglSelesai !== '-'
+                              ? formatTanggalIndo(item.candidate.tglSelesai)
+                              : (item.candidate.tglBerkasMasuk || '-')}
+                          </div>
                         </td>
                         <td style={{ padding: '12px', textAlign: 'right' }}>
                           <div style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '0.88rem', color: '#005BB5' }}>

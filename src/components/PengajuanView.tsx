@@ -453,6 +453,11 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       onUpdatePengajuan(updatedItem);
     }
 
+    try {
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('mapahtrip:pengajuan-updated', { detail: updatedItem }));
+    } catch {}
+
     updatePengajuanPaymentInDB(editingPaketTarget.id, {
       dibayarPemohon: newNominalBiaya,
       nominalKeluar: newNominalKeluar,
