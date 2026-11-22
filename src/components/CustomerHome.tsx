@@ -1083,14 +1083,25 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
 
 
   const handleKirimPendaftaran = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (isSubmittingRef.current || formSubmitting) return;
+    isSubmittingRef.current = true;
+    setFormSubmitting(true);
+    setFormError(null);
+
     if (!formNama.trim()) {
       setFormError('Nama Lengkap wajib diisi.');
+      isSubmittingRef.current = false;
+      setFormSubmitting(false);
       return;
     }
     if (!formNoWa.trim() || formNoWa.length < 8) {
       setFormError('Nomor WhatsApp wajib diisi angka dengan benar (minimal 8 digit).');
+      isSubmittingRef.current = false;
+      setFormSubmitting(false);
       return;
     }
 
@@ -1101,6 +1112,8 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
         setFormError(
           `Kode referral "${customerRefCode}" tidak valid atau tidak terdaftar. Harap masukkan kode mitra resmi yang valid (contoh: MPH425MI).`
         );
+        isSubmittingRef.current = false;
+        setFormSubmitting(false);
         return;
       }
     }
@@ -1114,10 +1127,6 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
       const check = validateReferralCode(cleanInputCode, pengajuanList);
       finalRefCode = check.isValid ? check.code : cleanInputCode;
     }
-
-    isSubmittingRef.current = true;
-    setFormSubmitting(true);
-    setFormError(null);
 
     const programVisa = selectedVisaModal?.title || 'Visa Jepang';
     const visaNominal = getNominalVisa(programVisa, formPaket);

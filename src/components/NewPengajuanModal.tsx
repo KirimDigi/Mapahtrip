@@ -48,6 +48,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
   const [tglBayarPemohon, setTglBayarPemohon] = useState(new Date().toISOString().split('T')[0]);
   const [buktiBayarPemohon, setBuktiBayarPemohon] = useState<string | null>(null);
   const [buktiBayarNama, setBuktiBayarNama] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   // Ambil daftar program visa kustom tambahan dari master tarif
   const customVisaOptions = React.useMemo(() => {
@@ -199,10 +200,12 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!namaPemohon.trim()) {
       alert('Nama pemohon wajib diisi!');
       return;
     }
+    isSubmittingRef.current = true;
 
     const finalDomisili = domisiliKtp === 'Lainnya' ? (domisiliLainnya.trim() || 'Lainnya') : domisiliKtp;
     const finalNoPaspor = noPaspor.trim() ? noPaspor.trim().toUpperCase() : '-';
@@ -417,6 +420,7 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
     setStatusPembayaran('Lunas');
     setBuktiBayarPemohon(null);
     setBuktiBayarNama(null);
+    isSubmittingRef.current = false;
   };
 
   return (

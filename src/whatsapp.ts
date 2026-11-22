@@ -68,7 +68,7 @@ export function getWASessionId(): string {
  * Mengambil URL WhatsApp Gateway API:
  * 1. Dari env VITE_WA_GATEWAY_URL
  * 2. Dari localStorage 'mapahtrip_wa_gateway_url' (jika admin mengatur di UI / tunnel ngrok)
- * 3. Default fallback: http://localhost:2026/api/send
+ * 3. Default fallback: https://hypnotic-curtly-dealt.ngrok-free.dev/api/send
  */
 export function getWAGatewayUrl(): string {
   try {
@@ -85,16 +85,87 @@ export function getWAGatewayUrl(): string {
 }
 
 // =========================================================================
-// SISTEM ANTREAN OFFLINE / CONNECTING (OUTBOX)
+// SISTEM DE-DUPLIKASI GLOBAL (CROSS-TAB & IN-FLIGHT MUTEX)
 // =========================================================================
 
+const LOCKS_STORAGE_KEY = 'mapahtrip_wa_recent_locks';
 const OUTBOX_STORAGE_KEY = 'mapahtrip_wa_outbox_queue';
+const OUTBOX_LOCK_KEY = 'mapahtrip_wa_outbox_processing_lock';
+
+function getDedupKey(phone: string, message: string): string {
+  const cleanNum = normalizeWANumber(phone);
+  const cleanMsg = (message || '').trim().slice(0, 120);
+  return `${cleanNum}:::${cleanMsg}`;
+}
+
+/**
+ * Mengecek apakah pesan yang sama ke nomor yang sama sedang dalam proses kirim
+ * atau baru saja terkirim dalam 20 detik terakhir (antar-tab & antar-komponen).
+ */
+function isMessageRecentlyHandled(phone: string, message: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const key = getDedupKey(phone, message);
+    const raw = localStorage.getItem(LOCKS_STORAGE_KEY);
+    if (!raw) return false;
+    const locks: Record<string, number> = JSON.parse(raw);
+    const now = Date.now();
+    const timestamp = locks[key];
+    if (timestamp && now - timestamp < 20000) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * Mengunci pesan agar tidak dapat dipicu ganda oleh klik cepat, tab lain, atau worker.
+ */
+function markMessageHandled(phone: string, message: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const key = getDedupKey(phone, message);
+    const raw = localStorage.getItem(LOCKS_STORAGE_KEY);
+    const locks: Record<string, number> = raw ? JSON.parse(raw) : {};
+    const now = Date.now();
+    // Bersihkan entri lama > 60 detik
+    for (const k of Object.keys(locks)) {
+      if (now - locks[k] > 60000) {
+        delete locks[k];
+      }
+    }
+    locks[key] = now;
+    localStorage.setItem(LOCKS_STORAGE_KEY, JSON.stringify(locks));
+  } catch {}
+}
+
+// =========================================================================
+// SISTEM ANTREAN OFFLINE / CONNECTING (OUTBOX)
+// =========================================================================
 
 export function getWAOutbox(): WAOutboxItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(OUTBOX_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (!raw) return [];
+    const items: WAOutboxItem[] = JSON.parse(raw);
+
+    // Auto de-duplicate saat membaca: jika ada duplikat historis di storage, bersihkan otomatis
+    const seen = new Set<string>();
+    const deduped: WAOutboxItem[] = [];
+    for (const item of items) {
+      const cleanNum = normalizeWANumber(item.nomorTujuan);
+      const key = `${cleanNum}:::${(item.isiPesan || '').trim().slice(0, 120)}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push({ ...item, nomorTujuan: cleanNum });
+      }
+    }
+
+    if (deduped.length !== items.length) {
+      saveWAOutbox(deduped);
+    }
+    return deduped;
   } catch {}
   return [];
 }
@@ -112,38 +183,47 @@ export function addToWAOutbox(
   isiPesan: string,
   meta?: { namaPemohon?: string; tahap?: string; error?: string }
 ): WAOutboxItem {
+  const cleanTarget = normalizeWANumber(nomorTujuan);
   const current = getWAOutbox();
-  // Cegah duplikasi persis: jika nomor sama dan isi pesan sama ATAU nama pemohon & tahap persis sama
-  const existingIdx = current.findIndex(
-    (item) =>
-      item.nomorTujuan === nomorTujuan &&
-      (item.isiPesan.trim() === isiPesan.trim() ||
-        (Boolean(meta?.namaPemohon) &&
-          item.namaPemohon === meta?.namaPemohon &&
-          item.tahap === meta?.tahap))
-  );
+  const cleanPesan = (isiPesan || '').trim();
+  const pesanPrefix = cleanPesan.slice(0, 120);
+
+  // Cegah duplikasi persis: jika nomor target sama dan (pesan sama / prefix sama / meta sama)
+  const existingIdx = current.findIndex((item) => {
+    const itemNum = normalizeWANumber(item.nomorTujuan);
+    if (itemNum !== cleanTarget) return false;
+    const itemPesan = (item.isiPesan || '').trim();
+    if (itemPesan === cleanPesan || itemPesan.slice(0, 120) === pesanPrefix) return true;
+    if (meta?.namaPemohon && item.namaPemohon === meta.namaPemohon && item.tahap === meta?.tahap) return true;
+    return false;
+  });
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
 
+  if (existingIdx !== -1) {
+    // Perbarui item yang sudah ada daripada membuat duplikat baru
+    const existing = current[existingIdx];
+    existing.retryCount = (existing.retryCount || 0) + 1;
+    existing.createdAt = `${dateStr} ${timeStr}`;
+    existing.lastError = meta?.error || existing.lastError || 'Gateway Connecting / Offline';
+    saveWAOutbox(current);
+    return existing;
+  }
+
   const newItem: WAOutboxItem = {
-    id: existingIdx !== -1 ? current[existingIdx].id : `outbox-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    nomorTujuan,
-    isiPesan,
+    id: `outbox-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    nomorTujuan: cleanTarget,
+    isiPesan: cleanPesan,
     namaPemohon: meta?.namaPemohon || 'Customer',
     tahap: meta?.tahap || 'Notifikasi',
     createdAt: `${dateStr} ${timeStr}`,
-    retryCount: existingIdx !== -1 ? current[existingIdx].retryCount + 1 : 0,
+    retryCount: 0,
     lastError: meta?.error || 'Gateway Connecting / Offline',
   };
 
-  if (existingIdx !== -1) {
-    current[existingIdx] = newItem;
-  } else {
-    current.unshift(newItem);
-  }
-
+  current.unshift(newItem);
   saveWAOutbox(current);
   return newItem;
 }
@@ -157,7 +237,6 @@ export function removeFromWAOutbox(id: string): void {
 /**
  * Menghapus semua pesan di antrean WhatsApp Outbox yang berkaitan dengan pemohon tertentu
  * (dipanggil saat data pemohon dihapus dari sistem/tabel).
- * Menghapus notifikasi customer itu sendiri, notif staf, notif owner, dan notif mitra yang memuat data pemohon tersebut.
  */
 export function removeApplicantFromWAOutbox(params: {
   namaPemohon?: string;
@@ -175,13 +254,13 @@ export function removeApplicantFromWAOutbox(params: {
     // 1. Cek kecocokan nama pemohon di kartu
     if (targetNama && targetNama.length >= 2) {
       if (item.namaPemohon && item.namaPemohon.toLowerCase().trim() === targetNama) {
-        return false; // Hapus
+        return false;
       }
     }
 
     // 2. Cek kecocokan nomor WhatsApp customer
-    if (targetPhone && item.nomorTujuan === targetPhone) {
-      return false; // Hapus
+    if (targetPhone && normalizeWANumber(item.nomorTujuan) === targetPhone) {
+      return false;
     }
 
     // 3. Cek di dalam isi pesan (apakah memuat noPengajuan atau nama pemohon)
@@ -189,7 +268,7 @@ export function removeApplicantFromWAOutbox(params: {
 
     if (targetNoPengajuan && targetNoPengajuan.length >= 4) {
       if (isiLower.includes(targetNoPengajuan)) {
-        return false; // Hapus (misal notifikasi ke owner, staf, atau affiliate yang memuat MT-0300)
+        return false;
       }
     }
 
@@ -197,11 +276,11 @@ export function removeApplicantFromWAOutbox(params: {
       const escaped = targetNama.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, 'i');
       if (regex.test(isiLower)) {
-        return false; // Hapus
+        return false;
       }
     }
 
-    return true; // Simpan
+    return true;
   });
 
   const removedCount = current.length - filtered.length;
@@ -217,7 +296,9 @@ export function clearWAOutbox(): void {
 }
 
 /**
- * Mencoba mengirim pesan langsung ke endpoint gateway dengan timeout batas 4 detik
+ * Mengirim pesan langsung ke endpoint gateway via fetch.
+ * ATURAN TEGAS: Hanya menggunakan TEPAT SATU endpoint (tanpa loop retry internal).
+ * Loop retry internal adalah penyebab utama pesan dobel jika request pertama memakan waktu sedikit lebih lama.
  */
 export async function kirimPesanWADirect(nomorTujuan: string, isiPesan: string): Promise<any> {
   const cleanedNumber = normalizeWANumber(nomorTujuan);
@@ -236,97 +317,73 @@ export async function kirimPesanWADirect(nomorTujuan: string, isiPesan: string):
     'ngrok-skip-browser-warning': 'true',
   };
 
-  const endpoints: string[] = [];
+  // Pilih 1 target endpoint terbaik:
   const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-  if (isLocal) {
-    endpoints.push('/api-wa/api/send');
-  }
-  const configured = getWAGatewayUrl();
-  if (configured && !endpoints.includes(configured)) {
-    endpoints.push(configured);
-  }
+  const targetUrl = isLocal ? '/api-wa/api/send' : getWAGatewayUrl();
 
-  for (const url of endpoints) {
-    const controller = new AbortController();
-    // Timeout 6 detik cukup untuk Baileys tanpa membuat antrean macet lama saat offline
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const controller = new AbortController();
+  // Berikan timeout 12 detik agar socket Baileys tidak terputus prematur
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-    try {
-      console.log(`[WA Gateway] Mengirim ke ${cleanedNumber} via ${url}...`);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: payload,
-        signal: controller.signal,
-      });
+  try {
+    console.log(`[WA Gateway] Mengirim ke ${cleanedNumber} via ${targetUrl}...`);
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers,
+      body: payload,
+      signal: controller.signal,
+    });
 
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json().catch(() => null);
-      if (data && (data.success || data.status === 'success' || !data.error)) {
-        return { success: true, ...data };
-      }
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      console.warn(`[WA Gateway] Endpoint ${url} gagal (${err.message})`);
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
+
+    const data = await response.json().catch(() => null);
+    if (data && (data.success || data.status === 'success' || !data.error)) {
+      return { success: true, ...data };
+    }
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    console.warn(`[WA Gateway] Target ${targetUrl} gagal: ${err.message}`);
   }
 
   return null;
 }
 
-// Cache dedup pengiriman pesan terakhir (mencegah pesan duplikat ke nomor & pesan yang sama dalam 15 detik)
-const recentSentLog = new Map<string, number>();
+// Queue internal agar pesan berturutan (Customer, Mitra, Staff, Owner) dikirim secara serial dengan jeda 600ms
+let sendQueueChain: Promise<any> = Promise.resolve();
 
-/**
- * Fungsi Utama: Mengirim pesan WhatsApp melalui Gateway.
- * JIKA GATEWAY SEDANG CONNECTING / GANGGUAN SINYAL:
- * Otomatis memasukkan pesan ke Antrean Outbox & memberitahu status 'queued: true'.
- */
-export async function kirimPesanWA(
+async function doKirimPesanWA(
   nomorTujuan: string,
   isiPesan: string,
   meta?: { namaPemohon?: string; tahap?: string }
 ): Promise<{ success: boolean; queued?: boolean; message?: string; [key: string]: any }> {
+  const cleanedNumber = normalizeWANumber(nomorTujuan);
+  if (!cleanedNumber) {
+    console.warn('[WA Gateway] Nomor WhatsApp tujuan kosong');
+    return { success: false, message: 'Nomor WhatsApp tidak valid atau kosong' };
+  }
+
+  // 1. FILTER DE-DUPLIKASI KETAT (Cross-Tab & Cross-Component)
+  if (isMessageRecentlyHandled(cleanedNumber, isiPesan)) {
+    console.log(`[WA Gateway] Pesan duplikat terdeteksi ke ${cleanedNumber}. Pengiriman kedua dilewati.`);
+    return { success: true, message: 'Pesan duplikat dicegah otomatis oleh sistem proteksi.' };
+  }
+
+  // Tandai pesan LANGSUNG sebelum request jaringan dimulai
+  markMessageHandled(cleanedNumber, isiPesan);
+
   try {
-    const cleanedNumber = normalizeWANumber(nomorTujuan);
-    if (!cleanedNumber) {
-      console.warn('[WA Gateway] Nomor WhatsApp tujuan kosong');
-      return { success: false, message: 'Nomor WhatsApp tidak valid atau kosong' };
-    }
-
-    // Filter De-duplication: Cegah pesan ganda ke nomor yang sama dalam waktu 15 detik jika sudah terkirim sukses
-    const dedupKey = `${cleanedNumber}:${isiPesan.trim().substring(0, 100)}`;
-    const now = Date.now();
-    const lastSentTime = recentSentLog.get(dedupKey);
-    if (lastSentTime && now - lastSentTime < 15000) {
-      console.log(`[WA Gateway] Pesan duplikat terdeteksi ke ${cleanedNumber} (${Math.round((now - lastSentTime) / 1000)} detik lalu). Dilewati demi mencegah spam ganda.`);
-      return { success: true, message: 'Pesan duplikat dicegah otomatis oleh sistem de-duplikasi' };
-    }
-
-    // Bersihkan entri log yang sudah lebih dari 30 detik agar tidak menumpuk di memori
-    if (recentSentLog.size > 100) {
-      for (const [key, timestamp] of recentSentLog.entries()) {
-        if (now - timestamp > 30000) {
-          recentSentLog.delete(key);
-        }
-      }
-    }
-
-    // 1. Coba kirim langsung
+    // 2. Coba kirim langsung ke gateway
     const directResult = await kirimPesanWADirect(cleanedNumber, isiPesan);
     if (directResult && directResult.success) {
-      // Catat ke recentSentLog HANYA jika benar-benar sukses terkirim!
-      recentSentLog.set(dedupKey, Date.now());
       console.log('[WA Gateway] Pesan berhasil terkirim langsung ke:', cleanedNumber);
       return { success: true, message: 'Terkirim langsung via WhatsApp Gateway', ...directResult };
     }
 
-    // 2. Jika gagal tembus (Connecting / Ngrok offline / Sinyal putus):
-    console.warn(`[WA Gateway] Gagal tembus langsung ke ${cleanedNumber}. Memasukkan ke antrean Outbox...`);
+    // 3. Jika gateway offline / timeout: simpan ke Outbox tanpa duplikasi
+    console.warn(`[WA Gateway] Gateway offline/lambat untuk ${cleanedNumber}. Masuk antrean outbox.`);
     const queuedItem = addToWAOutbox(cleanedNumber, isiPesan, {
       namaPemohon: meta?.namaPemohon,
       tahap: meta?.tahap,
@@ -337,11 +394,11 @@ export async function kirimPesanWA(
       success: false,
       queued: true,
       queueId: queuedItem.id,
-      message: 'Gateway sedang connecting / offline. Pesan otomatis disimpan di antrean tunggu dan akan dikirim begitu koneksi online.',
+      message: 'Gateway sedang connecting / offline. Pesan disimpan di antrean tunggu dan dikirim otomatis begitu online.',
     };
   } catch (error: any) {
     console.error('[WA Gateway] Error sistem saat kirim WA:', error);
-    addToWAOutbox(nomorTujuan, isiPesan, {
+    const queuedItem = addToWAOutbox(cleanedNumber, isiPesan, {
       namaPemohon: meta?.namaPemohon,
       tahap: meta?.tahap,
       error: error.message || 'Error koneksi',
@@ -349,103 +406,151 @@ export async function kirimPesanWA(
     return {
       success: false,
       queued: true,
+      queueId: queuedItem.id,
       message: 'Terjadi gangguan jaringan. Pesan disimpan di antrean outbox.',
     };
   }
 }
 
 /**
- * Pemroses Otomatis Antrean Outbox (Auto-Retry Background Worker)
- * Mencoba mengirim item pertama di antrean outbox. Jika sukses, lanjut kirim sisanya.
+ * Fungsi Utama: Mengirim pesan WhatsApp melalui Gateway secara terurut & aman tanpa bentrok.
  */
-let isProcessingQueue = false;
+export async function kirimPesanWA(
+  nomorTujuan: string,
+  isiPesan: string,
+  meta?: { namaPemohon?: string; tahap?: string }
+): Promise<{ success: boolean; queued?: boolean; message?: string; [key: string]: any }> {
+  return new Promise((resolve) => {
+    sendQueueChain = sendQueueChain
+      .then(async () => {
+        const result = await doKirimPesanWA(nomorTujuan, isiPesan, meta);
+        resolve(result);
+        // Jeda pengaman 600ms antar pesan beruntun agar soket Baileys tidak bentrok
+        await new Promise((r) => setTimeout(r, 600));
+      })
+      .catch((err) => {
+        resolve({ success: false, queued: true, message: err?.message || 'Error' });
+      });
+  });
+}
+
+// =========================================================================
+// PEMROSES OTOMATIS ANTREAN OUTBOX DENGAN DISTRIBUTED LOCK
+// =========================================================================
+
+function acquireOutboxLock(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const now = Date.now();
+    const current = localStorage.getItem(OUTBOX_LOCK_KEY);
+    if (current) {
+      const lockTime = parseInt(current, 10);
+      // Batas kunci maksimal 15 detik (mencegah deadlock jika tab tertutup tiba-tiba)
+      if (now - lockTime < 15000) {
+        return false;
+      }
+    }
+    localStorage.setItem(OUTBOX_LOCK_KEY, String(now));
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+function releaseOutboxLock(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(OUTBOX_LOCK_KEY);
+  } catch {}
+}
 
 export async function prosesAntreanWAOutbox(): Promise<{ sent: number; remaining: number }> {
-  if (isProcessingQueue) return { sent: 0, remaining: getWAOutbox().length };
-
   const queue = getWAOutbox();
   if (queue.length === 0) return { sent: 0, remaining: 0 };
 
-  isProcessingQueue = true;
+  // Mutex lock: hanya 1 tab browser yang boleh memproses antrean pada satu waktu
+  if (!acquireOutboxLock()) {
+    return { sent: 0, remaining: queue.length };
+  }
+
   let sentCount = 0;
   let isGatewayOffline = false;
 
   try {
-    console.log(`[WA Outbox] Menjalankan pengiriman untuk ${queue.length} pesan tertunda...`);
+    console.log(`[WA Outbox] Memproses ${queue.length} pesan antrean tertunda...`);
 
-    // Proses item satu per satu secara berurutan dengan jeda aman
     for (let i = 0; i < queue.length; i++) {
       const item = queue[i];
       if (isGatewayOffline) break;
 
-      const cleanedNum = normalizeWANumber(item.nomorTujuan);
-      const dedupKey = `${cleanedNum}:${item.isiPesan.trim().substring(0, 100)}`;
+      const cleanNum = normalizeWANumber(item.nomorTujuan);
 
-      // Kirim pesan ke gateway
-      const res = await kirimPesanWADirect(item.nomorTujuan, item.isiPesan);
+      // Cek apakah baru saja terkirim dalam 20 detik terakhir
+      if (isMessageRecentlyHandled(cleanNum, item.isiPesan)) {
+        removeFromWAOutbox(item.id);
+        continue;
+      }
+
+      markMessageHandled(cleanNum, item.isiPesan);
+
+      const res = await kirimPesanWADirect(cleanNum, item.isiPesan);
 
       if (res && res.success) {
-        recentSentLog.set(dedupKey, Date.now());
         sentCount++;
         removeFromWAOutbox(item.id);
-        console.log(`[WA Outbox] ✅ Berhasil kirim pesan tertunda ke ${item.namaPemohon} (${item.nomorTujuan})`);
+        console.log(`[WA Outbox] ✅ Berhasil kirim antrean ke ${item.namaPemohon} (${cleanNum})`);
 
-        // Tembakkan event agar UI ter-update
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('mapahtrip_wa_sent', {
               detail: {
                 applicantName: item.namaPemohon,
                 stage: item.tahap,
-                nomorTujuan: item.nomorTujuan,
+                nomorTujuan: cleanNum,
               },
             })
           );
         }
 
-        // BERI JEDA 1.2 DETIK antar pesan agar koneksi WhatsApp Baileys socket tidak tabrakan/hang
+        // Jeda 1 detik antar pesan antrean
         if (i < queue.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } else {
-        console.warn(`[WA Outbox] Pesan ke ${item.namaPemohon} belum berhasil.`);
-        // Jika server gateway benar-benar mati / offline, hentikan agar tidak buang waktu
-        // Jika error per-nomor, lanjutkan ke pesan berikutnya (customer/staf/owner lain)
+        console.warn(`[WA Outbox] Pengiriman antrean ke ${item.namaPemohon} belum berhasil.`);
         const currentItems = getWAOutbox();
         const found = currentItems.find((q) => q.id === item.id);
         if (found && (found.retryCount || 0) >= 3) {
-          console.warn(`[WA Outbox] Pesan ${item.id} sudah dicoba 3x. Melanjutkan ke item berikutnya.`);
           continue;
         }
-        // Jika gateway offline / tidak merespon di semua endpoint:
         isGatewayOffline = true;
         break;
       }
     }
   } finally {
-    isProcessingQueue = false;
+    releaseOutboxLock();
   }
 
+  const remaining = getWAOutbox().length;
   if (sentCount > 0 && typeof window !== 'undefined') {
     window.dispatchEvent(
       new CustomEvent('mapahtrip_wa_auto_flushed', {
-        detail: { sent: sentCount, remaining: getWAOutbox().length },
+        detail: { sent: sentCount, remaining },
       })
     );
   }
 
-  return { sent: sentCount, remaining: getWAOutbox().length };
+  return { sent: sentCount, remaining };
 }
 
-// Inisialisasi background poller otomatis setiap 10 detik di browser
-// Begitu gateway / ngrok online kembali, antrean langsung terkirim otomatis tanpa perlu klik manual
+// Inisialisasi background auto-flush setiap 12 detik di browser
 if (typeof window !== 'undefined') {
   setInterval(() => {
     const queue = getWAOutbox();
     if (queue.length > 0) {
       prosesAntreanWAOutbox().catch(() => {});
     }
-  }, 10000);
+  }, 12000);
 
   window.addEventListener('online', () => {
     prosesAntreanWAOutbox().catch(() => {});
