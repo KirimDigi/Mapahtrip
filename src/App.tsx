@@ -376,12 +376,6 @@ export function App() {
 
   // Listener Notifikasi WhatsApp Terkirim Otomatis dari Antrean Outbox (Auto-Retry)
   useEffect(() => {
-    // Bersihkan otomatis sisa antrean pesan dari data uji coba "test1" / "test" yang telah dihapus
-    try {
-      removeApplicantFromWAOutbox({ namaPemohon: 'test1' });
-      removeApplicantFromWAOutbox({ namaPemohon: 'test' });
-    } catch {}
-
     const handleWASent = (e: any) => {
       const detail = e.detail;
       if (detail && detail.applicantName) {

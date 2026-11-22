@@ -85,33 +85,35 @@ export function getWAGatewayUrl(): string {
 }
 
 // =========================================================================
-// SISTEM DE-DUPLIKASI GLOBAL (CROSS-TAB & IN-FLIGHT MUTEX)
+// SISTEM CEK PENGIRIMAN SUKSES & IN-FLIGHT LOCK
 // =========================================================================
 
-const LOCKS_STORAGE_KEY = 'mapahtrip_wa_recent_locks';
+const SENT_SUCCESS_STORAGE_KEY = 'mapahtrip_wa_sent_success';
 const OUTBOX_STORAGE_KEY = 'mapahtrip_wa_outbox_queue';
 const OUTBOX_LOCK_KEY = 'mapahtrip_wa_outbox_processing_lock';
 
-function getDedupKey(phone: string, message: string): string {
+// In-flight tracking: hanya mengunci saat request HTTP sedang berlangsung di jaringan
+const inFlightRequests = new Set<string>();
+
+function getMsgSignature(phone: string, message: string): string {
   const cleanNum = normalizeWANumber(phone);
-  const cleanMsg = (message || '').trim().slice(0, 120);
-  return `${cleanNum}:::${cleanMsg}`;
+  const cleanMsg = (message || '').trim().replace(/\s+/g, ' ');
+  return `${cleanNum}:::${cleanMsg.slice(0, 150)}`;
 }
 
 /**
- * Mengecek apakah pesan yang sama ke nomor yang sama sedang dalam proses kirim
- * atau baru saja terkirim dalam 20 detik terakhir (antar-tab & antar-komponen).
+ * Mengecek apakah pesan yang sama ke nomor yang sama sudah BENAR-BENAR BERHASIL TERKIRIM
+ * dalam 20 detik terakhir.
  */
-function isMessageRecentlyHandled(phone: string, message: string): boolean {
+function isMessageAlreadySentSuccessfully(phone: string, message: string): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    const key = getDedupKey(phone, message);
-    const raw = localStorage.getItem(LOCKS_STORAGE_KEY);
+    const key = getMsgSignature(phone, message);
+    const raw = localStorage.getItem(SENT_SUCCESS_STORAGE_KEY);
     if (!raw) return false;
-    const locks: Record<string, number> = JSON.parse(raw);
-    const now = Date.now();
-    const timestamp = locks[key];
-    if (timestamp && now - timestamp < 20000) {
+    const sentMap: Record<string, number> = JSON.parse(raw);
+    const lastSent = sentMap[key];
+    if (lastSent && Date.now() - lastSent < 20000) {
       return true;
     }
   } catch {}
@@ -119,23 +121,23 @@ function isMessageRecentlyHandled(phone: string, message: string): boolean {
 }
 
 /**
- * Mengunci pesan agar tidak dapat dipicu ganda oleh klik cepat, tab lain, atau worker.
+ * Mencatat bahwa pesan SUKSES terkirim ke WhatsApp (HANYA dipanggil saat API mengembalikan success: true).
  */
-function markMessageHandled(phone: string, message: string): void {
+function recordMessageSentSuccess(phone: string, message: string): void {
   if (typeof window === 'undefined') return;
   try {
-    const key = getDedupKey(phone, message);
-    const raw = localStorage.getItem(LOCKS_STORAGE_KEY);
-    const locks: Record<string, number> = raw ? JSON.parse(raw) : {};
+    const key = getMsgSignature(phone, message);
+    const raw = localStorage.getItem(SENT_SUCCESS_STORAGE_KEY);
+    const sentMap: Record<string, number> = raw ? JSON.parse(raw) : {};
     const now = Date.now();
     // Bersihkan entri lama > 60 detik
-    for (const k of Object.keys(locks)) {
-      if (now - locks[k] > 60000) {
-        delete locks[k];
+    for (const k of Object.keys(sentMap)) {
+      if (now - sentMap[k] > 60000) {
+        delete sentMap[k];
       }
     }
-    locks[key] = now;
-    localStorage.setItem(LOCKS_STORAGE_KEY, JSON.stringify(locks));
+    sentMap[key] = now;
+    localStorage.setItem(SENT_SUCCESS_STORAGE_KEY, JSON.stringify(sentMap));
   } catch {}
 }
 
@@ -148,24 +150,7 @@ export function getWAOutbox(): WAOutboxItem[] {
   try {
     const raw = localStorage.getItem(OUTBOX_STORAGE_KEY);
     if (!raw) return [];
-    const items: WAOutboxItem[] = JSON.parse(raw);
-
-    // Auto de-duplicate saat membaca: jika ada duplikat historis di storage, bersihkan otomatis
-    const seen = new Set<string>();
-    const deduped: WAOutboxItem[] = [];
-    for (const item of items) {
-      const cleanNum = normalizeWANumber(item.nomorTujuan);
-      const key = `${cleanNum}:::${(item.isiPesan || '').trim().slice(0, 120)}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        deduped.push({ ...item, nomorTujuan: cleanNum });
-      }
-    }
-
-    if (deduped.length !== items.length) {
-      saveWAOutbox(deduped);
-    }
-    return deduped;
+    return JSON.parse(raw);
   } catch {}
   return [];
 }
@@ -186,16 +171,12 @@ export function addToWAOutbox(
   const cleanTarget = normalizeWANumber(nomorTujuan);
   const current = getWAOutbox();
   const cleanPesan = (isiPesan || '').trim();
-  const pesanPrefix = cleanPesan.slice(0, 120);
 
-  // Cegah duplikasi persis: jika nomor target sama dan (pesan sama / prefix sama / meta sama)
+  // Cegah duplikasi persis di antrean: jika nomor tujuan sama dan pesan persis sama
   const existingIdx = current.findIndex((item) => {
     const itemNum = normalizeWANumber(item.nomorTujuan);
     if (itemNum !== cleanTarget) return false;
-    const itemPesan = (item.isiPesan || '').trim();
-    if (itemPesan === cleanPesan || itemPesan.slice(0, 120) === pesanPrefix) return true;
-    if (meta?.namaPemohon && item.namaPemohon === meta.namaPemohon && item.tahap === meta?.tahap) return true;
-    return false;
+    return item.isiPesan.trim() === cleanPesan;
   });
 
   const now = new Date();
@@ -203,7 +184,7 @@ export function addToWAOutbox(
   const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
 
   if (existingIdx !== -1) {
-    // Perbarui item yang sudah ada daripada membuat duplikat baru
+    // Perbarui item yang sudah ada daripada membuat baris duplikat baru
     const existing = current[existingIdx];
     existing.retryCount = (existing.retryCount || 0) + 1;
     existing.createdAt = `${dateStr} ${timeStr}`;
@@ -297,8 +278,7 @@ export function clearWAOutbox(): void {
 
 /**
  * Mengirim pesan langsung ke endpoint gateway via fetch.
- * ATURAN TEGAS: Hanya menggunakan TEPAT SATU endpoint (tanpa loop retry internal).
- * Loop retry internal adalah penyebab utama pesan dobel jika request pertama memakan waktu sedikit lebih lama.
+ * Menggunakan TEPAT SATU endpoint aktif untuk mencegah pengiriman ganda akibat retry internal.
  */
 export async function kirimPesanWADirect(nomorTujuan: string, isiPesan: string): Promise<any> {
   const cleanedNumber = normalizeWANumber(nomorTujuan);
@@ -322,8 +302,8 @@ export async function kirimPesanWADirect(nomorTujuan: string, isiPesan: string):
   const targetUrl = isLocal ? '/api-wa/api/send' : getWAGatewayUrl();
 
   const controller = new AbortController();
-  // Berikan timeout 12 detik agar socket Baileys tidak terputus prematur
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  // Timeout 10 detik agar proses pengiriman Baileys soket tidak dibatalkan prematur
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
     console.log(`[WA Gateway] Mengirim ke ${cleanedNumber} via ${targetUrl}...`);
@@ -351,7 +331,7 @@ export async function kirimPesanWADirect(nomorTujuan: string, isiPesan: string):
   return null;
 }
 
-// Queue internal agar pesan berturutan (Customer, Mitra, Staff, Owner) dikirim secara serial dengan jeda 600ms
+// Queue internal agar pesan beruntun (Customer, Mitra, Staff, Owner) dikirim secara serial dengan jeda 600ms
 let sendQueueChain: Promise<any> = Promise.resolve();
 
 async function doKirimPesanWA(
@@ -365,24 +345,33 @@ async function doKirimPesanWA(
     return { success: false, message: 'Nomor WhatsApp tidak valid atau kosong' };
   }
 
-  // 1. FILTER DE-DUPLIKASI KETAT (Cross-Tab & Cross-Component)
-  if (isMessageRecentlyHandled(cleanedNumber, isiPesan)) {
-    console.log(`[WA Gateway] Pesan duplikat terdeteksi ke ${cleanedNumber}. Pengiriman kedua dilewati.`);
-    return { success: true, message: 'Pesan duplikat dicegah otomatis oleh sistem proteksi.' };
+  const sig = getMsgSignature(cleanedNumber, isiPesan);
+
+  // 1. FILTER DE-DUPLIKASI: Jika pesan yang persis sama sudah sukses terkirim dalam 20 detik terakhir: lewati!
+  if (isMessageAlreadySentSuccessfully(cleanedNumber, isiPesan)) {
+    console.log(`[WA Gateway] Pesan duplikat terdeteksi ke ${cleanedNumber}. Sudah terkirim sebelumnya.`);
+    return { success: true, message: 'Pesan sudah terkirim sebelumnya.' };
   }
 
-  // Tandai pesan LANGSUNG sebelum request jaringan dimulai
-  markMessageHandled(cleanedNumber, isiPesan);
+  // 2. Jika pesan yang sama sedang dalam proses kirim (in-flight) di detik ini:
+  if (inFlightRequests.has(sig)) {
+    console.log(`[WA Gateway] Pesan ke ${cleanedNumber} sedang dalam proses kirim. Lewati pemicu ganda.`);
+    return { success: true, message: 'Pesan sedang dalam proses kirim.' };
+  }
+
+  inFlightRequests.add(sig);
 
   try {
-    // 2. Coba kirim langsung ke gateway
+    // 3. Coba kirim langsung ke gateway
     const directResult = await kirimPesanWADirect(cleanedNumber, isiPesan);
     if (directResult && directResult.success) {
+      // Catat SUKSES TERKIRIM
+      recordMessageSentSuccess(cleanedNumber, isiPesan);
       console.log('[WA Gateway] Pesan berhasil terkirim langsung ke:', cleanedNumber);
       return { success: true, message: 'Terkirim langsung via WhatsApp Gateway', ...directResult };
     }
 
-    // 3. Jika gateway offline / timeout: simpan ke Outbox tanpa duplikasi
+    // 4. Jika gateway offline / ngrok mati / timeout: simpan ke Outbox tanpa duplikasi
     console.warn(`[WA Gateway] Gateway offline/lambat untuk ${cleanedNumber}. Masuk antrean outbox.`);
     const queuedItem = addToWAOutbox(cleanedNumber, isiPesan, {
       namaPemohon: meta?.namaPemohon,
@@ -394,7 +383,7 @@ async function doKirimPesanWA(
       success: false,
       queued: true,
       queueId: queuedItem.id,
-      message: 'Gateway sedang connecting / offline. Pesan disimpan di antrean tunggu dan dikirim otomatis begitu online.',
+      message: 'Gateway sedang offline. Pesan disimpan di antrean tunggu dan dikirim otomatis begitu online.',
     };
   } catch (error: any) {
     console.error('[WA Gateway] Error sistem saat kirim WA:', error);
@@ -409,6 +398,8 @@ async function doKirimPesanWA(
       queueId: queuedItem.id,
       message: 'Terjadi gangguan jaringan. Pesan disimpan di antrean outbox.',
     };
+  } finally {
+    inFlightRequests.delete(sig);
   }
 }
 
@@ -485,18 +476,17 @@ export async function prosesAntreanWAOutbox(): Promise<{ sent: number; remaining
 
       const cleanNum = normalizeWANumber(item.nomorTujuan);
 
-      // Cek apakah baru saja terkirim dalam 20 detik terakhir
-      if (isMessageRecentlyHandled(cleanNum, item.isiPesan)) {
+      // Jika pesan ini ternyata sudah sukses terkirim lewat jalur lain, keluarkan dari outbox
+      if (isMessageAlreadySentSuccessfully(cleanNum, item.isiPesan)) {
         removeFromWAOutbox(item.id);
         continue;
       }
-
-      markMessageHandled(cleanNum, item.isiPesan);
 
       const res = await kirimPesanWADirect(cleanNum, item.isiPesan);
 
       if (res && res.success) {
         sentCount++;
+        recordMessageSentSuccess(cleanNum, item.isiPesan);
         removeFromWAOutbox(item.id);
         console.log(`[WA Outbox] ✅ Berhasil kirim antrean ke ${item.namaPemohon} (${cleanNum})`);
 
@@ -517,12 +507,8 @@ export async function prosesAntreanWAOutbox(): Promise<{ sent: number; remaining
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } else {
-        console.warn(`[WA Outbox] Pengiriman antrean ke ${item.namaPemohon} belum berhasil.`);
-        const currentItems = getWAOutbox();
-        const found = currentItems.find((q) => q.id === item.id);
-        if (found && (found.retryCount || 0) >= 3) {
-          continue;
-        }
+        console.warn(`[WA Outbox] Pengiriman antrean ke ${item.namaPemohon} belum berhasil (Gateway offline).`);
+        // JANGAN HAPUS DARI OUTBOX! Pesan harus tetap ada di antrean sampai gateway kembali online!
         isGatewayOffline = true;
         break;
       }
