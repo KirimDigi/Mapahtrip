@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { StoryHighlight } from '../data/storyHighlights';
+import { type StoryHighlight, resolveStoryAssetUrl } from '../data/storyHighlights';
 
 interface StoryHighlightsBarProps {
   highlights: StoryHighlight[];
@@ -248,7 +248,7 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
                       }}
                     >
                       <img
-                        src={highlight.coverImage}
+                        src={resolveStoryAssetUrl(highlight.coverImage)}
                         alt={highlight.title}
                         style={{
                           width: '100%',
@@ -259,8 +259,11 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
                         loading="lazy"
                         onError={(e) => {
                           const fallbackItem = highlight.items.find((item) => item.type === 'image');
-                          if (fallbackItem && !e.currentTarget.src.includes(fallbackItem.url)) {
-                            e.currentTarget.src = fallbackItem.url;
+                          if (fallbackItem) {
+                            const fallbackUrl = resolveStoryAssetUrl(fallbackItem.url);
+                            if (e.currentTarget.src !== fallbackUrl) {
+                              e.currentTarget.src = fallbackUrl;
+                            }
                           }
                         }}
                       />

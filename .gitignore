@@ -34,7 +34,7 @@ scratch/
 *.png
 !public/**/*.png
 !src/**/*.png
-Testimoni/
+/Testimoni/
 *.html
 !index.html
 !public/**/*.html

@@ -13,6 +13,17 @@ export interface StoryHighlight {
   items: StoryMedia[];
 }
 
+export const resolveStoryAssetUrl = (rawUrl?: string): string => {
+  if (!rawUrl) return '';
+  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:')) {
+    return rawUrl;
+  }
+  const clean = rawUrl.replace(/^\/+/, '');
+  const base = import.meta.env.BASE_URL || './';
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+  return `${prefix}${clean}`;
+};
+
 export const STORY_HIGHLIGHTS: StoryHighlight[] = [
   {
     "id": "testimoni",

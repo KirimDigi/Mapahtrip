@@ -10,6 +10,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import type { StoryHighlight } from '../data/storyHighlights';
+import { resolveStoryAssetUrl } from '../data/storyHighlights';
 
 interface InstagramStoryViewerProps {
   highlights: StoryHighlight[];
@@ -507,7 +508,7 @@ export const InstagramStoryViewer: React.FC<InstagramStoryViewerProps> = ({
                 }}
               >
                 <img 
-                  src={currentHighlight.coverImage} 
+                  src={resolveStoryAssetUrl(currentHighlight.coverImage)} 
                   alt={currentHighlight.title}
                   style={{
                     width: '100%',
@@ -721,7 +722,7 @@ export const InstagramStoryViewer: React.FC<InstagramStoryViewerProps> = ({
             <video
               ref={videoRef}
               key={currentItem.url}
-              src={currentItem.url}
+              src={resolveStoryAssetUrl(currentItem.url)}
               style={{
                 width: '100%',
                 height: '100%',
@@ -747,7 +748,7 @@ export const InstagramStoryViewer: React.FC<InstagramStoryViewerProps> = ({
           ) : (
             <img
               key={currentItem.url}
-              src={currentItem.url}
+              src={resolveStoryAssetUrl(currentItem.url)}
               alt={`${currentHighlight.title} slide ${currentMediaIndex + 1}`}
               style={{
                 width: '100%',
