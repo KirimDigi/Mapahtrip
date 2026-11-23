@@ -4022,60 +4022,30 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 className="pengajuan-mobile-card-item"
                 style={{
                   backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #CBD5E1',
+                  border: '1px solid #CBD5E1',
                   borderTop: '4px solid #005BB5',
-                  borderRadius: '16px',
-                  padding: '14px 14px 0 14px',
-                  boxShadow: '0 4px 14px rgba(15, 23, 42, 0.05)',
+                  borderRadius: '14px',
+                  padding: '12px 12px 0 12px',
+                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px',
+                  gap: '9px',
                   overflow: 'hidden',
                 }}
               >
-                {/* Header: No Urut, ID Pengajuan, Program & Paket */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span
-                      style={{
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        color: '#005BB5',
-                        backgroundColor: '#EFF6FF',
-                        border: '1px solid #DBEAFE',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                      }}
-                      title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
-                    >
-                      #{displayRowNo}
-                    </span>
-                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>
-                      {row.noPengajuan}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.75rem', color: '#1E40AF', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '6px' }}>
-                      {row.program}
-                    </span>
-                    {getPaketBadge(row.paket, row)}
-                  </div>
-                </div>
-
-                {/* Pemohon Info: Foto/Inisial, Nama, Paspor & WA (Ditampilkan di Atas Agar Jelas Pemilik Berkas) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {/* 1. Header Kartu: Identitas Customer & Ringkasan Berkas (Unified Hero Layout) */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                   {row.fotoBase64 ? (
                     <img
                       src={row.fotoBase64}
                       alt={row.namaPemohon}
                       onClick={() => setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` })}
                       style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '12px',
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '10px',
                         objectFit: 'cover',
-                        border: '1px solid #CBD5E1',
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+                        border: '1.5px solid #CBD5E1',
                         cursor: 'pointer',
                         flexShrink: 0,
                       }}
@@ -4084,19 +4054,18 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                   ) : (
                     <div
                       style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '12px',
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '10px',
                         backgroundColor: '#EFF6FF',
-                        border: '1px solid #DBEAFE',
+                        border: '1.5px solid #DBEAFE',
                         color: '#1D4ED8',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 800,
-                        fontSize: '0.96rem',
+                        fontSize: '0.92rem',
                         flexShrink: 0,
-                        boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)',
                       }}
                     >
                       {row.namaPemohon
@@ -4108,11 +4077,12 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                   )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Baris 1: Nama Customer */}
                     <div
                       style={{
                         fontWeight: 800,
                         color: '#0F172A',
-                        fontSize: '0.96rem',
+                        fontSize: '0.95rem',
                         lineHeight: 1.25,
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
@@ -4125,17 +4095,42 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       {row.namaPemohon}
                     </div>
 
-                    {/* Paspor & WhatsApp (1 Baris Rapi & Elegan) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
+                    {/* Baris 2: Nomor, ID & Program (Rapi Tanpa Potong Kalimat) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', fontSize: '0.72rem', color: '#64748B', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontWeight: 800,
+                          color: '#005BB5',
+                          backgroundColor: '#EFF6FF',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          border: '1px solid #DBEAFE',
+                          fontSize: '0.68rem',
+                        }}
+                        title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
+                      >
+                        #{displayRowNo}
+                      </span>
+                      <span style={{ fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>
+                        {row.noPengajuan}
+                      </span>
+                      <span>•</span>
+                      <span style={{ fontWeight: 600, color: '#1E40AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
+                        {row.program}
+                      </span>
+                    </div>
+
+                    {/* Baris 3: Paspor & WhatsApp */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
                       <span
                         style={{
                           fontFamily: 'monospace',
                           fontWeight: 700,
-                          fontSize: '0.74rem',
+                          fontSize: '0.70rem',
                           color: '#334155',
                           backgroundColor: '#F1F5F9',
-                          padding: '2px 7px',
-                          borderRadius: '6px',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
                           border: '1px solid #E2E8F0',
                         }}
                         title="Nomor Paspor"
@@ -4152,19 +4147,19 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '4px',
-                            fontSize: '0.72rem',
+                            gap: '3px',
+                            fontSize: '0.70rem',
                             color: '#166534',
                             backgroundColor: '#F0FDF4',
                             border: '1px solid #BBF7D0',
-                            padding: '2px 8px',
-                            borderRadius: '6px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
                             fontWeight: 700,
                             textDecoration: 'none',
                           }}
                           title="Chat WhatsApp pemohon"
                         >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
                             <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.54 1.769.782 2.791.782h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.182-2.585-5.768-5.769-5.768zm3.376 8.163c-.141.396-.713.725-1.021.76-.299.034-.689.147-2.27-.478-1.579-.623-2.58-2.23-2.658-2.336-.079-.105-.639-.851-.639-1.624 0-.773.407-1.154.551-1.31.144-.156.315-.195.42-.195.105 0 .21.001.302.006.098.005.228-.037.356.271.132.316.452 1.104.492 1.185.04.081.066.176.013.281-.053.106-.079.172-.158.264-.079.092-.166.205-.237.276-.08.079-.163.165-.07.325.093.16.413.681.887 1.102.61.543 1.124.71 1.284.79.16.08.254.067.348-.04.094-.107.404-.47.512-.631.108-.161.216-.134.364-.08.148.054.938.442 1.099.522.16.08.267.12.306.186.039.066.039.382-.102.778z"/>
                             <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.98-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.156c-1.636 0-3.155-.472-4.436-1.285l-.318-.202-2.955.775.789-2.88-.22-.35A8.109 8.109 0 013.844 12c0-4.497 3.659-8.156 8.156-8.156 4.497 0 8.156 3.659 8.156 8.156 0 4.497-3.659 8.156-8.156 8.156z"/>
                           </svg>
@@ -4173,45 +4168,51 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       )}
                     </div>
                   </div>
+
+                  {/* Kanan Atas: Badge Paket */}
+                  <div style={{ flexShrink: 0 }}>
+                    {getPaketBadge(row.paket, row)}
+                  </div>
                 </div>
 
+                {/* 2. Catatan (Jika Ada) */}
                 {row.catatan && (
                   <div
                     style={{
-                      fontSize: '0.72rem',
+                      fontSize: '0.70rem',
                       color: '#475569',
                       backgroundColor: '#F8FAFC',
                       border: '1px solid #E2E8F0',
                       borderRadius: '8px',
-                      padding: '6px 10px',
+                      padding: '5px 8px',
                       display: 'flex',
-                      alignItems: 'flex-start',
+                      alignItems: 'center',
                       gap: '6px',
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#005BB5', flexShrink: 0, marginTop: '1px' }}>sticky_note_2</span>
-                    <span style={{ wordBreak: 'break-word', lineHeight: 1.35, whiteSpace: 'normal', color: '#334155' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#005BB5', flexShrink: 0 }}>sticky_note_2</span>
+                    <span style={{ wordBreak: 'break-word', lineHeight: 1.3, color: '#334155' }}>
                       {row.catatan}
                     </span>
                   </div>
                 )}
 
-                {/* Status Pembayaran & Rincian Finansial (Struktur Rapih Responsif) */}
+                {/* 3. Status Pembayaran & Ringkasan Finansial */}
                 <div
                   style={{
                     backgroundColor: '#F8FAFC',
                     border: '1px solid #E2E8F0',
-                    borderRadius: '12px',
-                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    padding: '8px 10px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '8px',
+                    gap: '6px',
                   }}
                 >
-                  {/* Baris Atas: Status Pembayaran + Tombol Edit Biaya */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  {/* Baris Status Pembayaran */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Pembayaran:</span>
                       <button
                         type="button"
                         onClick={() => isOwner && handleTogglePaymentStatus(row)}
@@ -4220,12 +4221,12 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                         title={isOwner ? "Klik untuk ubah status pembayaran" : undefined}
                       >
                         {row.statusPembayaran === 'Menunggu Pembayaran' ? (
-                          <span style={{ backgroundColor: '#FFFBEB', color: '#92400E', border: '1px solid #FCD34D', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <span style={{ backgroundColor: '#FFFBEB', color: '#92400E', border: '1px solid #FCD34D', padding: '2px 7px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             <span>⏳ Belum Lunas</span>
                             {isOwner && <span style={{ fontSize: '10px' }}>✎</span>}
                           </span>
                         ) : (
-                          <span style={{ backgroundColor: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', padding: '3px 8px', borderRadius: '6px', fontSize: '0.70rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <span style={{ backgroundColor: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', padding: '2px 7px', borderRadius: '5px', fontSize: '0.68rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             <span>✓ Lunas</span>
                             {isOwner && <span style={{ fontSize: '10px' }}>✎</span>}
                           </span>
@@ -4238,7 +4239,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                             e.stopPropagation();
                             setSelectedPreviewImage({ url: row.buktiBayarPemohon!, title: `Bukti Transfer: ${row.namaPemohon}` });
                           }}
-                          style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '5px', padding: '2px 7px', fontSize: '0.66rem', fontWeight: 700, cursor: 'pointer' }}
+                          style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '5px', padding: '2px 6px', fontSize: '0.66rem', fontWeight: 700, cursor: 'pointer' }}
                         >
                           📄 Struk
                         </button>
@@ -4258,9 +4259,9 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                               border: '1px solid #BFDBFE',
                               backgroundColor: '#EFF6FF',
                               color: '#1D4ED8',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.68rem',
+                              padding: '2px 7px',
+                              borderRadius: '5px',
+                              fontSize: '0.66rem',
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'inline-flex',
@@ -4269,7 +4270,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                             }}
                             title="Kirim rincian tagihan resmi ke WA customer"
                           >
-                            <span>💳 Kirim Tagihan</span>
+                            <span>💳 Tagihan</span>
                           </button>
                         )}
                         <button
@@ -4279,9 +4280,9 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                             border: '1px solid #BAE6FD',
                             backgroundColor: '#F0F9FF',
                             color: '#0284C7',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '0.68rem',
+                            padding: '2px 7px',
+                            borderRadius: '5px',
+                            fontSize: '0.66rem',
                             fontWeight: 700,
                             cursor: 'pointer',
                             display: 'inline-flex',
@@ -4297,20 +4298,16 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                         {(row.program || '').toLowerCase().includes('waiver') ? (
                           <span style={{ color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>cloud_done</span>
-                            100% Online • Ditangani Owner
+                            100% Online
                           </span>
                         ) : (
-                          <>
-                            <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
-                            <span>•</span>
-                            <span>PIC: {row.staffPic || 'Tim Pusat'}</span>
-                          </>
+                          <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.konsjen}</span>
                         )}
                       </div>
                     )}
                   </div>
 
-                  {/* Baris Bawah: Kotak Keuangan 3 Kolom Rapi (Khusus Owner) */}
+                  {/* 3 Angka Keuangan (Strip Bersih) */}
                   {isOwner && (
                     <div
                       style={{
@@ -4324,37 +4321,37 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                     >
                       <div
                         onClick={(e) => handleOpenEditPaket(e, row)}
-                        style={{ backgroundColor: '#FFFFFF', padding: '6px 4px', borderRadius: '8px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                        style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '6px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
                         title="Klik untuk ubah nominal pemasukan"
                       >
-                        <div style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Masuk</div>
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#0F172A', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Masuk</div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0F172A', marginTop: '1px', whiteSpace: 'nowrap' }}>
                           {formatRupiah(row.dibayarPemohon || 0)}
                         </div>
                       </div>
                       <div
                         onClick={(e) => handleOpenEditPaket(e, row)}
-                        style={{ backgroundColor: '#FFFFFF', padding: '6px 4px', borderRadius: '8px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                        style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '6px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
                         title="Klik untuk ubah modal pengeluaran"
                       >
-                        <div style={{ fontSize: '0.60rem', color: '#DC2626', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Modal</div>
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, color: (row.nominalKeluar && row.nominalKeluar > 0) ? '#DC2626' : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? '#0F172A' : '#94A3B8'), marginTop: '2px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.60rem', color: '#DC2626', fontWeight: 700, textTransform: 'uppercase' }}>Modal</div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: (row.nominalKeluar && row.nominalKeluar > 0) ? '#DC2626' : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? '#0F172A' : '#94A3B8'), marginTop: '1px', whiteSpace: 'nowrap' }}>
                           {(row.nominalKeluar && row.nominalKeluar > 0) ? `-${formatRupiah(row.nominalKeluar)}` : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? 'Rp 0' : 'Belum Ada')}
                         </div>
                       </div>
                       <div
                         onClick={(e) => handleOpenEditPaket(e, row)}
                         style={{
-                          backgroundColor: isRowFinanceInputted(row) ? '#F0FDF4' : '#F8FAFC',
-                          padding: '6px 4px',
-                          borderRadius: '8px',
-                          border: isRowFinanceInputted(row) ? '1px solid #BBF7D0' : '1px dashed #CBD5E1',
+                          backgroundColor: isRowFinanceInputted(row) ? '#F0FDF4' : '#FFFFFF',
+                          padding: '5px 4px',
+                          borderRadius: '6px',
+                          border: isRowFinanceInputted(row) ? '1px solid #BBF7D0' : '1px solid #E2E8F0',
                           cursor: 'pointer'
                         }}
-                        title={isRowFinanceInputted(row) ? "Fee Bersih MapahTrip" : "Fee bersih belum dihitung karena Owner belum menginput pengeluaran & fee. Klik untuk menginput."}
+                        title={isRowFinanceInputted(row) ? "Fee Bersih MapahTrip" : "Fee bersih belum dihitung"}
                       >
-                        <div style={{ fontSize: '0.60rem', color: isRowFinanceInputted(row) ? '#15803D' : '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Fee Bersih</div>
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, color: isRowFinanceInputted(row) ? '#15803D' : '#94A3B8', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.60rem', color: isRowFinanceInputted(row) ? '#15803D' : '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Fee Bersih</div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isRowFinanceInputted(row) ? '#15803D' : '#94A3B8', marginTop: '1px', whiteSpace: 'nowrap' }}>
                           {isRowFinanceInputted(row) ? formatRupiah(getRowEffectiveFee(row)) : 'Belum Ada'}
                         </div>
                       </div>
@@ -4362,7 +4359,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                   )}
                 </div>
 
-                {/* Berkas Fisik Checklist (Option 1 Rapi Bersih Mobile) */}
+                {/* 4. Berkas Fisik Checklist */}
                 {(() => {
                   const berkasList = [
                     { label: 'Formulir Visa', short: 'Form', ok: Boolean(row.berkas?.formVisa || row.uploadedDocs?.formVisa) },
@@ -4380,8 +4377,8 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                     <div
                       style={{
                         backgroundColor: '#F8FAFC',
-                        padding: '10px 12px',
-                        borderRadius: '12px',
+                        padding: '8px 10px',
+                        borderRadius: '10px',
                         border: '1px solid #E2E8F0',
                       }}
                     >
@@ -4390,20 +4387,20 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          marginBottom: '8px',
+                          marginBottom: '6px',
                         }}
                       >
-                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#334155' }}>
                           Kelengkapan Dokumen Fisik:
                         </span>
                         <span
                           style={{
-                            fontSize: '0.68rem',
+                            fontSize: '0.66rem',
                             fontWeight: 700,
                             color: isAllComplete ? '#059669' : '#E11D48',
                             backgroundColor: isAllComplete ? '#ECFDF5' : '#FFF1F2',
-                            padding: '2px 8px',
-                            borderRadius: '6px',
+                            padding: '1px 6px',
+                            borderRadius: '5px',
                             border: `1px solid ${isAllComplete ? '#A7F3D0' : '#FFE4E6'}`,
                           }}
                         >
@@ -4411,17 +4408,14 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                         </span>
                       </div>
 
-                      {/* 6 Circle Dots with tooltips */}
+                      {/* 6 Circle Dots */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          gap: '6px',
-                          padding: '6px 8px',
-                          backgroundColor: '#FFFFFF',
-                          borderRadius: '8px',
-                          border: '1px solid #EEF2F6',
+                          gap: '4px',
+                          padding: '2px 0',
                         }}
                       >
                         {berkasList.map((b, bIdx) => (
@@ -4433,7 +4427,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
-                              gap: '3px',
+                              gap: '2px',
                             }}
                           >
                             <span
@@ -4444,20 +4438,20 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.74rem',
+                                fontSize: '0.70rem',
                                 fontWeight: 800,
-                                background: '#F8FAFC',
+                                background: b.ok ? '#ECFDF5' : '#FEF2F2',
                                 color: b.ok ? '#16A34A' : '#DC2626',
-                                border: '1px solid #E2E8F0',
+                                border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
                               }}
                             >
                               {b.ok ? '✓' : '✕'}
                             </span>
                             <span
                               style={{
-                                fontSize: '0.62rem',
+                                fontSize: '0.60rem',
                                 color: b.ok ? '#475569' : '#94A3B8',
-                                fontWeight: b.ok ? 600 : 500,
+                                fontWeight: b.ok ? 700 : 500,
                               }}
                             >
                               {b.short}
@@ -4468,17 +4462,17 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
 
                       {/* Tombol Aksi Cepat jika ada berkas kurang */}
                       {!isAllComplete && row.noTelp && (
-                        <div style={{ marginTop: '8px' }}>
+                        <div style={{ marginTop: '6px' }}>
                           <button
                             type="button"
                             onClick={(e) => handleSendCustomerWALink(e, row)}
                             style={{
                               width: '100%',
-                              padding: '6px 8px',
-                              fontSize: '0.72rem',
+                              padding: '5px 8px',
+                              fontSize: '0.70rem',
                               fontWeight: 700,
                               borderRadius: '6px',
-                              backgroundColor: '#F8FAFC',
+                              backgroundColor: '#FFFFFF',
                               border: '1px solid #CBD5E1',
                               color: '#334155',
                               cursor: 'pointer',
@@ -4678,8 +4672,8 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 <div
                   style={{
                     backgroundColor: '#F8FAFC',
-                    margin: '6px -14px 0 -14px',
-                    padding: '12px 14px',
+                    margin: '4px -12px 0 -12px',
+                    padding: '10px 12px',
                     borderTop: '1px solid #E2E8F0',
                     display: 'grid',
                     gridTemplateColumns: '1.2fr 1fr 1fr',
