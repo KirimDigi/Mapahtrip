@@ -4273,9 +4273,13 @@ html, body, #root {
     gap: 16px !important;
   }
   .staff-section-card {
-    padding: 16px 14px !important;
+    padding: 14px 10px !important;
     border-radius: 14px !important;
     scroll-margin-top: 68px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
   }
   .staff-section-header {
     flex-direction: row !important;
@@ -4290,11 +4294,14 @@ html, body, #root {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 8px !important;
-    padding: 12px !important;
-    border-radius: 12px !important;
+    gap: 7px !important;
+    padding: 9px 10px !important;
+    border-radius: 10px !important;
     box-sizing: border-box !important;
     width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
   }
 
   .staff-task-main {
@@ -4326,47 +4333,47 @@ html, body, #root {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     margin-top: 1px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
   }
 
   .staff-task-meta {
     width: 100% !important;
     display: flex !important;
     align-items: center !important;
-    justifyContent: space-between !important;
+    justify-content: space-between !important;
     gap: 6px !important;
-    padding-top: 8px !important;
+    padding-top: 6px !important;
     border-top: 1px dashed #E2E8F0 !important;
     box-sizing: border-box !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
   }
 
   .staff-task-price {
-    font-size: 0.76rem !important;
+    font-size: 0.72rem !important;
     font-weight: 800 !important;
     color: #15803D !important;
     background-color: #F0FDF4 !important;
-    padding: 3px 8px !important;
-    border-radius: 6px !important;
+    padding: 2px 6px !important;
+    border-radius: 5px !important;
     border: 1px solid #BBF7D0 !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
   }
 
   .staff-task-badge {
-    font-size: 0.72rem !important;
+    font-size: 0.70rem !important;
     font-weight: 700 !important;
-    padding: 3px 8px !important;
-    border-radius: 6px !important;
+    padding: 2px 7px !important;
+    border-radius: 5px !important;
     white-space: nowrap !important;
     margin-left: auto !important;
+    flex-shrink: 0 !important;
   }
 
   .staff-task-chevron {
-    font-size: 18px !important;
-    color: #64748B !important;
-    display: flex !important;
-    align-items: center !important;
-    flex-shrink: 0 !important;
-    margin-left: 2px !important;
+    display: none !important;
   }
 
   /* Detail Pengajuan Mobile Responsiveness */
