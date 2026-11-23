@@ -4019,27 +4019,38 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
             return (
               <div
                 key={`mob-${row.id}`}
+                className="pengajuan-mobile-card-item"
                 style={{
                   backgroundColor: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
+                  border: '1.5px solid #CBD5E1',
+                  borderTop: '4px solid #005BB5',
                   borderRadius: '16px',
-                  padding: '14px 16px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  padding: '14px 14px 0 14px',
+                  boxShadow: '0 4px 14px rgba(15, 23, 42, 0.05)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '12px',
+                  overflow: 'hidden',
                 }}
               >
                 {/* Header: No Urut, ID Pengajuan, Program & Paket */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span
-                      style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', backgroundColor: '#F1F5F9', padding: '2px 7px', borderRadius: '6px' }}
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        color: '#005BB5',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #DBEAFE',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                      }}
                       title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
                     >
                       #{displayRowNo}
                     </span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>
                       {row.noPengajuan}
                     </span>
                   </div>
@@ -4048,6 +4059,119 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       {row.program}
                     </span>
                     {getPaketBadge(row.paket, row)}
+                  </div>
+                </div>
+
+                {/* Pemohon Info: Foto/Inisial, Nama, Paspor & WA (Ditampilkan di Atas Agar Jelas Pemilik Berkas) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {row.fotoBase64 ? (
+                    <img
+                      src={row.fotoBase64}
+                      alt={row.namaPemohon}
+                      onClick={() => setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` })}
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        objectFit: 'cover',
+                        border: '1px solid #CBD5E1',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                      title="Klik untuk melihat foto ukuran penuh"
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #DBEAFE',
+                        color: '#1D4ED8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: '0.96rem',
+                        flexShrink: 0,
+                        boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)',
+                      }}
+                    >
+                      {row.namaPemohon
+                        .split(' ')
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join('')}
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: '#0F172A',
+                        fontSize: '0.96rem',
+                        lineHeight: 1.25,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      onClick={() => onSelectPengajuan(row.id)}
+                      title={row.namaPemohon}
+                    >
+                      {row.namaPemohon}
+                    </div>
+
+                    {/* Paspor & WhatsApp (1 Baris Rapi & Elegan) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          fontSize: '0.74rem',
+                          color: '#334155',
+                          backgroundColor: '#F1F5F9',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                        }}
+                        title="Nomor Paspor"
+                      >
+                        🛂 {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
+                      </span>
+
+                      {row.noTelp && (
+                        <a
+                          href={`https://wa.me/${row.noTelp.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.72rem',
+                            color: '#166534',
+                            backgroundColor: '#F0FDF4',
+                            border: '1px solid #BBF7D0',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                          }}
+                          title="Chat WhatsApp pemohon"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
+                            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.54 1.769.782 2.791.782h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.182-2.585-5.768-5.769-5.768zm3.376 8.163c-.141.396-.713.725-1.021.76-.299.034-.689.147-2.27-.478-1.579-.623-2.58-2.23-2.658-2.336-.079-.105-.639-.851-.639-1.624 0-.773.407-1.154.551-1.31.144-.156.315-.195.42-.195.105 0 .21.001.302.006.098.005.228-.037.356.271.132.316.452 1.104.492 1.185.04.081.066.176.013.281-.053.106-.079.172-.158.264-.079.092-.166.205-.237.276-.08.079-.163.165-.07.325.093.16.413.681.887 1.102.61.543 1.124.71 1.284.79.16.08.254.067.348-.04.094-.107.404-.47.512-.631.108-.161.216-.134.364-.08.148.054.938.442 1.099.522.16.08.267.12.306.186.039.066.039.382-.102.778z"/>
+                            <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.98-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.156c-1.636 0-3.155-.472-4.436-1.285l-.318-.202-2.955.775.789-2.88-.22-.35A8.109 8.109 0 013.844 12c0-4.497 3.659-8.156 8.156-8.156 4.497 0 8.156 3.659 8.156 8.156 0 4.497-3.659 8.156-8.156 8.156z"/>
+                          </svg>
+                          <span>{row.noTelp}</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -4236,119 +4360,6 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Pemohon Info: Foto/Inisial, Nama, Paspor & WA */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {row.fotoBase64 ? (
-                    <img
-                      src={row.fotoBase64}
-                      alt={row.namaPemohon}
-                      onClick={() => setSelectedPreviewImage({ url: row.fotoBase64!, title: `Pasfoto: ${row.namaPemohon}` })}
-                      style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '12px',
-                        objectFit: 'cover',
-                        border: '1px solid #CBD5E1',
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                      title="Klik untuk melihat foto ukuran penuh"
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '12px',
-                        backgroundColor: '#EFF6FF',
-                        border: '1px solid #DBEAFE',
-                        color: '#1D4ED8',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.96rem',
-                        flexShrink: 0,
-                        boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)',
-                      }}
-                    >
-                      {row.namaPemohon
-                        .split(' ')
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join('')}
-                    </div>
-                  )}
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 800,
-                        color: '#0F172A',
-                        fontSize: '0.96rem',
-                        lineHeight: 1.25,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                      onClick={() => onSelectPengajuan(row.id)}
-                      title={row.namaPemohon}
-                    >
-                      {row.namaPemohon}
-                    </div>
-
-                    {/* Paspor & WhatsApp (1 Baris Rapi & Elegan) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontFamily: 'monospace',
-                          fontWeight: 700,
-                          fontSize: '0.74rem',
-                          color: '#334155',
-                          backgroundColor: '#F1F5F9',
-                          padding: '2px 7px',
-                          borderRadius: '6px',
-                          border: '1px solid #E2E8F0',
-                        }}
-                        title="Nomor Paspor"
-                      >
-                        🛂 {showMaskedPaspor ? row.maskedPaspor : row.noPaspor}
-                      </span>
-
-                      {row.noTelp && (
-                        <a
-                          href={`https://wa.me/${row.noTelp.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            fontSize: '0.72rem',
-                            color: '#166534',
-                            backgroundColor: '#F0FDF4',
-                            border: '1px solid #BBF7D0',
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            fontWeight: 700,
-                            textDecoration: 'none',
-                          }}
-                          title="Chat WhatsApp pemohon"
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
-                            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.54 1.769.782 2.791.782h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.182-2.585-5.768-5.769-5.768zm3.376 8.163c-.141.396-.713.725-1.021.76-.299.034-.689.147-2.27-.478-1.579-.623-2.58-2.23-2.658-2.336-.079-.105-.639-.851-.639-1.624 0-.773.407-1.154.551-1.31.144-.156.315-.195.42-.195.105 0 .21.001.302.006.098.005.228-.037.356.271.132.316.452 1.104.492 1.185.04.081.066.176.013.281-.053.106-.079.172-.158.264-.079.092-.166.205-.237.276-.08.079-.163.165-.07.325.093.16.413.681.887 1.102.61.543 1.124.71 1.284.79.16.08.254.067.348-.04.094-.107.404-.47.512-.631.108-.161.216-.134.364-.08.148.054.938.442 1.099.522.16.08.267.12.306.186.039.066.039.382-.102.778z"/>
-                            <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.98-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.156c-1.636 0-3.155-.472-4.436-1.285l-.318-.202-2.955.775.789-2.88-.22-.35A8.109 8.109 0 013.844 12c0-4.497 3.659-8.156 8.156-8.156 4.497 0 8.156 3.659 8.156 8.156 0 4.497-3.659 8.156-8.156 8.156z"/>
-                          </svg>
-                          <span>{row.noTelp}</span>
-                        </a>
-                      )}
-                    </div>
-                  </div>
                 </div>
 
                 {/* Berkas Fisik Checklist (Option 1 Rapi Bersih Mobile) */}
@@ -4663,8 +4674,18 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                   )}
                 </div>
 
-                {/* Tombol Aksi: Buka Rincian, Tolak/Pulihkan, & Hapus */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '6px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                {/* Tombol Aksi: Buka Rincian, Tolak/Pulihkan, & Hapus (Docked Card Footer) */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    margin: '6px -14px 0 -14px',
+                    padding: '12px 14px',
+                    borderTop: '1px solid #E2E8F0',
+                    display: 'grid',
+                    gridTemplateColumns: '1.2fr 1fr 1fr',
+                    gap: '6px',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => onSelectPengajuan(row.id)}
