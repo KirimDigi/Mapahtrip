@@ -656,8 +656,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }}
         >
           <div>
-            <div className="staff-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <div className="staff-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                 <div
                   style={{
                     width: '36px',
@@ -669,18 +669,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    marginTop: '2px',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
                     assignment_late
                   </span>
                 </div>
-                <div>
-                  <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h2 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Tugas Perlu Tindakan
                   </h2>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.35 }}>
+                  <p className="staff-section-sub" style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.35 }}>
                     Pendaftaran baru yang butuh verifikasi berkas oleh staf
                   </p>
                 </div>
@@ -709,19 +708,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {tugasPerluTindakan.length === 0 ? (
               <div
                 style={{
-                  padding: '36px 16px',
+                  padding: '20px 14px',
                   textAlign: 'center',
                   backgroundColor: '#F8FAFC',
                   borderRadius: '12px',
                   border: '1px dashed #CBD5E1',
-                  marginTop: '12px',
+                  marginTop: '10px',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#10B981', marginBottom: '6px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '28px', color: '#10B981', marginBottom: '4px' }}>
                   check_circle
                 </span>
-                <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>Semua Berkas Beres!</div>
-                <p style={{ margin: 0, color: '#64748B', fontSize: '0.78rem' }}>
+                <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.88rem' }}>Semua Berkas Beres!</div>
+                <p style={{ margin: 0, color: '#64748B', fontSize: '0.76rem' }}>
                   Tidak ada berkas yang menunggu tindakan saat ini.
                 </p>
               </div>
@@ -814,41 +813,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
 
-          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
-            <button
-              type="button"
-              onClick={() => onNavigateToPengajuan('Menunggu Verifikasi')}
-              style={{
-                width: '100%',
-                backgroundColor: '#FFFBEB',
-                border: '1px solid #FDE68A',
-                padding: '10px 14px',
-                borderRadius: '10px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: '#92400E',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#FEF3C7';
-                e.currentTarget.style.borderColor = '#FCD34D';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#FFFBEB';
-                e.currentTarget.style.borderColor = '#FDE68A';
-              }}
-            >
-              <span>Lihat Semua {tugasPerluTindakan.length} Pemohon Belum Diverifikasi</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                arrow_forward
-              </span>
-            </button>
-          </div>
+          {tugasPerluTindakan.length > 0 && (
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+              <button
+                type="button"
+                onClick={() => onNavigateToPengajuan('Menunggu Verifikasi')}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  color: '#92400E',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#FEF3C7';
+                  e.currentTarget.style.borderColor = '#FCD34D';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#FFFBEB';
+                  e.currentTarget.style.borderColor = '#FDE68A';
+                }}
+              >
+                <span>Lihat Semua {tugasPerluTindakan.length} Pemohon Belum Diverifikasi</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                  arrow_forward
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Kolom Kanan: Riwayat & Log Pendaftaran Terbaru (Option B) */}
@@ -866,8 +867,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }}
         >
           <div>
-            <div className="staff-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <div className="staff-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                 <div
                   style={{
                     width: '36px',
@@ -879,18 +880,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    marginTop: '2px',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
                     history
                   </span>
                 </div>
-                <div>
-                  <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h2 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Riwayat Pengajuan Terbaru
                   </h2>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.35 }}>
+                  <p className="staff-section-sub" style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.35 }}>
                     Log 5 pendaftaran & aktivitas terakhir yang tercatat di sistem
                   </p>
                 </div>
