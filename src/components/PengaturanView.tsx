@@ -792,7 +792,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                           <span>{staf.noWa}</span>
                         </div>
                       ) : (
-                        <span style={{ fontSize: '0.60rem', color: '#94A3B8', fontStyle: 'italic' }}>-</span>
+                        <span style={{ fontSize: '0.64rem', color: '#94A3B8', fontStyle: 'italic', display: 'inline-block', marginTop: '1px' }}>Belum diisi</span>
                       )}
                     </td>
 
@@ -813,7 +813,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <span style={{ color: '#94A3B8', fontSize: '0.66rem', fontStyle: 'italic' }}>- Belum Ada -</span>
+                        <span style={{ color: '#94A3B8', fontSize: '0.68rem', fontStyle: 'italic' }}>Belum diisi</span>
                       )}
                     </td>
 
@@ -1840,16 +1840,16 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                   <tr>
                     <th style={{ padding: '10px 8px', width: '40px', textAlign: 'center', borderBottom: '2px solid #E2E8F0' }}>No.</th>
                     <th style={{ padding: '10px 14px', textAlign: 'left', borderBottom: '2px solid #E2E8F0' }}>Jenis Program Visa</th>
-                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0', backgroundColor: '#F0F9FF' }}>
-                      <div style={{ fontWeight: 800, color: '#0369A1' }}>Paket Reguler</div>
+                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>Paket Reguler</div>
                       <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Standar QC &amp; Submit</div>
                     </th>
-                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0', backgroundColor: '#FEF3C7' }}>
-                      <div style={{ fontWeight: 800, color: '#B45309' }}>Paket Premium</div>
+                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>Paket Premium</div>
                       <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Prioritas &amp; Cepat</div>
                     </th>
-                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0', backgroundColor: '#DCFCE7' }}>
-                      <div style={{ fontWeight: 800, color: '#15803D' }}>Paket TAC</div>
+                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>Paket TAC</div>
                       <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Pendampingan All-in</div>
                     </th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '100px', borderBottom: '2px solid #E2E8F0' }}>Status / Aksi</th>
@@ -1910,7 +1910,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                         </td>
 
                         {/* Input Reguler */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
                           {isOwner ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
                               <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
@@ -1928,6 +1928,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   fontFamily: 'monospace',
                                   fontWeight: 700,
                                   textAlign: 'right',
+                                  color: '#0F172A',
                                   backgroundColor: '#FFFFFF',
                                   outline: 'none',
                                 }}
@@ -1941,10 +1942,10 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                         </td>
 
                         {/* Input Premium */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', backgroundColor: '#FFFBEB' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
                           {isOwner ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                              <span style={{ fontSize: '0.74rem', color: '#B45309', fontWeight: 700 }}>Rp</span>
+                              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
                               <input
                                 type="number"
                                 step="10000"
@@ -1954,11 +1955,11 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   width: '120px',
                                   padding: '6px 8px',
                                   borderRadius: '6px',
-                                  border: '1.5px solid #FCD34D',
+                                  border: '1.5px solid #CBD5E1',
                                   fontSize: '0.80rem',
                                   fontFamily: 'monospace',
-                                  fontWeight: 800,
-                                  color: '#B45309',
+                                  fontWeight: 700,
+                                  color: '#0F172A',
                                   textAlign: 'right',
                                   backgroundColor: '#FFFFFF',
                                   outline: 'none',
@@ -1966,17 +1967,17 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                               />
                             </div>
                           ) : (
-                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#B45309' }}>
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
                               {formatRupiah(item.premiumPrice)}
                             </span>
                           )}
                         </td>
 
                         {/* Input TAC */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', backgroundColor: '#F0FDF4' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
                           {isOwner ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                              <span style={{ fontSize: '0.74rem', color: '#15803D', fontWeight: 700 }}>Rp</span>
+                              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
                               <input
                                 type="number"
                                 step="10000"
@@ -1986,11 +1987,11 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   width: '120px',
                                   padding: '6px 8px',
                                   borderRadius: '6px',
-                                  border: '1.5px solid #86EFAC',
+                                  border: '1.5px solid #CBD5E1',
                                   fontSize: '0.80rem',
                                   fontFamily: 'monospace',
-                                  fontWeight: 800,
-                                  color: '#15803D',
+                                  fontWeight: 700,
+                                  color: '#0F172A',
                                   textAlign: 'right',
                                   backgroundColor: '#FFFFFF',
                                   outline: 'none',
@@ -1998,7 +1999,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                               />
                             </div>
                           ) : (
-                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#15803D' }}>
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
                               {formatRupiah(item.tacPrice)}
                             </span>
                           )}
@@ -2013,9 +2014,9 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                 onClick={() => handleOpenEditVisa(item)}
                                 title={`Edit teks kartu, deskripsi & stopper ${item.title}`}
                                 style={{
-                                  background: '#EFF6FF',
-                                  border: '1px solid #BFDBFE',
-                                  color: '#1D4ED8',
+                                  background: '#F8FAFC',
+                                  border: '1px solid #CBD5E1',
+                                  color: '#334155',
                                   borderRadius: '6px',
                                   padding: '4px 8px',
                                   fontSize: '0.70rem',
@@ -2027,10 +2028,10 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   transition: 'all 0.15s ease',
                                 }}
                                 onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#DBEAFE';
+                                  e.currentTarget.style.backgroundColor = '#E2E8F0';
                                 }}
                                 onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#EFF6FF';
+                                  e.currentTarget.style.backgroundColor = '#F8FAFC';
                                 }}
                               >
                                 <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit_note</span>
@@ -2043,8 +2044,8 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                 onClick={() => handleDeleteVisa(item.id, item.title)}
                                 title={`Hapus jenis visa ${item.title}`}
                                 style={{
-                                  background: '#FEF2F2',
-                                  border: '1px solid #FCA5A5',
+                                  background: '#FFFFFF',
+                                  border: '1px solid #FECACA',
                                   color: '#DC2626',
                                   borderRadius: '6px',
                                   padding: '4px 8px',
@@ -2060,7 +2061,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   e.currentTarget.style.backgroundColor = '#FEE2E2';
                                 }}
                                 onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#FEF2F2';
+                                  e.currentTarget.style.backgroundColor = '#FFFFFF';
                                 }}
                               >
                                 <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
@@ -2113,9 +2114,9 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                           type="button"
                           onClick={() => handleOpenEditVisa(item)}
                           style={{
-                            background: '#EFF6FF',
-                            border: '1px solid #BFDBFE',
-                            color: '#1D4ED8',
+                            background: '#F8FAFC',
+                            border: '1px solid #CBD5E1',
+                            color: '#334155',
                             borderRadius: '6px',
                             padding: '3px 8px',
                             fontSize: '0.70rem',
@@ -2133,8 +2134,8 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                           type="button"
                           onClick={() => handleDeleteVisa(item.id, item.title)}
                           style={{
-                            background: '#FEF2F2',
-                            border: '1px solid #FCA5A5',
+                            background: '#FFFFFF',
+                            border: '1px solid #FECACA',
                             color: '#DC2626',
                             borderRadius: '6px',
                             padding: '3px 8px',
@@ -2153,86 +2154,106 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     )}
                   </div>
 
-                  {/* 3 Price Inputs on Mobile */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {/* 3 Price Inputs on Mobile - Calm Unified Palette */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '8px',
+                      backgroundColor: '#F8FAFC',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                    }}
+                  >
                     {/* Reguler */}
-                    <div style={{ padding: '8px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0369A1' }}>Reguler</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>Reguler</div>
                       {isOwner ? (
                         <input
                           type="number"
+                          step="10000"
                           value={item.regulerPrice}
                           onChange={(e) => handleUpdatePrice(item.id, 'regulerPrice', Number(e.target.value))}
                           style={{
                             width: '100%',
                             padding: '4px 6px',
-                            borderRadius: '4px',
+                            borderRadius: '6px',
                             border: '1px solid #CBD5E1',
                             fontSize: '0.76rem',
                             fontWeight: 700,
                             fontFamily: 'monospace',
+                            color: '#0F172A',
+                            backgroundColor: '#FFFFFF',
+                            textAlign: 'right',
                             boxSizing: 'border-box',
-                            marginTop: '4px',
+                            outline: 'none',
                           }}
                         />
                       ) : (
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', marginTop: '4px' }}>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', marginTop: '2px' }}>
                           {formatRupiah(item.regulerPrice)}
                         </div>
                       )}
                     </div>
 
                     {/* Premium */}
-                    <div style={{ padding: '8px', borderRadius: '8px', backgroundColor: '#FFFBEB', border: '1px solid #FCD34D' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>Premium</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>Premium</div>
                       {isOwner ? (
                         <input
                           type="number"
+                          step="10000"
                           value={item.premiumPrice}
                           onChange={(e) => handleUpdatePrice(item.id, 'premiumPrice', Number(e.target.value))}
                           style={{
                             width: '100%',
                             padding: '4px 6px',
-                            borderRadius: '4px',
-                            border: '1px solid #FCD34D',
+                            borderRadius: '6px',
+                            border: '1px solid #CBD5E1',
                             fontSize: '0.76rem',
-                            fontWeight: 800,
-                            color: '#B45309',
+                            fontWeight: 700,
                             fontFamily: 'monospace',
+                            color: '#0F172A',
+                            backgroundColor: '#FFFFFF',
+                            textAlign: 'right',
                             boxSizing: 'border-box',
-                            marginTop: '4px',
+                            outline: 'none',
                           }}
                         />
                       ) : (
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#B45309', marginTop: '4px' }}>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', marginTop: '2px' }}>
                           {formatRupiah(item.premiumPrice)}
                         </div>
                       )}
                     </div>
 
                     {/* TAC */}
-                    <div style={{ padding: '8px', borderRadius: '8px', backgroundColor: '#F0FDF4', border: '1px solid #86EFAC' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#15803D' }}>TAC</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>TAC</div>
                       {isOwner ? (
                         <input
                           type="number"
+                          step="10000"
                           value={item.tacPrice}
                           onChange={(e) => handleUpdatePrice(item.id, 'tacPrice', Number(e.target.value))}
                           style={{
                             width: '100%',
                             padding: '4px 6px',
-                            borderRadius: '4px',
-                            border: '1px solid #86EFAC',
+                            borderRadius: '6px',
+                            border: '1px solid #CBD5E1',
                             fontSize: '0.76rem',
-                            fontWeight: 800,
-                            color: '#15803D',
+                            fontWeight: 700,
                             fontFamily: 'monospace',
+                            color: '#0F172A',
+                            backgroundColor: '#FFFFFF',
+                            textAlign: 'right',
                             boxSizing: 'border-box',
-                            marginTop: '4px',
+                            outline: 'none',
                           }}
                         />
                       ) : (
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#15803D', marginTop: '4px' }}>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', marginTop: '2px' }}>
                           {formatRupiah(item.tacPrice)}
                         </div>
                       )}
@@ -3207,7 +3228,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="Contoh: 6240866950"
+                      placeholder="Contoh: 1234567890"
                       value={formData.noRekening}
                       onChange={(e) => setFormData({ ...formData, noRekening: e.target.value.replace(/[^0-9]/g, '') })}
                       style={{

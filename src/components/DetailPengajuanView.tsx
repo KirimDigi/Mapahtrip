@@ -884,31 +884,32 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Breadcrumb & Navigation */}
       <div className="detail-breadcrumb-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div className="detail-breadcrumb-nav" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem' }}>
+        <div className="detail-breadcrumb-nav" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.80rem' }}>
           <button
             onClick={onBack}
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--primary)',
+              color: '#475569',
               cursor: 'pointer',
-              fontWeight: 500,
+              fontWeight: 600,
               padding: 0,
             }}
           >
             Pengajuan
           </button>
-          <span style={{ color: 'var(--outline-variant)' }}>/</span>
-          <span style={{ color: 'var(--on-surface-variant)' }}>Detail Pengajuan</span>
-          <span style={{ color: 'var(--outline-variant)' }}>/</span>
+          <span style={{ color: '#94A3B8' }}>/</span>
+          <span style={{ color: '#475569', fontWeight: 600 }}>Detail Pengajuan</span>
+          <span style={{ color: '#94A3B8' }}>/</span>
           <span
             className="detail-breadcrumb-pill"
             style={{
-              padding: '2px 10px',
-              borderRadius: '9999px',
-              background: 'var(--surface-container)',
-              fontWeight: 600,
-              color: 'var(--on-surface)',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              background: '#F1F5F9',
+              border: '1px solid #E2E8F0',
+              fontWeight: 700,
+              color: '#1E293B',
             }}
           >
             {pengajuan.namaPemohon} ({showRealPassport ? pengajuan.noPaspor : pengajuan.maskedPaspor})
@@ -938,6 +939,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
       >
         {/* Top Section: Profile Info (Left) + Action CTAs (Right) */}
         <div
+          className="detail-applicant-body"
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -948,106 +950,52 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
             borderBottom: '1px solid #edf2f7',
           }}
         >
-          {/* Identity: Avatar + Names & Badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '18px', minWidth: 0, flex: '1 1 440px' }}>
-            {/* Avatar / Real Photo */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              {currentPengajuan.fotoBase64 ? (
-                <div
-                  onClick={() =>
-                    setPreviewDoc({
-                      title: `Pasfoto 4.5x3.5cm - ${currentPengajuan.namaPemohon}`,
-                      base64: currentPengajuan.fotoBase64 || '',
-                      fileName: `Pasfoto_${currentPengajuan.namaPemohon.replace(/\s+/g, '_')}.jpg`,
-                      url: currentPengajuan.fotoUrl,
-                    })
-                  }
-                  style={{
-                    width: '68px',
-                    height: '84px',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    border: '2px solid #0284c7',
-                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.2)',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    backgroundColor: '#FFFFFF',
-                  }}
-                  title="Klik untuk melihat foto ukuran penuh"
-                >
-                  <img
-                    src={currentPengajuan.fotoBase64}
-                    alt={currentPengajuan.namaPemohon}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      background: 'rgba(2, 132, 199, 0.85)',
-                      color: '#ffffff',
-                      fontSize: '8.5px',
-                      fontWeight: 800,
-                      textAlign: 'center',
-                      padding: '2px 0',
-                    }}
-                  >
-                    FOTO ASLI
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    width: '66px',
-                    height: '66px',
-                    borderRadius: '16px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #1e40af 100%)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.45rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.04em',
-                    boxShadow: '0 6px 16px rgba(2, 132, 199, 0.28)',
-                  }}
-                  className="font-serif"
-                >
-                  {currentPengajuan.namaPemohon
-                    .split(' ')
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase()}
-                </div>
-              )}
-              <div
+          {/* Identity: Header Profile Info */}
+          <div className="detail-applicant-info" style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, flex: '1 1 400px' }}>
+            {/* 1. Baris Atas: Badges (ID, Status, Mitra) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span
                 style={{
-                  position: 'absolute',
-                  bottom: '-3px',
-                  right: '-3px',
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  background: '#ffffff',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '13px',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  color: '#1d4ed8',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  fontFamily: 'monospace',
                 }}
-                title="Tujuan Konsulat Jepang"
               >
-                🇯🇵
-              </div>
-            </div>
+                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>tag</span>
+                {currentPengajuan.id || 'MT-APPLY'}
+              </span>
 
-            {/* Names, IDs & Tags */}
-            <div style={{ minWidth: 0, flex: 1 }}>
-              {/* Badges baris atas */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              {pengajuan.status === 'Ditolak' ? (
+                <span
+                  style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '0.74rem',
+                  }}
+                >
+                  <span style={{ color: '#DC2626', fontWeight: 800 }}>✖ Ditolak:</span>
+                  <span style={{ color: '#991B1B', fontWeight: 600 }}>{pengajuan.alasanPenolakan || 'Di Awal'}</span>
+                </span>
+              ) : (
+                <span className="badge badge-info" style={{ fontSize: '0.74rem', padding: '2px 8px' }}>
+                  {pengajuan.status}
+                </span>
+              )}
+
+              {currentPengajuan.affiliateCode && (
                 <span
                   style={{
                     display: 'inline-flex',
@@ -1055,136 +1003,193 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                     gap: '4px',
                     padding: '2px 8px',
                     borderRadius: '6px',
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    color: '#1d4ed8',
-                    fontSize: '0.74rem',
+                    background: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    color: '#92400e',
+                    fontSize: '0.72rem',
                     fontWeight: 700,
-                    fontFamily: 'monospace',
+                  }}
+                  title={`Direferensikan oleh Mitra Affiliate: ${currentPengajuan.affiliateCode}`}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>handshake</span>
+                  Mitra: {currentPengajuan.affiliateCode}
+                </span>
+              )}
+            </div>
+
+            {/* 2. Baris Utama: Avatar sejajar dengan Nama & Kontak */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, width: '100%' }}>
+              {/* Avatar / Real Photo */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {currentPengajuan.fotoBase64 ? (
+                  <div
+                    onClick={() =>
+                      setPreviewDoc({
+                        title: `Pasfoto 4.5x3.5cm - ${currentPengajuan.namaPemohon}`,
+                        base64: currentPengajuan.fotoBase64 || '',
+                        fileName: `Pasfoto_${currentPengajuan.namaPemohon.replace(/\s+/g, '_')}.jpg`,
+                        url: currentPengajuan.fotoUrl,
+                      })
+                    }
+                    style={{
+                      width: '44px',
+                      height: '56px',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1.5px solid #0284c7',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.2)',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                    title="Klik untuk melihat foto ukuran penuh"
+                  >
+                    <img
+                      src={currentPengajuan.fotoBase64}
+                      alt={currentPengajuan.namaPemohon}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        background: 'rgba(2, 132, 199, 0.85)',
+                        color: '#ffffff',
+                        fontSize: '7.5px',
+                        fontWeight: 800,
+                        textAlign: 'center',
+                        padding: '1px 0',
+                      }}
+                    >
+                      FOTO
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="detail-applicant-avatar-box"
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #1e40af 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.94rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.22)',
+                    }}
+                  >
+                    {currentPengajuan.namaPemohon
+                      .split(' ')
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()}
+                  </div>
+                )}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '-3px',
+                    right: '-3px',
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    background: '#ffffff',
+                    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                  }}
+                  title="Tujuan Konsulat Jepang"
+                >
+                  🇯🇵
+                </div>
+              </div>
+
+              {/* Nama Pemohon & Identitas Kontak */}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h1
+                  className="detail-applicant-name"
+                  style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 800,
+                    color: '#0f172a',
+                    margin: '0 0 4px 0',
+                    lineHeight: 1.25,
+                    letterSpacing: '-0.01em',
+                    wordBreak: 'break-word',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>tag</span>
-                  {currentPengajuan.id || 'MT-APPLY'}
-                </span>
+                  {pengajuan.namaPemohon}
+                </h1>
 
-                {pengajuan.status === 'Ditolak' ? (
-                  <span
+                {/* Baris identitas: Paspor + Telp/WA */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <div
                     style={{
-                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                      border: '1px solid rgba(239, 68, 68, 0.25)',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '5px',
-                      fontSize: '0.75rem',
+                      padding: '2px 8px',
+                      background: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                      fontSize: '0.74rem',
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                      color: '#334155',
                     }}
                   >
-                    <span style={{ color: '#DC2626', fontWeight: 800 }}>✖ Ditolak:</span>
-                    <span style={{ color: '#991B1B', fontWeight: 600 }}>{pengajuan.alasanPenolakan || 'Di Awal'}</span>
-                  </span>
-                ) : (
-                  <span className="badge badge-info" style={{ fontSize: '0.74rem', padding: '2px 8px' }}>
-                    {pengajuan.status}
-                  </span>
-                )}
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#64748b' }}>badge</span>
+                    <span>{showRealPassport ? pengajuan.noPaspor : pengajuan.maskedPaspor}</span>
+                    <button
+                      onClick={() => setShowRealPassport(!showRealPassport)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                        color: '#0284c7',
+                      }}
+                      title={showRealPassport ? 'Sembunyikan Paspor' : 'Lihat Paspor Lengkap'}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                        {showRealPassport ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
 
-                {currentPengajuan.affiliateCode && (
-                  <span
+                  <a
+                    href={`https://wa.me/${pengajuan.noTelp.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '4px',
                       padding: '2px 8px',
+                      background: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
                       borderRadius: '6px',
-                      background: '#fef3c7',
-                      border: '1px solid #fde68a',
-                      color: '#92400e',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
+                      fontSize: '0.74rem',
+                      color: '#166534',
+                      fontWeight: 600,
+                      textDecoration: 'none',
                     }}
-                    title={`Direferensikan oleh Mitra Affiliate: ${currentPengajuan.affiliateCode}`}
+                    title="Klik untuk chat WhatsApp pemohon"
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>handshake</span>
-                    Mitra: {currentPengajuan.affiliateCode}
-                  </span>
-                )}
-              </div>
-
-              {/* Title Nama Pemohon */}
-              <h1
-                className="font-serif detail-applicant-name"
-                style={{
-                  fontSize: '1.6rem',
-                  fontWeight: 800,
-                  color: '#0f172a',
-                  margin: '0 0 6px 0',
-                  lineHeight: 1.2,
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                {pengajuan.namaPemohon}
-              </h1>
-
-              {/* Baris identitas: Paspor + Telp/WA */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '3px 10px',
-                    background: '#f1f5f9',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '0.80rem',
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    color: '#334155',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748b' }}>badge</span>
-                  <span>{showRealPassport ? pengajuan.noPaspor : pengajuan.maskedPaspor}</span>
-                  <button
-                    onClick={() => setShowRealPassport(!showRealPassport)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      color: '#0284c7',
-                    }}
-                    title={showRealPassport ? 'Sembunyikan Paspor' : 'Lihat Paspor Lengkap'}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
-                      {showRealPassport ? 'visibility_off' : 'visibility'}
-                    </span>
-                  </button>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#16a34a' }}>call</span>
+                    <span>{pengajuan.noTelp}</span>
+                  </a>
                 </div>
-
-                <a
-                  href={`https://wa.me/${pengajuan.noTelp.replace(/[^0-9]/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '3px 10px',
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    borderRadius: '8px',
-                    fontSize: '0.80rem',
-                    color: '#166534',
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                  }}
-                  title="Klik untuk chat WhatsApp pemohon"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#16a34a' }}>call</span>
-                  <span>{pengajuan.noTelp}</span>
-                </a>
               </div>
             </div>
           </div>
@@ -1226,7 +1231,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                 {isSendingWA ? 'sync' : 'send_and_archive'}
               </span>
-              <span>{isSendingWA ? 'Mengirim...' : 'Kirim Notif WA (Gateway)'}</span>
+              <span>{isSendingWA ? 'Mengirim...' : 'Kirim Notif WA'}</span>
             </button>
 
             <a
@@ -1262,6 +1267,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
 
         {/* Bottom Section: 4 Analytical Summary Cards */}
         <div
+          className="detail-summary-cards-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
@@ -2972,14 +2978,14 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                           <span
                             style={{
                               position: 'absolute',
-                              top: '-8px',
-                              right: '6px',
-                              backgroundColor: '#94A3B8',
+                              top: '4px',
+                              right: isSelected ? '24px' : '6px',
+                              backgroundColor: '#64748B',
                               color: '#FFFFFF',
-                              fontSize: '0.58rem',
+                              fontSize: '0.54rem',
                               fontWeight: 800,
                               padding: '1px 5px',
-                              borderRadius: '9999px',
+                              borderRadius: '4px',
                             }}
                           >
                             Aktif
@@ -3035,9 +3041,9 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
               </div>
 
               {/* Input Dua Kolom: Pemasukan (Dibayar Pemohon) & Pengeluaran (Modal Keluar) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <div className="modal-finance-inputs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 {/* Kolom 1: Pemasukan Dibayar Pemohon */}
-                <div>
+                <div className="modal-finance-col">
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
                     1. Nominal Dibayar Pemohon (Pemasukan):
                   </label>
@@ -3105,7 +3111,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 </div>
 
                 {/* Kolom 2: Modal Keluar / Pengeluaran Konsulat */}
-                <div>
+                <div className="modal-finance-col">
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#DC2626', marginBottom: '4px' }}>
                     2. Modal Keluar Konsulat (Pengeluaran):
                   </label>
@@ -3172,123 +3178,90 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
 
                 {/* Kolom 3: Fee Staf PIC (Operasional Pengurangan Laba) */}
                 <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px' }}>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#4F46E5' }}>
-                      3. Alokasi Fee Staf PIC ({currentPengajuan.staffPic || 'Staf'}):
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                    <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#4338CA', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>badge</span>
+                      3. Fee Staf PIC ({currentPengajuan.staffPic || 'Staf'}):
                     </label>
-                    <span style={{ fontSize: '0.66rem', color: '#64748B' }}>
-                      Bisa diisi Rp 0 jika belum ditentukan owner
+                    <span style={{ fontSize: '0.66rem', color: '#6366F1', fontWeight: 600, backgroundColor: '#EEF2FF', padding: '1px 6px', borderRadius: '4px' }}>
+                      Bisa Rp 0 (Opsional)
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
-                      <span
-                        style={{
-                          position: 'absolute',
-                          left: '12px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          fontWeight: 700,
-                          fontSize: '0.80rem',
-                          color: '#4F46E5',
-                        }}
-                      >
-                        Rp
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={staffFeeEdit === 0 ? '' : staffFeeEdit}
-                        onChange={(e) => {
-                          const clean = e.target.value.replace(/[^0-9]/g, '');
-                          setStaffFeeEdit(clean === '' ? 0 : Number(clean));
-                        }}
-                        placeholder="0"
-                        style={{
-                          width: '100%',
-                          padding: '8px 10px 8px 36px',
-                          borderRadius: '8px',
-                          border: '1px solid #C7D2FE',
-                          backgroundColor: '#EEF2FF',
-                          fontSize: '0.88rem',
-                          fontWeight: 700,
-                          color: '#4338CA',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                    {/* Preset Nominal Cepat */}
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => setStaffFeeEdit(0)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: staffFeeEdit === 0 ? '#4F46E5' : '#F1F5F9',
-                          color: staffFeeEdit === 0 ? '#FFFFFF' : '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title="Set fee staf Rp 0 (Belum ada alokasi)"
-                      >
-                        Rp 0 (Tanpa Fee)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffFeeEdit(25000)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: staffFeeEdit === 25000 ? '#4F46E5' : '#F1F5F9',
-                          color: staffFeeEdit === 25000 ? '#FFFFFF' : '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        25 rb
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffFeeEdit(50000)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: staffFeeEdit === 50000 ? '#4F46E5' : '#EEF2FF',
-                          color: staffFeeEdit === 50000 ? '#FFFFFF' : '#4338CA',
-                          border: '1px solid #C7D2FE',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title="Standar umum Rp 50.000 per paspor"
-                      >
-                        50 rb (Standar)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffFeeEdit(75000)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: staffFeeEdit === 75000 ? '#4F46E5' : '#F1F5F9',
-                          color: staffFeeEdit === 75000 ? '#FFFFFF' : '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        75 rb
-                      </button>
-                    </div>
+                  <div style={{ position: 'relative', width: '100%', marginBottom: '6px' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontWeight: 700,
+                        fontSize: '0.80rem',
+                        color: '#4F46E5',
+                        userSelect: 'none',
+                      }}
+                    >
+                      Rp
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={staffFeeEdit === 0 ? '' : staffFeeEdit}
+                      onChange={(e) => {
+                        const clean = e.target.value.replace(/[^0-9]/g, '');
+                        setStaffFeeEdit(clean === '' ? 0 : Number(clean));
+                      }}
+                      placeholder="0"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px 9px 38px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #C7D2FE',
+                        backgroundColor: '#EEF2FF',
+                        fontSize: '0.90rem',
+                        fontWeight: 700,
+                        color: '#4338CA',
+                        boxSizing: 'border-box',
+                      }}
+                    />
                   </div>
-                  <div style={{ fontSize: '0.66rem', color: '#4F46E5', marginTop: '3px', fontFamily: 'monospace' }}>
-                    Alokasi Staf: <strong>-Rp {staffFeeEdit.toLocaleString('id-ID')}</strong> {staffFeeEdit === 0 ? '(Rp 0 = Tidak memotong laba)' : `(Diberikan ke ${currentPengajuan.staffPic || 'Staf PIC'})`}
+                  {/* Preset Nominal Cepat: Grid 4 Kolom Rapi */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                    {[
+                      { val: 0, label: 'Rp 0' },
+                      { val: 25000, label: '25 rb' },
+                      { val: 50000, label: '50 rb (Std)' },
+                      { val: 75000, label: '75 rb' },
+                    ].map((btn) => (
+                      <button
+                        key={btn.val}
+                        type="button"
+                        onClick={() => setStaffFeeEdit(btn.val)}
+                        style={{
+                          padding: '7px 2px',
+                          backgroundColor: staffFeeEdit === btn.val ? '#4F46E5' : '#FFFFFF',
+                          color: staffFeeEdit === btn.val ? '#FFFFFF' : '#475569',
+                          border: staffFeeEdit === btn.val ? '1.5px solid #4338CA' : '1px solid #CBD5E1',
+                          borderRadius: '7px',
+                          fontSize: '0.70rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap',
+                          boxShadow: staffFeeEdit === btn.val ? '0 2px 4px rgba(79, 70, 229, 0.2)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.66rem', color: '#4F46E5', marginTop: '5px', fontFamily: 'monospace' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>
+                      Alokasi Staf: <strong>-Rp&nbsp;{staffFeeEdit.toLocaleString('id-ID')}</strong>
+                    </span>
+                    <span style={{ color: '#64748B', whiteSpace: 'nowrap' }}>
+                      {staffFeeEdit === 0 ? '(Tanpa potongan laba)' : `(Untuk ${currentPengajuan.staffPic || 'Staf'})`}
+                    </span>
                   </div>
                 </div>
 
@@ -3310,129 +3283,137 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                           Bisa disesuaikan jika ada kenaikan fee mitra
                         </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              left: '12px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              fontWeight: 700,
-                              fontSize: '0.80rem',
-                              color: '#D97706',
-                            }}
-                          >
-                            Rp
-                          </span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={referralFeeEdit === 0 ? '' : referralFeeEdit}
-                            onChange={(e) => {
-                              const clean = e.target.value.replace(/[^0-9]/g, '');
-                              setReferralFeeEdit(clean === '' ? 0 : Number(clean));
-                            }}
-                            placeholder="0"
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px 8px 36px',
-                              borderRadius: '8px',
-                              border: '1px solid #FDE68A',
-                              backgroundColor: '#FFFBEB',
-                              fontSize: '0.88rem',
-                              fontWeight: 700,
-                              color: '#B45309',
-                              boxSizing: 'border-box',
-                            }}
-                          />
-                        </div>
-                        {/* Preset Cepat */}
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => setReferralFeeEdit(0)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: referralFeeEdit === 0 ? '#D97706' : '#F1F5F9',
-                              color: referralFeeEdit === 0 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Rp 0
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setReferralFeeEdit(50000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: referralFeeEdit === 50000 ? '#D97706' : '#F1F5F9',
-                              color: referralFeeEdit === 50000 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            50 rb
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setReferralFeeEdit(100000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: referralFeeEdit === 100000 ? '#D97706' : '#FFFBEB',
-                              color: referralFeeEdit === 100000 ? '#FFFFFF' : '#B45309',
-                              border: '1px solid #FDE68A',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                            title="Standar umum komisi referral mitra Rp 100.000"
-                          >
-                            100 rb (Standar)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setReferralFeeEdit(150000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: referralFeeEdit === 150000 ? '#D97706' : '#F1F5F9',
-                              color: referralFeeEdit === 150000 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            150 rb
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setReferralFeeEdit(200000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: referralFeeEdit === 200000 ? '#D97706' : '#F1F5F9',
-                              color: referralFeeEdit === 200000 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            200 rb
-                          </button>
-                        </div>
+                      <div style={{ position: 'relative', width: '100%', marginBottom: '6px' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontWeight: 700,
+                            fontSize: '0.80rem',
+                            color: '#D97706',
+                          }}
+                        >
+                          Rp
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={referralFeeEdit === 0 ? '' : referralFeeEdit}
+                          onChange={(e) => {
+                            const clean = e.target.value.replace(/[^0-9]/g, '');
+                            setReferralFeeEdit(clean === '' ? 0 : Number(clean));
+                          }}
+                          placeholder="0"
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px 8px 36px',
+                            borderRadius: '8px',
+                            border: '1px solid #FDE68A',
+                            backgroundColor: '#FFFBEB',
+                            fontSize: '0.88rem',
+                            fontWeight: 700,
+                            color: '#B45309',
+                            boxSizing: 'border-box',
+                          }}
+                        />
                       </div>
-                      <div style={{ fontSize: '0.66rem', color: '#D97706', marginTop: '3px', fontFamily: 'monospace' }}>
+                      {/* Preset Cepat 5 Kolom Rapi */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setReferralFeeEdit(0)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: referralFeeEdit === 0 ? '#D97706' : '#F1F5F9',
+                            color: referralFeeEdit === 0 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Rp 0
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReferralFeeEdit(50000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: referralFeeEdit === 50000 ? '#D97706' : '#F1F5F9',
+                            color: referralFeeEdit === 50000 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          50 rb
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReferralFeeEdit(100000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: referralFeeEdit === 100000 ? '#D97706' : '#FFFBEB',
+                            color: referralFeeEdit === 100000 ? '#FFFFFF' : '#B45309',
+                            border: '1px solid #FDE68A',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title="Standar umum komisi referral mitra Rp 100.000"
+                        >
+                          100 rb
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReferralFeeEdit(150000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: referralFeeEdit === 150000 ? '#D97706' : '#F1F5F9',
+                            color: referralFeeEdit === 150000 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          150 rb
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReferralFeeEdit(200000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: referralFeeEdit === 200000 ? '#D97706' : '#F1F5F9',
+                            color: referralFeeEdit === 200000 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          200 rb
+                        </button>
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: '#D97706', marginTop: '4px', fontFamily: 'monospace' }}>
                         Komisi Mitra: <strong>-Rp {referralFeeEdit.toLocaleString('id-ID')}</strong> (Diberikan ke mitra {currentPengajuan.affiliateCode})
                       </div>
                     </div>
@@ -3440,7 +3421,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 })()}
               </div>
 
-              {/* Live Preview Finansial: Pemasukan vs Modal Keluar - Komisi - Fee Staf = Fee Bersih */}
+              {/* Live Preview Finansial: Rincian Struk Rapi & Transparan */}
               {(() => {
                 const hasMitra = Boolean(
                   currentPengajuan.affiliateCode &&
@@ -3452,53 +3433,66 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 return (
                   <div
                     style={{
-                      backgroundColor: '#F0FDF4',
-                      border: '1.5px solid #86EFAC',
-                      borderRadius: '10px',
-                      padding: '10px 14px',
+                      backgroundColor: '#F8FAFC',
+                      border: '1.5px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '8px',
+                      flexDirection: 'column',
+                      gap: '7px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                      <div>
-                        <span style={{ fontSize: '0.64rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Pemasukan:</span>
-                        <strong style={{ fontSize: '0.84rem', color: '#0F172A', fontFamily: 'monospace' }}>
-                          Rp {nominalBiaya.toLocaleString('id-ID')}
+                    <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                      Ringkasan Pembagian Keuangan:
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                      <span style={{ color: '#475569', minWidth: 0 }}>1. Pemasukan Pemohon</span>
+                      <strong style={{ color: '#0F172A', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        +Rp&nbsp;{nominalBiaya.toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                      <span style={{ color: '#DC2626', minWidth: 0 }}>2. Modal Keluar Konsulat</span>
+                      <strong style={{ color: '#DC2626', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        -Rp&nbsp;{nominalKeluarEdit.toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                    {hasMitra && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                        <span style={{ color: '#D97706', minWidth: 0 }}>3. Komisi Referral ({currentPengajuan.affiliateCode})</span>
+                        <strong style={{ color: '#D97706', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          -Rp&nbsp;{refFee.toLocaleString('id-ID')}
                         </strong>
                       </div>
-                      <div>
-                        <span style={{ fontSize: '0.64rem', color: '#DC2626', display: 'block', fontWeight: 600 }}>Modal Keluar:</span>
-                        <strong style={{ fontSize: '0.84rem', color: '#DC2626', fontFamily: 'monospace' }}>
-                          -Rp {nominalKeluarEdit.toLocaleString('id-ID')}
-                        </strong>
-                      </div>
-                      {hasMitra && (
-                        <div>
-                          <span style={{ fontSize: '0.64rem', color: '#D97706', display: 'block', fontWeight: 600 }}>Komisi Mitra:</span>
-                          <strong style={{ fontSize: '0.84rem', color: '#D97706', fontFamily: 'monospace' }}>
-                            -Rp {refFee.toLocaleString('id-ID')}
-                          </strong>
-                        </div>
-                      )}
-                      <div>
-                        <span style={{ fontSize: '0.64rem', color: '#4F46E5', display: 'block', fontWeight: 600 }}>Fee Staf PIC:</span>
-                        <strong style={{ fontSize: '0.84rem', color: '#4F46E5', fontFamily: 'monospace' }}>
-                          -Rp {staffFeeEdit.toLocaleString('id-ID')}
-                        </strong>
-                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                      <span style={{ color: '#4F46E5', minWidth: 0 }}>{hasMitra ? '4' : '3'}. Fee Staf PIC ({currentPengajuan.staffPic || 'Staf'})</span>
+                      <strong style={{ color: '#4F46E5', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        -Rp&nbsp;{staffFeeEdit.toLocaleString('id-ID')}
+                      </strong>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.64rem', color: '#15803D', display: 'block', fontWeight: 700, textTransform: 'uppercase' }}>
-                        Fee Bersih MapahTrip:
-                      </span>
-                      <strong style={{ fontSize: '1.10rem', color: '#166534', fontFamily: 'monospace', fontWeight: 800 }}>
-                        Rp {liveFee.toLocaleString('id-ID')}
-                      </strong>
+                    {/* Banner Total Fee Bersih: Anti-Tabrakan & Jelas di HP */}
+                    <div
+                      style={{
+                        backgroundColor: '#ECFDF5',
+                        border: '1.5px solid #86EFAC',
+                        borderRadius: '10px',
+                        padding: '10px 14px',
+                        marginTop: '6px',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                        FEE BERSIH MAPAHTRIP:
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                        <div style={{ fontSize: '1.30rem', color: '#15803D', fontFamily: 'monospace', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                          Rp&nbsp;{liveFee.toLocaleString('id-ID')}
+                        </div>
+                        <div style={{ fontSize: '0.64rem', color: '#166534', textAlign: 'right' }}>
+                          Laba bersih setelah semua beban
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -3546,22 +3540,24 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 />
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap', gap: '8px' }}>
+              {/* Action Buttons: Rapi, Sejajar & Responsif */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
                 <button
                   type="button"
                   onClick={handleKirimWAPaket}
                   style={{
+                    width: '100%',
                     backgroundColor: '#ECFDF5',
                     color: '#047857',
                     border: '1px solid #A7F3D0',
-                    padding: '8px 14px',
+                    padding: '9px 14px',
                     borderRadius: '8px',
                     fontSize: '0.78rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '6px',
                   }}
                   title="Kirim pesan rincian paket ke WhatsApp pemohon (Opsional)"
@@ -3570,11 +3566,23 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                   <span>Kirim Pesan ke WA (Opsional)</span>
                 </button>
 
-                <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', width: '100%' }}>
                   <button
                     type="button"
                     onClick={() => setIsEditingPaket(false)}
-                    style={{ backgroundColor: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                    style={{
+                      height: '42px',
+                      backgroundColor: '#F1F5F9',
+                      color: '#475569',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
                   >
                     Batal
                   </button>
@@ -3582,22 +3590,24 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                     type="button"
                     onClick={handleSaveNewPaket}
                     style={{
+                      height: '42px',
                       backgroundColor: '#005BB5',
                       color: '#FFFFFF',
                       border: 'none',
-                      padding: '8px 20px',
                       borderRadius: '8px',
-                      fontSize: '0.80rem',
+                      fontSize: '0.84rem',
                       fontWeight: 800,
                       cursor: 'pointer',
                       boxShadow: '0 2px 8px rgba(0, 91, 181, 0.25)',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
-                    <span>Simpan Perubahan Paket</span>
+                    <span>Simpan Perubahan</span>
                   </button>
                 </div>
               </div>

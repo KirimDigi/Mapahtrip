@@ -199,9 +199,37 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="top-header">
-      {/* Sisi Kiri: Tombol Menu Hamburger & Brand Logo Mobile */}
+      {/* Sisi Kiri: Brand Logo Mobile & Tombol Menu Hamburger (Sesuai Contoh: Logo di Kiri, Strip 3 di Sampingnya) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {/* Tombol Hamburger Khusus Mobile (Membuka / Menutup drawer mobile di posisi paling kiri) */}
+        {/* Brand Logo Khusus Mobile (Hanya Logo Mapah, Tanpa Tulisan MapahTrip di Header HP) */}
+        <div className="mobile-header-brand" style={{ display: 'flex', alignItems: 'center' }}>
+          <img
+            src={logomark1}
+            alt="Logo MapahTrip"
+            onError={(e) => handleImageFallback(e, getLogomarkFallbacks())}
+            style={{
+              width: '28px',
+              height: '28px',
+              objectFit: 'contain',
+              flexShrink: 0,
+            }}
+          />
+          <span
+            className="mobile-brand-title"
+            style={{
+              display: 'none',
+              fontWeight: 800,
+              fontSize: '0.94rem',
+              color: '#0F172A',
+              letterSpacing: '-0.02em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            MapahTrip
+          </span>
+        </div>
+
+        {/* Tombol Hamburger Khusus Mobile (Strip 3 di samping logo Mapah) */}
         <button
           type="button"
           className="mobile-menu-btn"
@@ -213,33 +241,6 @@ export const Header: React.FC<HeaderProps> = ({
             {isMobileMenuOpen ? 'close' : 'menu'}
           </span>
         </button>
-
-        {/* Brand Logo Khusus Mobile (Bersebelahan rapi dengan tombol hamburger) */}
-        <div className="mobile-header-brand" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <img
-            src={logomark1}
-            alt="Logo MapahTrip"
-            onError={(e) => handleImageFallback(e, getLogomarkFallbacks())}
-            style={{
-              width: '26px',
-              height: '26px',
-              objectFit: 'contain',
-              flexShrink: 0,
-            }}
-          />
-          <span
-            className="mobile-brand-title"
-            style={{
-              fontWeight: 800,
-              fontSize: '0.94rem',
-              color: '#0F172A',
-              letterSpacing: '-0.02em',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            MapahTrip
-          </span>
-        </div>
 
         {/* Tombol Hamburger / Close Khusus Desktop (Menciutkan / Melebarkan Sidebar) */}
         <button

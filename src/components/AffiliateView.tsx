@@ -203,17 +203,31 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
       const isDummy = (code?: string, name?: string) => {
         const c = (code || '').trim().toUpperCase();
         const n = (name || '').trim().toLowerCase();
-        return DUMMY_CODES.has(c) || n.includes('admin komunitas') || n.includes('kenji tanaka') || n.includes('made yuliana');
+        return (
+          DUMMY_CODES.has(c) ||
+          c.includes('STRESS') ||
+          c.startsWith('AFF_STRESS') ||
+          c.startsWith('DEL_') ||
+          n.includes('deleted test') ||
+          n.includes('[deleted') ||
+          n.includes('admin komunitas') ||
+          n.includes('kenji tanaka') ||
+          n.includes('made yuliana') ||
+          n.includes('(mitra ') ||
+          n.includes('stress test')
+        );
       };
 
-      // 1. Baca data dari localStorage all affiliates (abaikan data dummy)
+      // 1. Baca data dari localStorage all affiliates (abaikan & bersihkan data dummy/percobaan)
       try {
         const raw = localStorage.getItem('mapahtrip_all_affiliates');
         if (raw) {
           const locals: AffiliateUser[] = JSON.parse(raw);
-          locals.forEach((u) => {
+          const cleanedLocals = locals.filter((u) => !isDummy(u.affiliateCode, u.nama));
+          localStorage.setItem('mapahtrip_all_affiliates', JSON.stringify(cleanedLocals));
+          cleanedLocals.forEach((u) => {
             const key = (u.affiliateCode || u.email || '').trim().toUpperCase();
-            if (key && !isDummy(u.affiliateCode, u.nama)) userMap.set(key, u);
+            if (key) userMap.set(key, u);
           });
         }
       } catch { }
@@ -3038,30 +3052,32 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                         style={{
                           backgroundColor: '#F8FAFC',
                           borderRadius: '10px',
-                          padding: '8px 10px',
+                          padding: '10px 12px',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '4px',
+                          gap: '6px',
                           fontSize: '0.74rem',
-                          border: '1px solid #F1F5F9',
+                          border: '1px solid #E2E8F0',
                         }}
                       >
-                        {/* Rekening Bank */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', color: '#475569' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748B', flexShrink: 0 }}>
+                        {/* Rekening Bank (Nama Akun Tidak Terpotong) */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', minWidth: 0, flex: 1 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#64748B', flexShrink: 0, marginTop: '1px' }}>
                               account_balance
                             </span>
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {mitra.nomorRekening && mitra.nomorRekening !== '-' && mitra.nomorRekening !== '' ? (
-                                <>
-                                  <strong>{mitra.namaBank || 'Bank'}</strong> • {mitra.nomorRekening}{' '}
-                                  <span style={{ color: '#64748B' }}>(a.n. {mitra.atasNamaRekening || mitra.nama})</span>
-                                </>
-                              ) : (
-                                <span style={{ color: '#94A3B8' }}>Belum ada rekening</span>
-                              )}
-                            </span>
+                            {mitra.nomorRekening && mitra.nomorRekening !== '-' && mitra.nomorRekening !== '' ? (
+                              <div style={{ fontSize: '0.74rem', color: '#334155', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                                <div>
+                                  <strong>{mitra.namaBank || 'Bank'}</strong> • <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>{mitra.nomorRekening}</span>
+                                </div>
+                                <div style={{ color: '#64748B', fontSize: '0.70rem' }}>
+                                  a.n. {mitra.atasNamaRekening || mitra.nama}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#94A3B8', fontSize: '0.74rem' }}>Belum ada rekening</span>
+                            )}
                           </div>
                           {isOwner && (
                             <button
@@ -3071,40 +3087,48 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                                 handleStartEditBank(mitra);
                               }}
                               style={{
-                                border: mitra.nomorRekening && mitra.nomorRekening !== '-' ? 'none' : '1px dashed #93C5FD',
-                                backgroundColor: mitra.nomorRekening && mitra.nomorRekening !== '-' ? 'transparent' : '#EFF6FF',
+                                border: mitra.nomorRekening && mitra.nomorRekening !== '-' ? '1px solid #E2E8F0' : '1px dashed #93C5FD',
+                                backgroundColor: mitra.nomorRekening && mitra.nomorRekening !== '-' ? '#FFFFFF' : '#EFF6FF',
                                 color: '#2563EB',
                                 cursor: 'pointer',
-                                padding: mitra.nomorRekening && mitra.nomorRekening !== '-' ? '1px 3px' : '2px 8px',
+                                padding: mitra.nomorRekening && mitra.nomorRekening !== '-' ? '3px 8px' : '3px 8px',
                                 borderRadius: '6px',
-                                fontSize: '0.68rem',
+                                fontSize: '0.70rem',
                                 fontWeight: 600,
                                 flexShrink: 0,
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '2px',
+                                gap: '3px',
                               }}
                               title="Edit atau isi rekening bank"
                             >
                               <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
                                 {mitra.nomorRekening && mitra.nomorRekening !== '-' ? 'edit' : 'add'}
                               </span>
-                              <span>{mitra.nomorRekening && mitra.nomorRekening !== '-' ? '' : 'Isi'}</span>
+                              <span>{mitra.nomorRekening && mitra.nomorRekening !== '-' ? 'Ubah' : 'Isi'}</span>
                             </button>
                           )}
                         </div>
 
-                        {/* Histori Pemohon */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748B' }}>
-                            group
-                          </span>
-                          {mitra.pemohonCount > 0 ? (
-                            <span>
-                              <strong>{mitra.pemohonCount} orang</strong> dibawa • Terakhir: <strong>{mitra.lastApplicantDateFormatted}</strong> ({mitra.lastActivityText})
+                        {/* Histori Pemohon: Berjejer Rapi Tanpa Teks Terlipat */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderTop: '1px dashed #CBD5E1', paddingTop: '6px', marginTop: '2px', fontSize: '0.74rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#334155' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#64748B', flexShrink: 0 }}>
+                              group
                             </span>
-                          ) : (
-                            <span style={{ color: '#94A3B8' }}>0 orang pemohon dibawa</span>
+                            {mitra.pemohonCount > 0 ? (
+                              <span>
+                                <strong>{mitra.pemohonCount} Pemohon</strong> dibawa
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94A3B8' }}>Belum ada pemohon</span>
+                            )}
+                          </div>
+
+                          {mitra.pemohonCount > 0 && (
+                            <div style={{ color: '#64748B', fontSize: '0.70rem', whiteSpace: 'nowrap' }}>
+                              Terakhir: <strong style={{ color: '#0F172A' }}>{mitra.lastApplicantDateFormatted}</strong>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -3112,7 +3136,7 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                       {/* Baris 4: Footer (Total Komisi & Tombol Detail) */}
                       <div
                         style={{
-                          borderTop: '1px solid #F1F5F9',
+                          borderTop: '1px solid #E2E8F0',
                           paddingTop: '8px',
                           display: 'flex',
                           alignItems: 'center',
@@ -3120,11 +3144,13 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                         }}
                       >
                         <div>
-                          <span style={{ fontSize: '0.70rem', color: '#64748B', display: 'block' }}>Total Komisi:</span>
+                          <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em' }}>
+                            Total Komisi
+                          </span>
                           <strong
                             style={{
                               fontFamily: 'monospace',
-                              fontSize: '0.98rem',
+                              fontSize: '1.05rem',
                               color: mitra.totalKomisi > 0 ? '#15803D' : '#64748B',
                               fontWeight: 800,
                             }}
@@ -3140,7 +3166,7 @@ export const AffiliateView: React.FC<AffiliateViewProps> = ({
                           style={{
                             padding: '6px 14px',
                             fontSize: '0.78rem',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             borderRadius: '8px',
                             display: 'inline-flex',
                             alignItems: 'center',

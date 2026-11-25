@@ -1168,15 +1168,16 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
 
       {/* VIEW TAB SWITCHER (DETAIL TRANSAKSI VS TABEL REKAPITULASI BULANAN) */}
       <div className="keuangan-tab-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div className="keuangan-tab-switcher" style={{ display: 'flex', background: '#E2E8F0', padding: '3px', borderRadius: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', width: '100%' }}>
+          <div className="keuangan-tab-switcher" style={{ display: 'flex', background: '#E2E8F0', padding: '3px', borderRadius: '10px', width: '100%' }}>
             <button
               onClick={() => setViewTab('chart_table')}
               style={{
-                padding: '6px 16px',
+                flex: 1,
+                padding: '7px 12px',
                 borderRadius: '8px',
                 border: 'none',
-                fontSize: '0.82rem',
+                fontSize: '0.80rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 backgroundColor: viewTab === 'chart_table' ? '#FFFFFF' : 'transparent',
@@ -1184,19 +1185,22 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                 boxShadow: viewTab === 'chart_table' ? 'var(--shadow-sm)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '6px',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>list_alt</span>
-              <span>Rincian Transaksi Pemohon</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>list_alt</span>
+              <span>Rincian Transaksi</span>
             </button>
             <button
               onClick={() => setViewTab('monthly_recap')}
               style={{
-                padding: '6px 16px',
+                flex: 1,
+                padding: '7px 12px',
                 borderRadius: '8px',
                 border: 'none',
-                fontSize: '0.82rem',
+                fontSize: '0.80rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 backgroundColor: viewTab === 'monthly_recap' ? '#FFFFFF' : 'transparent',
@@ -1204,11 +1208,13 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                 boxShadow: viewTab === 'monthly_recap' ? 'var(--shadow-sm)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '6px',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>table_view</span>
-              <span>Tabel Rekapitulasi Per Bulan</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>table_view</span>
+              <span>Rekap Per Bulan</span>
             </button>
           </div>
 
@@ -1242,58 +1248,68 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
         </div>
 
         {viewTab === 'chart_table' && (
-          <div className="keuangan-search-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {selectedMonth !== 'all' && (
-              <button
-                onClick={() => setSelectedMonth('all')}
-                style={{
-                  border: '1px solid #BFDBFE',
-                  background: '#EFF6FF',
-                  color: 'var(--primary)',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  whiteSpace: 'nowrap',
-                }}
-                title="Tampilkan transaksi semua bulan"
-              >
-                <span>Filter: {currentMonthLabel}</span>
-                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
-              </button>
-            )}
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                placeholder="Cari nama pemohon, no registrasi..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  padding: '7px 12px 7px 32px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--outline-variant)',
-                  fontSize: '0.82rem',
-                  width: '260px',
-                  outline: 'none',
-                }}
-              />
-              <span className="material-symbols-outlined" style={{ position: 'absolute', left: '8px', top: '7px', fontSize: '18px', color: '#94A3B8' }}>
-                search
-              </span>
+          <div className="keuangan-search-bar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+              {selectedMonth !== 'all' && (
+                <button
+                  onClick={() => setSelectedMonth('all')}
+                  style={{
+                    border: '1px solid #BFDBFE',
+                    background: '#EFF6FF',
+                    color: 'var(--primary)',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                  title="Tampilkan transaksi semua bulan"
+                >
+                  <span>Filter: {currentMonthLabel}</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+                </button>
+              )}
+              <div style={{ position: 'relative', flex: 1, minWidth: 0, width: '100%' }}>
+                <input
+                  type="text"
+                  placeholder="Cari nama pemohon, no. pengajuan..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    padding: '8px 12px 8px 34px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--outline-variant)',
+                    fontSize: '0.82rem',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                    backgroundColor: '#FFFFFF',
+                  }}
+                />
+                <span className="material-symbols-outlined" style={{ position: 'absolute', left: '9px', top: '8px', fontSize: '18px', color: '#94A3B8' }}>
+                  search
+                </span>
+              </div>
             </div>
-            <span style={{ fontSize: '0.78rem', backgroundColor: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0', padding: '6px 12px', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#16A34A' }}>check_circle</span>
-              <span>{filteredTransactions.length} Transaksi Lunas</span>
-            </span>
-            {belumLunasCount > 0 && (
-              <span style={{ fontSize: '0.72rem', backgroundColor: '#FFFBEB', color: '#B45309', border: '1px solid #FCD34D', padding: '6px 10px', borderRadius: '20px', fontWeight: 600, whiteSpace: 'nowrap' }} title="Pendaftaran yang belum bayar lunas tidak dimasukkan ke perhitungan buku kas">
-                ⏳ {belumLunasCount} belum bayar (tidak dihitung)
+
+            {/* Badges Status Transaksi: Berjejer Rapi Sejajar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.74rem', backgroundColor: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', padding: '4px 10px', borderRadius: '6px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#059669' }}>check_circle</span>
+                <span>{filteredTransactions.length} Transaksi Lunas</span>
               </span>
-            )}
+              {belumLunasCount > 0 && (
+                <span style={{ fontSize: '0.74rem', backgroundColor: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A', padding: '4px 10px', borderRadius: '6px', fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Pendaftaran yang belum bayar lunas tidak dimasukkan ke perhitungan buku kas">
+                  <span>⏳</span>
+                  <span>{belumLunasCount} Belum Lunas</span>
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1301,9 +1317,9 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
       {/* TAB CONTENT 1: RINCIAN TRANSAKSI PER PENGAJUAN */}
       {viewTab === 'chart_table' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
-              Rincian Transaksi Pengajuan ({currentMonthLabel})
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+              Rincian Transaksi ({currentMonthLabel})
             </h3>
             {selectedMonth !== 'all' && (
               <button
@@ -1408,17 +1424,17 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94A3B8' }} title={`Nomor Urut Pemohon: No. ${applicantNo}`}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1D4ED8', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', padding: '1px 6px', borderRadius: '4px' }} title={`Nomor Urut Pemohon: No. ${applicantNo}`}>
                             #{applicantNo}
                           </span>
-                          <span style={{ fontWeight: 700, fontSize: '0.74rem', background: '#F1F5F9', color: '#1E293B', padding: '2px 7px', borderRadius: '5px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.74rem', background: '#F1F5F9', color: '#1E293B', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
                             {item.noPengajuan}
                           </span>
                           <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
                             Konsjen {item.konsjen}
                           </span>
                         </div>
-                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.94rem', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.96rem', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
                           {item.namaPemohon}
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -1430,106 +1446,81 @@ export const KeuanganView: React.FC<KeuanganViewProps> = ({ pengajuanList }) => 
                         </div>
                       </div>
 
-                      {/* Pill Badge Laba Bersih di Kanan Atas */}
+                      {/* Laba Bersih di Kanan Atas: Tipografi Bersih & Elegan */}
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div
-                          style={{
-                            backgroundColor: '#F0FDF4',
-                            border: '1px solid #BBF7D0',
-                            borderRadius: '8px',
-                            padding: '4px 10px',
-                            textAlign: 'right',
-                          }}
-                        >
-                          <div style={{ fontSize: '0.60rem', color: '#166534', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
-                            Fee Bersih
-                          </div>
-                          <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#15803D', whiteSpace: 'nowrap' }}>
-                            {formatRupiah(item.feeBersih)}
-                          </div>
+                        <div style={{ fontSize: '0.62rem', color: '#059669', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+                          Fee Bersih
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#059669', whiteSpace: 'nowrap', marginTop: '1px' }}>
+                          {formatRupiah(item.feeBersih)}
                         </div>
                       </div>
                     </div>
 
-                    {/* Rincian Finansial: 3 Kotak Terpisah (Dibayar, Modal, CB & Komisi) */}
+                    {/* Rincian Finansial Terpadu & Rapi */}
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
-                        gap: '8px',
-                        alignItems: 'stretch',
+                        backgroundColor: '#F8FAFC',
+                        borderRadius: '10px',
+                        border: '1px solid #E2E8F0',
+                        padding: '10px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        fontSize: '0.78rem',
                       }}
                     >
-                      {/* Kotak 1: Dibayar */}
-                      <div
-                        style={{
-                          backgroundColor: '#F8FAFC',
-                          border: '1px solid #E2E8F0',
-                          borderRadius: '8px',
-                          padding: '8px 4px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                        }}
-                      >
-                        <div style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Dibayar
-                        </div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', marginTop: '3px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748B', fontWeight: 600 }}>Dibayar Pemohon</span>
+                        <strong style={{ color: '#0F172A', fontWeight: 700, fontFamily: 'monospace' }}>
                           {formatRupiah(item.dibayarPemohon)}
-                        </div>
+                        </strong>
                       </div>
 
-                      {/* Kotak 2: Modal Keluar */}
-                      <div
-                        style={{
-                          backgroundColor: '#FEF2F2',
-                          border: '1px solid #FECACA',
-                          borderRadius: '8px',
-                          padding: '8px 4px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          boxShadow: '0 1px 2px rgba(220,38,38,0.03)',
-                        }}
-                      >
-                        <div style={{ fontSize: '0.60rem', color: '#991B1B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Modal
-                        </div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#DC2626', whiteSpace: 'nowrap', marginTop: '3px' }}>
-                          - {formatRupiah(item.nominalKeluar)}
-                        </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748B', fontWeight: 600 }}>Modal Keluar</span>
+                        <span style={{ color: item.nominalKeluar > 0 ? '#475569' : '#94A3B8', fontWeight: 700, fontFamily: 'monospace' }}>
+                          {item.nominalKeluar > 0 ? `- ${formatRupiah(item.nominalKeluar)}` : 'Rp 0'}
+                        </span>
                       </div>
 
-                      {/* Kotak 3: Cashback & Komisi Referral */}
-                      <div
-                        style={{
-                          backgroundColor: item.referralFee > 0 ? '#FFFBEB' : '#F0FDF4',
-                          border: item.referralFee > 0 ? '1px solid #FDE68A' : '1px solid #BBF7D0',
-                          borderRadius: '8px',
-                          padding: '6px 4px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                        }}
-                      >
-                        <div style={{ fontSize: '0.58rem', color: item.referralFee > 0 ? '#92400E' : '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          CB &amp; Komisi
+                      {/* Fee Staf PIC (Jika Ada) */}
+                      {item.cashback > 0 && (
+                        <div
+                          style={{
+                            borderTop: '1px dashed #E2E8F0',
+                            paddingTop: '5px',
+                            marginTop: '2px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span style={{ color: '#64748B', fontWeight: 600 }}>Fee Staf PIC</span>
+                          <span style={{ color: '#059669', fontWeight: 700, fontFamily: 'monospace' }}>
+                            - {formatRupiah(item.cashback)}
+                          </span>
                         </div>
-                        <div style={{ fontSize: '0.70rem', fontWeight: 700, color: '#16A34A', whiteSpace: 'nowrap', marginTop: '2px', lineHeight: 1.25 }}>
-                          + {formatRupiah(item.cashback)} <span style={{ fontSize: '0.58rem', color: '#64748B', fontWeight: 600 }}>CB</span>
+                      )}
+
+                      {/* Komisi Referral / Mitra (Jika Ada) */}
+                      {item.referralFee > 0 && (
+                        <div
+                          style={{
+                            borderTop: item.cashback > 0 ? 'none' : '1px dashed #E2E8F0',
+                            paddingTop: item.cashback > 0 ? '0' : '5px',
+                            marginTop: item.cashback > 0 ? '0' : '2px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span style={{ color: '#64748B', fontWeight: 600 }}>Komisi Referral</span>
+                          <span style={{ color: '#D97706', fontWeight: 700, fontFamily: 'monospace' }}>
+                            - {formatRupiah(item.referralFee)}
+                          </span>
                         </div>
-                        {item.referralFee > 0 && (
-                          <div style={{ fontSize: '0.70rem', fontWeight: 700, color: '#D97706', whiteSpace: 'nowrap', marginTop: '2px', lineHeight: 1.25 }}>
-                            - {formatRupiah(item.referralFee)} <span style={{ fontSize: '0.58rem', color: '#92400E', fontWeight: 600 }}>KMS</span>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 );

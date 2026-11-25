@@ -489,12 +489,21 @@ export const formatApprovedMilestone = (count: number): string => {
 };
 
 export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAddNewPengajuan, onUpdatePengajuan }) => {
-  // Hitung otomatis milestone Visa Approved dari data riil pengajuan (kelipatan 50, saat ini 250+, nanti 301 jadi 300+, 1000 jadi 1k+)
+  // Hitung otomatis milestone Visa Approved dari data riil pengajuan (kelipatan 50: 250+ saat 299 data, otomatis 300+ saat data ke-300 selesai)
   const approvedMilestoneDisplay = useMemo(() => {
     const selesaiCount = pengajuanList && pengajuanList.length > 0
-      ? pengajuanList.filter((p) => p.status === 'Selesai' || (p.status as any) === 'Approved').length
-      : 268;
-    return formatApprovedMilestone(selesaiCount > 0 ? selesaiCount : 268);
+      ? pengajuanList.filter((p) => {
+          const st = (p.status || '').toLowerCase().trim();
+          return (
+            st.includes('selesai') ||
+            st.includes('terbit') ||
+            st.includes('kirim') ||
+            st.includes('approved') ||
+            Boolean(p.tglSelesai && p.tglSelesai !== '-')
+          );
+        }).length
+      : 299;
+    return formatApprovedMilestone(selesaiCount > 0 ? selesaiCount : 299);
   }, [pengajuanList]);
 
   // Dynamic Visa List synced directly with Master Tarif (Supabase Cloud & localStorage)

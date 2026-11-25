@@ -53,20 +53,27 @@ export function App() {
       const saved = localStorage.getItem('mapahtrip_staff_list');
       if (saved) {
         const parsed: StaffMaster[] = JSON.parse(saved);
-        return parsed.map((p) => {
+        const legacyDummyWa = ['081214104332', '087894410144', '081280905425', '0895327970805', '087882925885', '081234567890'];
+        const sanitized = parsed.map((p) => {
           const defaultStaff = mockStaff.find((ms) => ms.id === p.id);
           const isUlla = p.nama.toLowerCase().includes('ulla') || p.nama.toLowerCase().includes('ulya');
+          const cleanWaDigits = (p.noWa || '').replace(/\D/g, '');
+          const isDummyWa = legacyDummyWa.includes(cleanWaDigits);
+          const isDummyRek = !p.noRekening || p.noRekening === '6240866950' || p.noRekening === '-';
+
           return {
             ...p,
             konsjenTugas: isUlla && defaultStaff?.konsjenTugas ? defaultStaff.konsjenTugas : p.konsjenTugas,
             role: isUlla && defaultStaff?.role ? defaultStaff.role : p.role,
-            noWa: p.noWa || defaultStaff?.noWa || '',
-            bankName: p.bankName || defaultStaff?.bankName || 'BCA',
-            noRekening: p.noRekening || defaultStaff?.noRekening || '6240866950',
-            atasNamaRekening: p.atasNamaRekening || defaultStaff?.atasNamaRekening || p.nama,
+            noWa: isDummyWa ? '' : (p.noWa || ''),
+            bankName: isDummyRek ? '' : (p.bankName || ''),
+            noRekening: isDummyRek ? '' : p.noRekening,
+            atasNamaRekening: isDummyRek ? '' : (p.atasNamaRekening || ''),
             defaultFeePerPaspor: p.defaultFeePerPaspor || defaultStaff?.defaultFeePerPaspor || 50000,
           };
         });
+        localStorage.setItem('mapahtrip_staff_list', JSON.stringify(sanitized));
+        return sanitized;
       }
     } catch {}
     return mockStaff;

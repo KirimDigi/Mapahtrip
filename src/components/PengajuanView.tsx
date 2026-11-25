@@ -1867,82 +1867,84 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
     }
   };
 
-  const filteredData = pengajuanList.filter((item) => {
-    const candidateStages = getCandidateStages(item);
+  const filteredData = useMemo(() => {
+    return pengajuanList.filter((item) => {
+      const candidateStages = getCandidateStages(item);
 
-    // Filter Status Pembayaran
-    if (selectedPaymentStatus === 'Lunas') {
-      if (item.statusPembayaran === 'Menunggu Pembayaran') return false;
-    } else if (selectedPaymentStatus === 'Menunggu Pembayaran') {
-      if (item.statusPembayaran !== 'Menunggu Pembayaran') return false;
-    }
+      // Filter Status Pembayaran
+      if (selectedPaymentStatus === 'Lunas') {
+        if (item.statusPembayaran === 'Menunggu Pembayaran') return false;
+      } else if (selectedPaymentStatus === 'Menunggu Pembayaran') {
+        if (item.statusPembayaran !== 'Menunggu Pembayaran') return false;
+      }
 
-    // Status / Tahapan Pengajuan Filter
-    if (activeStatusTab !== 'Semua') {
-      const stages = candidateStages;
-      if (activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi') {
-        if (stages.currentStatus === 'Ditolak' || stages.isSampai || stages.isProses || stages.isSelesai || stages.isKirim) {
-          return false;
-        }
-      } else if (activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai') {
-        // Baru tahap sampai: berkas fisik sudah sampai, belum diajukan ke JVAC/Proses
-        if (!stages.isSampai || stages.isProses || stages.isSelesai || stages.isKirim || stages.currentStatus === 'Ditolak') {
-          return false;
-        }
-      } else if (activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses') {
-        // Tahap proses: sedang diproses di JVAC/Kedutaan, belum selesai
-        if (!stages.isProses || stages.isSelesai || stages.isKirim || stages.currentStatus === 'Ditolak') {
-          return false;
-        }
-      } else if (activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit') {
-        // Tahap selesai: visa sudah terbit, belum dikirim
-        if (!stages.isSelesai || stages.isKirim || stages.currentStatus === 'Ditolak') {
-          return false;
-        }
-      } else if (activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim') {
-        // Tahap udah kirim: paspor sudah dikirim / diserahkan
-        if (!stages.isKirim || stages.currentStatus === 'Ditolak') {
-          return false;
-        }
-      } else if (activeStatusTab === 'Ditolak') {
-        if (stages.currentStatus !== 'Ditolak') {
-          return false;
+      // Status / Tahapan Pengajuan Filter
+      if (activeStatusTab !== 'Semua') {
+        const stages = candidateStages;
+        if (activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi') {
+          if (stages.currentStatus === 'Ditolak' || stages.isSampai || stages.isProses || stages.isSelesai || stages.isKirim) {
+            return false;
+          }
+        } else if (activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai') {
+          // Baru tahap sampai: berkas fisik sudah sampai, belum diajukan ke JVAC/Proses
+          if (!stages.isSampai || stages.isProses || stages.isSelesai || stages.isKirim || stages.currentStatus === 'Ditolak') {
+            return false;
+          }
+        } else if (activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses') {
+          // Tahap proses: sedang diproses di JVAC/Kedutaan, belum selesai
+          if (!stages.isProses || stages.isSelesai || stages.isKirim || stages.currentStatus === 'Ditolak') {
+            return false;
+          }
+        } else if (activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit') {
+          // Tahap selesai: visa sudah terbit, belum dikirim
+          if (!stages.isSelesai || stages.isKirim || stages.currentStatus === 'Ditolak') {
+            return false;
+          }
+        } else if (activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim') {
+          // Tahap udah kirim: paspor sudah dikirim / diserahkan
+          if (!stages.isKirim || stages.currentStatus === 'Ditolak') {
+            return false;
+          }
+        } else if (activeStatusTab === 'Ditolak') {
+          if (stages.currentStatus !== 'Ditolak') {
+            return false;
+          }
         }
       }
-    }
 
-    // Filter kepemilikan berkas staf vs owner
-    if (!isOwner && currentStaff) {
-      if (!isApplicantAssignedToStaff(item, currentStaff)) return false;
-    } else if (selectedKonsjen === 'Tugas Staf' && currentStaff?.konsjenTugas) {
-      if (!isApplicantAssignedToStaff(item, currentStaff)) return false;
-    } else if (selectedKonsjen !== 'Semua' && item.konsjen !== selectedKonsjen) {
-      return false;
-    }
-
-    // Paket filter
-    if (selectedPaket !== 'Semua' && item.paket !== selectedPaket) {
-      return false;
-    }
-
-    // Search query
-    if (searchFilter.trim() !== '') {
-      const q = searchFilter.toLowerCase();
-      const matchName = item.namaPemohon.toLowerCase().includes(q);
-      const matchPaspor = item.noPaspor.toLowerCase().includes(q);
-      const matchNoPengajuan = item.noPengajuan.toLowerCase().includes(q);
-      const matchAffiliate = item.affiliateCode?.toLowerCase().includes(q);
-      if (!matchName && !matchPaspor && !matchNoPengajuan && !matchAffiliate) {
+      // Filter kepemilikan berkas staf vs owner
+      if (!isOwner && currentStaff) {
+        if (!isApplicantAssignedToStaff(item, currentStaff)) return false;
+      } else if (selectedKonsjen === 'Tugas Staf' && currentStaff?.konsjenTugas) {
+        if (!isApplicantAssignedToStaff(item, currentStaff)) return false;
+      } else if (selectedKonsjen !== 'Semua' && item.konsjen !== selectedKonsjen) {
         return false;
       }
-    }
-    return true;
-  }).sort((a, b) => {
-    // Data paling baru (nomor urut / ID terbesar) selalu di bagian atas
-    const numA = parseInt(a.noPengajuan.replace(/[^0-9]/g, '') || a.id.replace(/[^0-9]/g, '') || '0', 10);
-    const numB = parseInt(b.noPengajuan.replace(/[^0-9]/g, '') || b.id.replace(/[^0-9]/g, '') || '0', 10);
-    return numB - numA;
-  });
+
+      // Paket filter
+      if (selectedPaket !== 'Semua' && item.paket !== selectedPaket) {
+        return false;
+      }
+
+      // Search query
+      if (searchFilter.trim() !== '') {
+        const q = searchFilter.toLowerCase();
+        const matchName = item.namaPemohon.toLowerCase().includes(q);
+        const matchPaspor = item.noPaspor.toLowerCase().includes(q);
+        const matchNoPengajuan = item.noPengajuan.toLowerCase().includes(q);
+        const matchAffiliate = item.affiliateCode?.toLowerCase().includes(q);
+        if (!matchName && !matchPaspor && !matchNoPengajuan && !matchAffiliate) {
+          return false;
+        }
+      }
+      return true;
+    }).sort((a, b) => {
+      // Data paling baru (nomor urut / ID terbesar) selalu di bagian atas
+      const numA = parseInt(a.noPengajuan.replace(/[^0-9]/g, '') || a.id.replace(/[^0-9]/g, '') || '0', 10);
+      const numB = parseInt(b.noPengajuan.replace(/[^0-9]/g, '') || b.id.replace(/[^0-9]/g, '') || '0', 10);
+      return numB - numA;
+    });
+  }, [pengajuanList, selectedPaymentStatus, activeStatusTab, isOwner, currentStaff, selectedKonsjen, selectedPaket, searchFilter, localStageOverrides]);
 
   // Reset ke halaman 1 saat filter atau pencarian berubah
   useEffect(() => {
@@ -2370,102 +2372,123 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
       </div>
 
       {/* Banner Khusus saat Filter Tahapan Aktif */}
-      {activeStatusTab !== 'Semua' && (
-        <div
-          style={{
-            backgroundColor:
-              activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
-                ? '#FFF7ED'
-                : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
-                  ? '#E0F2FE'
-                  : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
-                    ? '#FEF3C7'
-                    : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
-                      ? '#DCFCE7'
-                      : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
-                        ? '#F3E8FF'
-                        : '#FEF2F2',
-            border: `1px solid ${activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
-                ? '#FFEDD5'
-                : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
-                  ? '#BAE6FD'
-                  : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
-                    ? '#FDE68A'
-                    : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
-                      ? '#BBF7D0'
-                      : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
-                        ? '#DDD6FE'
-                        : '#FECACA'
-              }`,
-            borderRadius: '12px',
-            padding: '11px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            fontSize: '0.86rem',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span
-              className="material-symbols-outlined"
-              style={{
-                fontSize: '22px',
-                color:
-                  activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi'
-                    ? '#EA580C'
-                    : activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai'
-                      ? '#0284C7'
-                      : activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses'
-                        ? '#D97706'
-                        : activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit'
-                          ? '#16A34A'
-                          : activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim'
-                            ? '#7C3AED'
-                            : '#DC2626',
-              }}
-            >
-              filter_alt
-            </span>
-            <div>
-              <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.88rem' }}>
-                Filter Tahap Aktif: {
-                  activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi' ? 'Belum Diverifikasi' :
-                    activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai' ? 'Baru Tahap Sampai (Berkas Masuk)' :
-                      activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses' ? 'Sedang Diproses (JVAC)' :
-                        activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit' ? 'Tahap Selesai (Visa Terbit)' :
-                          activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim' ? 'Sudah Kirim Paspor' : activeStatusTab
-                }
-              </div>
-              <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                Menampilkan <strong>{filteredData.length} pemohon</strong> pada tahapan ini di wilayah tugas Anda.
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveStatusTab('Semua')}
+      {activeStatusTab !== 'Semua' && (() => {
+        const getActiveStageTheme = () => {
+          if (activeStatusTab === 'Belum Diverifikasi' || activeStatusTab === 'Menunggu Verifikasi') {
+            return {
+              name: 'Belum Diverifikasi',
+              badge: 'Tahap 1',
+              icon: 'hourglass_top',
+              bg: '#FFF7ED',
+              border: '#FFEDD5',
+              color: '#EA580C',
+              iconBg: '#FFEDD5',
+            };
+          }
+          if (activeStatusTab === 'Baru Sampai' || activeStatusTab === 'Sampai') {
+            return {
+              name: 'Berkas Tiba di Kantor',
+              badge: 'Tahap 2',
+              icon: 'inventory_2',
+              bg: '#F0F9FF',
+              border: '#BAE6FD',
+              color: '#0284C7',
+              iconBg: '#E0F2FE',
+            };
+          }
+          if (activeStatusTab === 'Sedang Diproses' || activeStatusTab === 'Proses') {
+            return {
+              name: 'Proses JVAC Konsulat',
+              badge: 'Tahap 3',
+              icon: 'pending',
+              bg: '#FFFBEB',
+              border: '#FDE68A',
+              color: '#D97706',
+              iconBg: '#FEF3C7',
+            };
+          }
+          if (activeStatusTab === 'Selesai' || activeStatusTab === 'Visa Terbit') {
+            return {
+              name: 'Visa Terbit (Selesai)',
+              badge: 'Tahap 4',
+              icon: 'check_circle',
+              bg: '#F0FDF4',
+              border: '#BBF7D0',
+              color: '#16A34A',
+              iconBg: '#DCFCE7',
+            };
+          }
+          if (activeStatusTab === 'Kirim' || activeStatusTab === 'Sudah Kirim') {
+            return {
+              name: 'Paspor Terkirim / Resi',
+              badge: 'Tahap 5',
+              icon: 'flight_takeoff',
+              bg: '#FAF5FF',
+              border: '#DDD6FE',
+              color: '#7C3AED',
+              iconBg: '#F3E8FF',
+            };
+          }
+          return {
+            name: activeStatusTab,
+            badge: 'Filter',
+            icon: 'filter_alt',
+            bg: '#FEF2F2',
+            border: '#FECACA',
+            color: '#DC2626',
+            iconBg: '#FEE2E2',
+          };
+        };
+
+        const stageTheme = getActiveStageTheme();
+
+        return (
+          <div
+            className="active-stage-banner"
             style={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #CBD5E1',
-              color: '#334155',
-              padding: '6px 14px',
-              borderRadius: '8px',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              flexShrink: 0,
+              backgroundColor: stageTheme.bg,
+              borderColor: stageTheme.border,
             }}
           >
-            <span>Tampilkan Semua ({stageCounts.total})</span>
-            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
-          </button>
-        </div>
-      )}
+            <div className="active-stage-info-wrap">
+              <div
+                className="active-stage-icon-box"
+                style={{ backgroundColor: stageTheme.iconBg, color: stageTheme.color }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  {stageTheme.icon}
+                </span>
+              </div>
+              <div className="active-stage-text-group">
+                <div className="active-stage-title-line">
+                  <span
+                    className="active-stage-badge"
+                    style={{ backgroundColor: stageTheme.iconBg, color: stageTheme.color }}
+                  >
+                    {stageTheme.badge}
+                  </span>
+                  <span style={{ color: '#0F172A', fontWeight: 800 }}>
+                    Filter: {stageTheme.name}
+                  </span>
+                </div>
+                <div className="active-stage-subtext">
+                  Menampilkan <strong>{filteredData.length} pemohon</strong> pada tahapan ini
+                  {selectedKonsjen !== 'Semua' ? ` (${selectedKonsjen})` : ' (Semua Wilayah)'}.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveStatusTab('Semua')}
+              className="active-stage-reset-btn"
+              title="Tampilkan semua pemohon"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
+              <span>Tampilkan Semua ({stageCounts.total})</span>
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Bar Kontrol Atas Tabel (Tampilkan Data, Filter Konsulat, Filter Paket, Pencarian) */}
       <div className="pengajuan-filter-bar">
@@ -4022,19 +4045,62 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 className="pengajuan-mobile-card-item"
                 style={{
                   backgroundColor: '#FFFFFF',
-                  border: '1px solid #CBD5E1',
-                  borderTop: '4px solid #005BB5',
-                  borderRadius: '14px',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '16px',
                   padding: '12px 12px 0 12px',
-                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
+                  boxShadow: '0 3px 12px rgba(15, 23, 42, 0.06)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '9px',
+                  gap: '10px',
                   overflow: 'hidden',
+                  position: 'relative',
                 }}
               >
-                {/* 1. Header Kartu: Identitas Customer & Ringkasan Berkas (Unified Hero Layout) */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                {/* 1. Header Strip Soft: Pemohon No, ID, Program & Paket */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    margin: '-12px -12px 2px -12px',
+                    padding: '8px 12px',
+                    borderBottom: '1.5px solid #E2E8F0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                    <span
+                      style={{
+                        fontWeight: 800,
+                        color: '#1D4ED8',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        padding: '2px 7px',
+                        borderRadius: '5px',
+                        fontSize: '0.72rem',
+                        flexShrink: 0,
+                      }}
+                      title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
+                    >
+                      #{displayRowNo}
+                    </span>
+                    <span style={{ fontWeight: 800, color: '#1E293B', fontFamily: 'monospace', fontSize: '0.78rem', flexShrink: 0 }}>
+                      {row.noPengajuan}
+                    </span>
+                    <span style={{ color: '#94A3B8', flexShrink: 0 }}>•</span>
+                    <span style={{ fontWeight: 600, color: '#475569', fontSize: '0.73rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {row.program}
+                    </span>
+                  </div>
+
+                  <div style={{ flexShrink: 0 }}>
+                    {getPaketBadge(row.paket, row)}
+                  </div>
+                </div>
+
+                {/* 2. Identitas Customer: Foto & Nama Lengkap (Full Width & Word-Break, Tidak Terpotong) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {row.fotoBase64 ? (
                     <img
                       src={row.fotoBase64}
@@ -4077,17 +4143,16 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                   )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Baris 1: Nama Customer */}
+                    {/* NAMA CUSTOMER LENGKAP: wordBreak break-word dan whiteSpace normal agar TIDAK TERPOTONG */}
                     <div
                       style={{
                         fontWeight: 800,
                         color: '#0F172A',
-                        fontSize: '0.95rem',
-                        lineHeight: 1.25,
+                        fontSize: '0.96rem',
+                        lineHeight: 1.3,
                         cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
                       }}
                       onClick={() => onSelectPengajuan(row.id)}
                       title={row.namaPemohon}
@@ -4095,33 +4160,8 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       {row.namaPemohon}
                     </div>
 
-                    {/* Baris 2: Nomor, ID & Program (Rapi Tanpa Potong Kalimat) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', fontSize: '0.72rem', color: '#64748B', flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontWeight: 800,
-                          color: '#005BB5',
-                          backgroundColor: '#EFF6FF',
-                          padding: '1px 6px',
-                          borderRadius: '4px',
-                          border: '1px solid #DBEAFE',
-                          fontSize: '0.68rem',
-                        }}
-                        title={isOwner ? `Nomor Urut Resmi: No. ${officialMasterNo}` : `No. Antrean Tugas: #${staffListNo} (ID Master: ${row.noPengajuan})`}
-                      >
-                        #{displayRowNo}
-                      </span>
-                      <span style={{ fontWeight: 800, color: '#1E293B', fontFamily: 'monospace' }}>
-                        {row.noPengajuan}
-                      </span>
-                      <span>•</span>
-                      <span style={{ fontWeight: 600, color: '#1E40AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
-                        {row.program}
-                      </span>
-                    </div>
-
-                    {/* Baris 3: Paspor & WhatsApp */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
+                    {/* Paspor & WhatsApp */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
                       <span
                         style={{
                           fontFamily: 'monospace',
@@ -4152,7 +4192,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                             color: '#166534',
                             backgroundColor: '#F0FDF4',
                             border: '1px solid #BBF7D0',
-                            padding: '1px 6px',
+                            padding: '1px 7px',
                             borderRadius: '4px',
                             fontWeight: 700,
                             textDecoration: 'none',
@@ -4167,11 +4207,6 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                         </a>
                       )}
                     </div>
-                  </div>
-
-                  {/* Kanan Atas: Badge Paket */}
-                  <div style={{ flexShrink: 0 }}>
-                    {getPaketBadge(row.paket, row)}
                   </div>
                 </div>
 
@@ -4334,24 +4369,24 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                         style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '6px', border: '1px solid #E2E8F0', cursor: 'pointer' }}
                         title="Klik untuk ubah modal pengeluaran"
                       >
-                        <div style={{ fontSize: '0.60rem', color: '#DC2626', fontWeight: 700, textTransform: 'uppercase' }}>Modal</div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: (row.nominalKeluar && row.nominalKeluar > 0) ? '#DC2626' : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? '#0F172A' : '#94A3B8'), marginTop: '1px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.60rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Modal</div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#334155', marginTop: '1px', whiteSpace: 'nowrap' }}>
                           {(row.nominalKeluar && row.nominalKeluar > 0) ? `-${formatRupiah(row.nominalKeluar)}` : ((isRowFinanceInputted(row) || (row.program || '').toLowerCase().includes('waiver')) ? 'Rp 0' : 'Belum Ada')}
                         </div>
                       </div>
                       <div
                         onClick={(e) => handleOpenEditPaket(e, row)}
                         style={{
-                          backgroundColor: isRowFinanceInputted(row) ? '#F0FDF4' : '#FFFFFF',
+                          backgroundColor: '#FFFFFF',
                           padding: '5px 4px',
                           borderRadius: '6px',
-                          border: isRowFinanceInputted(row) ? '1px solid #BBF7D0' : '1px solid #E2E8F0',
+                          border: '1px solid #E2E8F0',
                           cursor: 'pointer'
                         }}
                         title={isRowFinanceInputted(row) ? "Fee Bersih MapahTrip" : "Fee bersih belum dihitung"}
                       >
-                        <div style={{ fontSize: '0.60rem', color: isRowFinanceInputted(row) ? '#15803D' : '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Fee Bersih</div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isRowFinanceInputted(row) ? '#15803D' : '#94A3B8', marginTop: '1px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.60rem', color: '#059669', fontWeight: 700, textTransform: 'uppercase' }}>Fee Bersih</div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#059669', marginTop: '1px', whiteSpace: 'nowrap' }}>
                           {isRowFinanceInputted(row) ? formatRupiah(getRowEffectiveFee(row)) : 'Belum Ada'}
                         </div>
                       </div>
@@ -4440,9 +4475,9 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                                 justifyContent: 'center',
                                 fontSize: '0.70rem',
                                 fontWeight: 800,
-                                background: b.ok ? '#ECFDF5' : '#FEF2F2',
-                                color: b.ok ? '#16A34A' : '#DC2626',
-                                border: `1px solid ${b.ok ? '#BBF7D0' : '#FECACA'}`,
+                                background: b.ok ? '#F1F5F9' : '#FEF2F2',
+                                color: b.ok ? '#059669' : '#DC2626',
+                                border: `1px solid ${b.ok ? '#E2E8F0' : '#FECACA'}`,
                               }}
                             >
                               {b.ok ? '✓' : '✕'}
@@ -4550,7 +4585,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                               flexDirection: 'column',
                               justifyContent: 'center',
                               backgroundColor: s.ok ? '#FFFFFF' : '#F8FAFC',
-                              border: s.ok ? `1.5px solid ${s.color}60` : '1px solid #E2E8F0',
+                              border: s.ok ? '1.5px solid #CBD5E1' : '1px solid #E2E8F0',
                               borderRadius: '10px',
                               padding: '8px 10px',
                               cursor: s.isLocked ? 'not-allowed' : 'pointer',
@@ -4569,7 +4604,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                                     width: '18px',
                                     height: '18px',
                                     borderRadius: '50%',
-                                    backgroundColor: s.ok ? s.color : '#F1F5F9',
+                                    backgroundColor: s.ok ? '#059669' : '#F1F5F9',
                                     color: s.ok ? '#FFFFFF' : (s.isLocked ? '#CBD5E1' : '#94A3B8'),
                                     border: s.ok ? 'none' : '1px solid #CBD5E1',
                                     display: 'inline-flex',
@@ -4578,7 +4613,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                                     fontSize: '0.65rem',
                                     fontWeight: 800,
                                     flexShrink: 0,
-                                    boxShadow: s.ok ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                                    boxShadow: s.ok ? '0 1px 2px rgba(5, 150, 105, 0.2)' : 'none',
                                   }}
                                 >
                                   {s.ok ? '✓' : sIdx + 1}
@@ -4774,7 +4809,6 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       gap: '4px',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Hapus permanen berkas pemohon yang batal mendaftar"
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = '#FEE2E2';
                     }}
@@ -4782,7 +4816,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                       e.currentTarget.style.backgroundColor = '#FEF2F2';
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>delete</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
                     <span>Hapus</span>
                   </button>
                 </div>
@@ -5927,14 +5961,14 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                           <span
                             style={{
                               position: 'absolute',
-                              top: '-8px',
-                              right: '6px',
-                              backgroundColor: '#94A3B8',
+                              top: '4px',
+                              right: isSelected ? '24px' : '6px',
+                              backgroundColor: '#64748B',
                               color: '#FFFFFF',
-                              fontSize: '0.58rem',
+                              fontSize: '0.54rem',
                               fontWeight: 800,
                               padding: '1px 5px',
-                              borderRadius: '9999px',
+                              borderRadius: '4px',
                             }}
                           >
                             Aktif
@@ -5990,9 +6024,9 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
               </div>
 
               {/* Input Dua Kolom: Pemasukan (Dibayar Pemohon) & Pengeluaran (Modal Keluar) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <div className="modal-finance-inputs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 {/* Kolom 1: Pemasukan Dibayar Pemohon */}
-                <div>
+                <div className="modal-finance-col">
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#334155', marginBottom: '4px' }}>
                     1. Nominal Dibayar Pemohon (Pemasukan):
                   </label>
@@ -6060,7 +6094,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 </div>
 
                 {/* Kolom 2: Modal Keluar / Pengeluaran Konsulat */}
-                <div>
+                <div className="modal-finance-col">
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#DC2626', marginBottom: '4px' }}>
                     2. Modal Keluar Konsulat (Pengeluaran):
                   </label>
@@ -6127,123 +6161,90 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
 
                 {/* Kolom 3: Fee Staf PIC (Operasional Pengurangan Laba) */}
                 <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px' }}>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#4F46E5' }}>
-                      3. Alokasi Fee Staf PIC ({editingPaketTarget.staffPic || 'Staf'}):
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                    <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#4338CA', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>badge</span>
+                      3. Fee Staf PIC ({editingPaketTarget.staffPic || 'Staf'}):
                     </label>
-                    <span style={{ fontSize: '0.66rem', color: '#64748B' }}>
-                      Bisa diatur Rp 0 jika belum ditentukan owner
+                    <span style={{ fontSize: '0.66rem', color: '#6366F1', fontWeight: 600, backgroundColor: '#EEF2FF', padding: '1px 6px', borderRadius: '4px' }}>
+                      Bisa Rp 0 (Opsional)
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
-                      <span
-                        style={{
-                          position: 'absolute',
-                          left: '12px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          fontWeight: 700,
-                          fontSize: '0.80rem',
-                          color: '#4F46E5',
-                        }}
-                      >
-                        Rp
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={newStaffFee === 0 ? '' : newStaffFee}
-                        onChange={(e) => {
-                          const clean = e.target.value.replace(/[^0-9]/g, '');
-                          setNewStaffFee(clean === '' ? 0 : Number(clean));
-                        }}
-                        placeholder="0"
-                        style={{
-                          width: '100%',
-                          padding: '8px 10px 8px 36px',
-                          borderRadius: '8px',
-                          border: '1px solid #C7D2FE',
-                          backgroundColor: '#EEF2FF',
-                          fontSize: '0.88rem',
-                          fontWeight: 700,
-                          color: '#4338CA',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                    {/* Preset Nominal Cepat */}
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => setNewStaffFee(0)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: newStaffFee === 0 ? '#4F46E5' : '#F1F5F9',
-                          color: newStaffFee === 0 ? '#FFFFFF' : '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title="Set fee staf Rp 0 (Belum ada alokasi)"
-                      >
-                        Rp 0 (Tanpa Fee)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewStaffFee(25000)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: newStaffFee === 25000 ? '#4F46E5' : '#F1F5F9',
-                          color: newStaffFee === 25000 ? '#FFFFFF' : '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        25 rb
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewStaffFee(50000)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: newStaffFee === 50000 ? '#4F46E5' : '#EEF2FF',
-                          color: newStaffFee === 50000 ? '#FFFFFF' : '#4338CA',
-                          border: '1px solid #C7D2FE',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title="Standar umum Rp 50.000 per paspor"
-                      >
-                        50 rb (Standar)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewStaffFee(75000)}
-                        style={{
-                          padding: '7px 9px',
-                          backgroundColor: newStaffFee === 75000 ? '#4F46E5' : '#F1F5F9',
-                          color: newStaffFee === 75000 ? '#FFFFFF' : '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        75 rb
-                      </button>
-                    </div>
+                  <div style={{ position: 'relative', width: '100%', marginBottom: '6px' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontWeight: 700,
+                        fontSize: '0.80rem',
+                        color: '#4F46E5',
+                        userSelect: 'none',
+                      }}
+                    >
+                      Rp
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={newStaffFee === 0 ? '' : newStaffFee}
+                      onChange={(e) => {
+                        const clean = e.target.value.replace(/[^0-9]/g, '');
+                        setNewStaffFee(clean === '' ? 0 : Number(clean));
+                      }}
+                      placeholder="0"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px 9px 38px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #C7D2FE',
+                        backgroundColor: '#EEF2FF',
+                        fontSize: '0.90rem',
+                        fontWeight: 700,
+                        color: '#4338CA',
+                        boxSizing: 'border-box',
+                      }}
+                    />
                   </div>
-                  <div style={{ fontSize: '0.66rem', color: '#4F46E5', marginTop: '3px', fontFamily: 'monospace' }}>
-                    Alokasi Staf: <strong>-Rp {newStaffFee.toLocaleString('id-ID')}</strong> {newStaffFee === 0 ? '(Rp 0 = Tidak memotong laba)' : `(Diberikan ke ${editingPaketTarget.staffPic || 'Staf PIC'})`}
+                  {/* Preset Nominal Cepat: Grid 4 Kolom Rapi */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                    {[
+                      { val: 0, label: 'Rp 0' },
+                      { val: 25000, label: '25 rb' },
+                      { val: 50000, label: '50 rb (Std)' },
+                      { val: 75000, label: '75 rb' },
+                    ].map((btn) => (
+                      <button
+                        key={btn.val}
+                        type="button"
+                        onClick={() => setNewStaffFee(btn.val)}
+                        style={{
+                          padding: '7px 2px',
+                          backgroundColor: newStaffFee === btn.val ? '#4F46E5' : '#FFFFFF',
+                          color: newStaffFee === btn.val ? '#FFFFFF' : '#475569',
+                          border: newStaffFee === btn.val ? '1.5px solid #4338CA' : '1px solid #CBD5E1',
+                          borderRadius: '7px',
+                          fontSize: '0.70rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap',
+                          boxShadow: newStaffFee === btn.val ? '0 2px 4px rgba(79, 70, 229, 0.2)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.66rem', color: '#4F46E5', marginTop: '5px', fontFamily: 'monospace' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>
+                      Alokasi Staf: <strong>-Rp&nbsp;{newStaffFee.toLocaleString('id-ID')}</strong>
+                    </span>
+                    <span style={{ color: '#64748B', whiteSpace: 'nowrap' }}>
+                      {newStaffFee === 0 ? '(Tanpa potongan laba)' : `(Untuk ${editingPaketTarget.staffPic || 'Staf'})`}
+                    </span>
                   </div>
                 </div>
 
@@ -6265,129 +6266,137 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                           Bisa disesuaikan jika ada kenaikan fee mitra
                         </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              left: '12px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              fontWeight: 700,
-                              fontSize: '0.80rem',
-                              color: '#D97706',
-                            }}
-                          >
-                            Rp
-                          </span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={newReferralFee === 0 ? '' : newReferralFee}
-                            onChange={(e) => {
-                              const clean = e.target.value.replace(/[^0-9]/g, '');
-                              setNewReferralFee(clean === '' ? 0 : Number(clean));
-                            }}
-                            placeholder="0"
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px 8px 36px',
-                              borderRadius: '8px',
-                              border: '1px solid #FDE68A',
-                              backgroundColor: '#FFFBEB',
-                              fontSize: '0.88rem',
-                              fontWeight: 700,
-                              color: '#B45309',
-                              boxSizing: 'border-box',
-                            }}
-                          />
-                        </div>
-                        {/* Preset Cepat */}
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => setNewReferralFee(0)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: newReferralFee === 0 ? '#D97706' : '#F1F5F9',
-                              color: newReferralFee === 0 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Rp 0
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewReferralFee(50000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: newReferralFee === 50000 ? '#D97706' : '#F1F5F9',
-                              color: newReferralFee === 50000 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            50 rb
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewReferralFee(100000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: newReferralFee === 100000 ? '#D97706' : '#FFFBEB',
-                              color: newReferralFee === 100000 ? '#FFFFFF' : '#B45309',
-                              border: '1px solid #FDE68A',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                            title="Standar umum komisi referral mitra Rp 100.000"
-                          >
-                            100 rb (Standar)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewReferralFee(150000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: newReferralFee === 150000 ? '#D97706' : '#F1F5F9',
-                              color: newReferralFee === 150000 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            150 rb
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewReferralFee(200000)}
-                            style={{
-                              padding: '7px 9px',
-                              backgroundColor: newReferralFee === 200000 ? '#D97706' : '#F1F5F9',
-                              color: newReferralFee === 200000 ? '#FFFFFF' : '#475569',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '7px',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            200 rb
-                          </button>
-                        </div>
+                      <div style={{ position: 'relative', width: '100%', marginBottom: '6px' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontWeight: 700,
+                            fontSize: '0.80rem',
+                            color: '#D97706',
+                          }}
+                        >
+                          Rp
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={newReferralFee === 0 ? '' : newReferralFee}
+                          onChange={(e) => {
+                            const clean = e.target.value.replace(/[^0-9]/g, '');
+                            setNewReferralFee(clean === '' ? 0 : Number(clean));
+                          }}
+                          placeholder="0"
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px 8px 36px',
+                            borderRadius: '8px',
+                            border: '1px solid #FDE68A',
+                            backgroundColor: '#FFFBEB',
+                            fontSize: '0.88rem',
+                            fontWeight: 700,
+                            color: '#B45309',
+                            boxSizing: 'border-box',
+                          }}
+                        />
                       </div>
-                      <div style={{ fontSize: '0.66rem', color: '#D97706', marginTop: '3px', fontFamily: 'monospace' }}>
+                      {/* Preset Cepat 5 Kolom Rapi */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setNewReferralFee(0)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: newReferralFee === 0 ? '#D97706' : '#F1F5F9',
+                            color: newReferralFee === 0 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Rp 0
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewReferralFee(50000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: newReferralFee === 50000 ? '#D97706' : '#F1F5F9',
+                            color: newReferralFee === 50000 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          50 rb
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewReferralFee(100000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: newReferralFee === 100000 ? '#D97706' : '#FFFBEB',
+                            color: newReferralFee === 100000 ? '#FFFFFF' : '#B45309',
+                            border: '1px solid #FDE68A',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title="Standar umum komisi referral mitra Rp 100.000"
+                        >
+                          100 rb
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewReferralFee(150000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: newReferralFee === 150000 ? '#D97706' : '#F1F5F9',
+                            color: newReferralFee === 150000 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          150 rb
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewReferralFee(200000)}
+                          style={{
+                            padding: '7px 3px',
+                            backgroundColor: newReferralFee === 200000 ? '#D97706' : '#F1F5F9',
+                            color: newReferralFee === 200000 ? '#FFFFFF' : '#475569',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '7px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          200 rb
+                        </button>
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: '#D97706', marginTop: '4px', fontFamily: 'monospace' }}>
                         Komisi Mitra: <strong>-Rp {newReferralFee.toLocaleString('id-ID')}</strong> (Diberikan ke mitra {editingPaketTarget.affiliateCode})
                       </div>
                     </div>
@@ -6395,7 +6404,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 })()}
               </div>
 
-              {/* Live Preview Finansial: Pemasukan vs Modal Keluar - Komisi - Fee Staf = Fee Bersih */}
+              {/* Live Preview Finansial: Rincian Struk Rapi & Transparan */}
               {(() => {
                 const hasMitra = Boolean(
                   editingPaketTarget.affiliateCode &&
@@ -6407,53 +6416,66 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 return (
                   <div
                     style={{
-                      backgroundColor: '#F0FDF4',
-                      border: '1.5px solid #86EFAC',
-                      borderRadius: '10px',
-                      padding: '10px 14px',
+                      backgroundColor: '#F8FAFC',
+                      border: '1.5px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '8px',
+                      flexDirection: 'column',
+                      gap: '7px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                      <div>
-                        <span style={{ fontSize: '0.64rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Pemasukan:</span>
-                        <strong style={{ fontSize: '0.84rem', color: '#0F172A', fontFamily: 'monospace' }}>
-                          Rp {newNominalBiaya.toLocaleString('id-ID')}
+                    <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                      Ringkasan Pembagian Keuangan:
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                      <span style={{ color: '#475569', minWidth: 0 }}>1. Pemasukan Pemohon</span>
+                      <strong style={{ color: '#0F172A', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        +Rp&nbsp;{newNominalBiaya.toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                      <span style={{ color: '#DC2626', minWidth: 0 }}>2. Modal Keluar Konsulat</span>
+                      <strong style={{ color: '#DC2626', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        -Rp&nbsp;{newNominalKeluar.toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                    {hasMitra && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                        <span style={{ color: '#D97706', minWidth: 0 }}>3. Komisi Referral ({editingPaketTarget.affiliateCode})</span>
+                        <strong style={{ color: '#D97706', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          -Rp&nbsp;{refFee.toLocaleString('id-ID')}
                         </strong>
                       </div>
-                      <div>
-                        <span style={{ fontSize: '0.64rem', color: '#DC2626', display: 'block', fontWeight: 600 }}>Modal Keluar:</span>
-                        <strong style={{ fontSize: '0.84rem', color: '#DC2626', fontFamily: 'monospace' }}>
-                          -Rp {newNominalKeluar.toLocaleString('id-ID')}
-                        </strong>
-                      </div>
-                      {hasMitra && (
-                        <div>
-                          <span style={{ fontSize: '0.64rem', color: '#D97706', display: 'block', fontWeight: 600 }}>Komisi Mitra:</span>
-                          <strong style={{ fontSize: '0.84rem', color: '#D97706', fontFamily: 'monospace' }}>
-                            -Rp {refFee.toLocaleString('id-ID')}
-                          </strong>
-                        </div>
-                      )}
-                      <div>
-                        <span style={{ fontSize: '0.64rem', color: '#4F46E5', display: 'block', fontWeight: 600 }}>Fee Staf PIC:</span>
-                        <strong style={{ fontSize: '0.84rem', color: '#4F46E5', fontFamily: 'monospace' }}>
-                          -Rp {newStaffFee.toLocaleString('id-ID')}
-                        </strong>
-                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '8px' }}>
+                      <span style={{ color: '#4F46E5', minWidth: 0 }}>{hasMitra ? '4' : '3'}. Fee Staf PIC ({editingPaketTarget.staffPic || 'Staf'})</span>
+                      <strong style={{ color: '#4F46E5', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        -Rp&nbsp;{newStaffFee.toLocaleString('id-ID')}
+                      </strong>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.64rem', color: '#15803D', display: 'block', fontWeight: 700, textTransform: 'uppercase' }}>
-                        Fee Bersih MapahTrip:
-                      </span>
-                      <strong style={{ fontSize: '1.10rem', color: '#166534', fontFamily: 'monospace', fontWeight: 800 }}>
-                        Rp {liveFee.toLocaleString('id-ID')}
-                      </strong>
+                    {/* Banner Total Fee Bersih: Anti-Tabrakan & Jelas di HP */}
+                    <div
+                      style={{
+                        backgroundColor: '#ECFDF5',
+                        border: '1.5px solid #86EFAC',
+                        borderRadius: '10px',
+                        padding: '10px 14px',
+                        marginTop: '6px',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                        FEE BERSIH MAPAHTRIP:
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                        <div style={{ fontSize: '1.30rem', color: '#15803D', fontFamily: 'monospace', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                          Rp&nbsp;{liveFee.toLocaleString('id-ID')}
+                        </div>
+                        <div style={{ fontSize: '0.64rem', color: '#166534', textAlign: 'right' }}>
+                          Laba bersih setelah semua beban
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -6501,22 +6523,24 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 />
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap', gap: '8px' }}>
+              {/* Action Buttons: Rapi, Sejajar & Responsif */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
                 <button
                   type="button"
                   onClick={handleKirimWAPaket}
                   style={{
+                    width: '100%',
                     backgroundColor: '#ECFDF5',
                     color: '#047857',
                     border: '1px solid #A7F3D0',
-                    padding: '8px 14px',
+                    padding: '9px 14px',
                     borderRadius: '8px',
                     fontSize: '0.78rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '6px',
                   }}
                   title="Kirim pesan rincian paket ke WhatsApp pemohon (Opsional)"
@@ -6525,11 +6549,23 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                   <span>Kirim Pesan ke WA (Opsional)</span>
                 </button>
 
-                <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', width: '100%' }}>
                   <button
                     type="button"
                     onClick={() => setEditingPaketTarget(null)}
-                    style={{ backgroundColor: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                    style={{
+                      height: '42px',
+                      backgroundColor: '#F1F5F9',
+                      color: '#475569',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
                   >
                     Batal
                   </button>
@@ -6537,22 +6573,24 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                     type="button"
                     onClick={handleSaveNewPaket}
                     style={{
+                      height: '42px',
                       backgroundColor: '#005BB5',
                       color: '#FFFFFF',
                       border: 'none',
-                      padding: '8px 20px',
                       borderRadius: '8px',
-                      fontSize: '0.80rem',
+                      fontSize: '0.84rem',
                       fontWeight: 800,
                       cursor: 'pointer',
                       boxShadow: '0 2px 8px rgba(0, 91, 181, 0.25)',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
-                    <span>Simpan Perubahan Paket</span>
+                    <span>Simpan Perubahan</span>
                   </button>
                 </div>
               </div>

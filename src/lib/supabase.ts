@@ -70,7 +70,7 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
     )
   );
   const applicantNo = Number(db.no_urut || db.id);
-  const isHistoricalRow = !isRegisteredViaSystem && applicantNo <= 299;
+  const isHistoricalRow = !isRegisteredViaSystem && (applicantNo <= 306 || Boolean(REAL_SPREADSHEET_PENGAJUAN.find((p) => p.id === String(applicantNo))));
   const found = isHistoricalRow
     ? (REAL_SPREADSHEET_PENGAJUAN.find((p) => p.id === String(applicantNo)) ||
        REAL_SPREADSHEET_PENGAJUAN.find((p) => p.namaPemohon && db.nama && p.namaPemohon.trim().toLowerCase() === db.nama.trim().toLowerCase()))
@@ -844,7 +844,15 @@ export async function fetchAllMitraFromDB(): Promise<AffiliateUser[]> {
       console.warn('Gagal memuat data mitra affiliate dari Supabase:', error);
       return [];
     }
-    return data.map(mapDBToAffiliate);
+    return data
+      .filter((row: any) =>
+        row.status_mitra !== 'Deleted' &&
+        !row.kode_referral?.startsWith('DEL_') &&
+        !row.kode_referral?.includes('STRESS') &&
+        !row.nama?.toLowerCase().includes('deleted test') &&
+        !row.nama?.toLowerCase().includes('(mitra ')
+      )
+      .map(mapDBToAffiliate);
   } catch (err) {
     console.warn('DB error fetchAllMitra:', err);
     return [];
@@ -1159,7 +1167,7 @@ export async function findAffiliateByCode(code: string): Promise<AffiliateUser |
       .ilike('kode_referral', clean)
       .maybeSingle();
 
-    if (data) {
+    if (data && data.status_mitra !== 'Deleted' && !data.kode_referral?.startsWith('DEL_')) {
       return applyOverrides(mapDBToAffiliate(data));
     }
   } catch (err) {
