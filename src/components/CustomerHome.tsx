@@ -587,7 +587,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
         title: item.title,
         subtitle: item.subtitle || base?.subtitle || 'Layanan Visa Jepang',
         theme: base?.theme || (index % 2 === 0 ? ('dark' as const) : ('light' as const)),
-        popularBadge: item.popularBadge || base?.popularBadge,
+        popularBadge: item.popularBadge || (item.topRightBadge && item.topRightBadge.includes('TERPOPULER') ? '★ TERPOPULER' : undefined),
         topRightBadge: item.topRightBadge !== undefined ? item.topRightBadge : (base?.topRightBadge || (item.isCustom ? 'Layanan Baru' : 'Resmi')),
         icon: base?.icon || defaultIcon,
         pricePill: computedPricePill || item.pricePill || base?.pricePill || 'Mulai dari Rp 0',
@@ -3400,15 +3400,10 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
               if (activeVisaTab === 'kerja' && item.category === 'khusus') return true;
               return false;
             }).map((item) => {
-              const cleanTitle = (item.title || '').toLowerCase();
-              const badgeStr = typeof item.topRightBadge === 'string' ? item.topRightBadge.toLowerCase() : '';
-              const popStr = typeof item.popularBadge === 'string' ? item.popularBadge.toLowerCase() : '';
-
-              const isFeatured =
-                badgeStr.includes('populer') ||
-                popStr.includes('populer') ||
-                cleanTitle.includes('waiver') ||
-                cleanTitle.includes('tokutei');
+              const isFeatured = Boolean(
+                (typeof item.topRightBadge === 'string' && item.topRightBadge.toUpperCase().includes('TERPOPULER')) ||
+                (typeof item.popularBadge === 'string' && item.popularBadge.toUpperCase().includes('TERPOPULER'))
+              );
 
               return (
                 <div
