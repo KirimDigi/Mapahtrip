@@ -873,23 +873,21 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
                   cursor: 'pointer',
                 }}
               >
-                <optgroup label="7 Layanan Visa Resmi MapahTrip">
-                  <option value="Japan e-Visa / Waiver">Japan e-Visa / Waiver (100% Online)</option>
-                  <option value="Visa Tokutei Ginou / SSW">Visa Tokutei Ginou / SSW (Kerja Formal)</option>
-                  <option value="Visa Kunjungan Keluarga / Teman">Visa Kunjungan Keluarga / Teman (Single Entry)</option>
-                  <option value="Visa Student">Visa Student (Kuliah / Sekolah Bahasa)</option>
-                  <option value="Visa Internship">Visa Internship (Magang Industri / Trainee)</option>
-                  <option value="Visa Temporary Visitor Single Entry">Visa Temporary Visitor Single Entry (15-90 Hari)</option>
-                  <option value="Visa Temporary Visitor Multiple Entry">Visa Temporary Visitor Multiple Entry (1-5 Tahun)</option>
-                </optgroup>
-                <optgroup label="Kategori Tambahan / Spesifik">
+                <optgroup label="Visa Kerja & Pelatihan">
                   <option value="Tokutei Ginou (SSW 1)">Tokutei Ginou (SSW 1 / SSW 2)</option>
                   <option value="Visa Magang (Kenshuusei)">Visa Magang (Kenshuusei / Trainee)</option>
                   <option value="Tekutei Katsudou">Tekutei Katsudou (Designated Activities)</option>
+                </optgroup>
+                <optgroup label="Visa Turis & Kunjungan">
                   <option value="Tourist Single Entry">Tourist Single Entry (e-Paspor & Reguler)</option>
                   <option value="Tourist Multiple Entry">Tourist Multiple Entry (5 Tahun)</option>
-                  <option value="Visa Bisnis">Visa Bisnis (Business / Meeting)</option>
+                  <option value="Japan e-Visa / Waiver">Japan e-Visa / Waiver (100% Online)</option>
+                  <option value="Kunjungan Keluarga / Teman">Kunjungan Keluarga / Teman</option>
                   <option value="Visa Transit">Visa Transit</option>
+                </optgroup>
+                <optgroup label="Visa Bisnis & Lainnya">
+                  <option value="Visa Bisnis">Visa Bisnis (Business / Meeting)</option>
+                  <option value="Visa Pelajar / Student">Visa Pelajar / Student (Ryuugaku)</option>
                   <option value="Visa Dependent / Spouse">Visa Dependent / Spouse</option>
                 </optgroup>
                 {customVisaOptions.length > 0 && (

@@ -21,113 +21,169 @@ export interface VisaPricingItem {
 
 export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   {
-    id: 'evisa-waiver',
-    title: 'Japan e-Visa / Waiver',
-    subtitle: 'Multiple Entry (3 Tahun)',
-    desc: 'Registrasi bebas visa untuk e-paspor atau e-Visa turis via online. Bebas keluar-masuk Jepang.',
-    pricePill: 'Rp 200rb',
-    durationPill: 'Maksimal 15 Hari',
+    id: 'tourist-single',
+    title: 'Tourist Single Entry',
+    subtitle: 'e-Paspor & Reguler',
+    desc: 'Liburan, jalan-jalan, Sakura/Harvest. Bantuan dummy tiket & itinerary Jepang.',
+    durationPill: '15-90 Hari',
     category: 'turis',
-    popularBadge: '★ TERPOPULER',
-    topRightBadge: '100% Online',
-    regulerPrice: 200000,
-    premiumPrice: 250000,
-    tacPrice: 300000,
-    keterangan: 'Multiple Entry (3 tahun) • Maksimal stay 15 hari',
-  },
-  {
-    id: 'tokutei-ginou',
-    title: 'Visa Tokutei Ginou / SSW',
-    subtitle: 'Specified Skilled Worker (SSW 1 & SSW 2)',
-    desc: 'Pekerja berketerampilan spesifik Jepang (manufaktur, perhotelan, pengolahan makanan, kaigo, agrikultur).',
-    pricePill: 'Rp 2,65jt - 2,75jt',
-    durationPill: 'Sesuai Kontrak / CoE',
-    category: 'kerja',
-    topRightBadge: 'Kerja Formal',
-    regulerPrice: 2650000,
-    premiumPrice: 2750000,
-    tacPrice: 2950000,
-    keterangan: 'Durasi tinggal sesuai kontrak/CoE',
-  },
-  {
-    id: 'kunjungan-keluarga',
-    title: 'Visa Kunjungan Keluarga / Teman',
-    subtitle: 'Single Entry (Family / Friend Visit)',
-    desc: 'Kunjungan keluarga, kerabat, atau teman di Jepang dengan surat undangan resmi (Shouheiriyuusho).',
-    pricePill: 'Rp 2,75jt - 2,99jt',
-    durationPill: 'Maksimal 90 Hari',
-    category: 'keluarga',
-    topRightBadge: 'Single Entry',
+    topRightBadge: 'Paling Populer',
+    pricePill: 'Mulai dari Rp 2,75jt - 2,99jt',
     regulerPrice: 2750000,
     premiumPrice: 2990000,
     tacPrice: 3200000,
-    keterangan: 'Single Entry • Maksimal stay 90 hari',
+    keterangan: 'e-Paspor & Reguler, 15-90 Hari kunjungan',
   },
   {
-    id: 'visa-student',
-    title: 'Visa Student',
-    subtitle: 'Kuliah & Sekolah Bahasa (Ryuugaku)',
-    desc: 'Studi jangka menengah/panjang: sekolah bahasa Jepang (Nihongo Gakkou), perguruan tinggi, atau riset.',
-    pricePill: 'Rp 2,65jt - 2,75jt',
-    durationPill: 'Sesuai Kontrak / CoE',
-    category: 'studi',
-    topRightBadge: 'Studi / Edukasi',
-    regulerPrice: 2650000,
-    premiumPrice: 2750000,
-    tacPrice: 2950000,
-    keterangan: 'Durasi tinggal sesuai kontrak/CoE',
-  },
-  {
-    id: 'visa-internship',
-    title: 'Visa Internship',
-    subtitle: 'Magang & Pelatihan Industri (Trainee)',
-    desc: 'Program pemagangan praktik industri manufaktur, teknik, dan agrikultur Jepang via LPK / SO resmi.',
-    pricePill: 'Rp 2,65jt - 2,75jt',
-    durationPill: 'Sesuai Kontrak / CoE',
-    category: 'magang',
-    topRightBadge: 'Internship',
-    regulerPrice: 2650000,
-    premiumPrice: 2750000,
-    tacPrice: 2950000,
-    keterangan: 'Durasi tinggal sesuai kontrak/CoE',
-  },
-  {
-    id: 'temp-visitor-single',
-    title: 'Visa Temporary Visitor Single Entry',
-    subtitle: 'Single Entry • Turis & Wisata',
-    desc: 'Wisata, liburan, dan urusan perorangan sementara single entry dengan itinerary & dokumen finansial.',
-    pricePill: 'Rp 2,75jt - 2,99jt',
-    durationPill: '15 - 90 Hari',
+    id: 'tourist-multiple',
+    title: 'Tourist Multiple Entry',
+    subtitle: '5 Tahun / Multiple',
+    desc: 'Untuk yang sering ke Jepang. Syarat lebih ketat, kami bantu review & strengthening.',
+    durationPill: '15-90 Hari / kunjungan',
     category: 'turis',
-    topRightBadge: 'Single Entry',
-    regulerPrice: 2750000,
-    premiumPrice: 2990000,
-    tacPrice: 3200000,
-    keterangan: 'Periode stay 15-90 hari',
-  },
-  {
-    id: 'temp-visitor-multiple',
-    title: 'Visa Temporary Visitor Multiple Entry',
-    subtitle: 'Multiple Entry (1 - 5 Tahun)',
-    desc: 'Bebas keluar-masuk Jepang selama 1 sampai 5 tahun untuk pelancong rutin atau pebisnis.',
-    pricePill: 'Rp 4,5jt - 4,85jt',
-    durationPill: '15-90 Hari (1-5 Thn)',
-    category: 'turis',
-    topRightBadge: 'Multiple Entry',
+    topRightBadge: 'Hemat Jangka Panjang',
+    pricePill: 'Mulai dari Rp 4,5jt - 4,85jt',
     regulerPrice: 4500000,
     premiumPrice: 4850000,
     tacPrice: 5100000,
-    keterangan: 'Multiple entry (1-5 tahun) • Durasi tinggal 15-90 hari',
+    keterangan: '5 Tahun / Multiple Entry, 15-90 Hari per kunjungan',
+  },
+  {
+    id: 'evisa-waiver',
+    title: 'Japan e-Visa / Waiver',
+    subtitle: 'e-Paspor & Visa Waiver Registration',
+    desc: 'Registrasi bebas visa untuk e-paspor atau e-Visa turis via online. Proses 3-5 hari.',
+    durationPill: '15 Hari',
+    category: 'turis',
+    popularBadge: '★ TERPOPULER',
+    topRightBadge: '100% Online',
+    pricePill: 'Mulai dari Rp 200rb',
+    regulerPrice: 200000,
+    premiumPrice: 250000,
+    tacPrice: 300000,
+    keterangan: '100% Online, e-Paspor bebas visa 15 hari',
+  },
+  {
+    id: 'tokutei-ginou',
+    title: 'Tokutei Ginou (SSW 1)',
+    subtitle: 'Specified Skilled Worker',
+    desc: 'Pekerja berketerampilan spesifik: pengolahan makanan, perhotelan, perawat/kaigo, manufaktur & pertanian.',
+    durationPill: 'Sesuai Kontrak / CoE',
+    category: 'kerja',
+    topRightBadge: 'Kerja Formal',
+    pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
+    regulerPrice: 2650000,
+    premiumPrice: 2750000,
+    tacPrice: 2950000,
+    keterangan: 'Specified Skilled Worker (SSW 1 & SSW 2)',
+  },
+  {
+    id: 'visa-magang',
+    title: 'Visa Magang (Kenshuusei)',
+    subtitle: 'Trainee / Pemagangan Jepang',
+    desc: 'Program pemagangan industri manufaktur, teknik, dan agrikultur Jepang via LPK / SO resmi berizin.',
+    durationPill: 'Sesuai Kontrak / CoE',
+    category: 'magang',
+    topRightBadge: 'Pemagangan',
+    pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
+    regulerPrice: 2650000,
+    premiumPrice: 2750000,
+    tacPrice: 2950000,
+    keterangan: 'Trainee / Pemagangan Jepang',
+  },
+  {
+    id: 'tekutei-katsudou',
+    title: 'Tekutei Katsudou',
+    subtitle: 'Designated Activities',
+    desc: 'Aktivitas khusus magang lanjutan, transisi visa kerja, atau magang mahasiswa universitas di Jepang.',
+    durationPill: '6 Bulan - 1 Tahun',
+    category: 'khusus',
+    topRightBadge: 'Aktivitas Khusus',
+    pricePill: 'Mulai dari Rp 1,65jt',
+    regulerPrice: 1650000,
+    premiumPrice: 1900000,
+    tacPrice: 2150000,
+    keterangan: 'Designated Activities (Aktivitas Khusus)',
+  },
+  {
+    id: 'kunjungan-keluarga',
+    title: 'Kunjungan Keluarga / Teman',
+    subtitle: 'Family / Friend Visit',
+    desc: 'Dikunjungi keluarga/teman di Jepang? Kami siapkan surat undangan & penjamin.',
+    durationPill: 'Maksimal 90 Hari',
+    category: 'keluarga',
+    topRightBadge: 'Visit',
+    pricePill: 'Mulai dari Rp 2,75jt - 2,99jt',
+    regulerPrice: 2750000,
+    premiumPrice: 2990000,
+    tacPrice: 3200000,
+    keterangan: 'Family / Friend Visit (Shouheiriyuusho)',
+  },
+  {
+    id: 'visa-bisnis',
+    title: 'Visa Bisnis',
+    subtitle: 'Business / Meeting',
+    desc: 'Meeting, conference, negosiasi. Dokumen perusahaan Jepang & Indonesia kami cek lengkap.',
+    durationPill: '15-90 Hari',
+    category: 'bisnis',
+    topRightBadge: 'Business',
+    pricePill: 'Mulai dari Rp 950rb',
+    regulerPrice: 950000,
+    premiumPrice: 1200000,
+    tacPrice: 1450000,
+    keterangan: 'Business, Meeting, Negosiasi Perusahaan',
+  },
+  {
+    id: 'visa-pelajar',
+    title: 'Visa Pelajar / Student',
+    subtitle: 'Student & Language School',
+    desc: 'Untuk sekolah bahasa, kuliah, dan research. Bantuan CoE & dokumen pendukung.',
+    durationPill: 'Sesuai Kontrak / CoE',
+    category: 'studi',
+    topRightBadge: 'Long Stay',
+    pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
+    regulerPrice: 2650000,
+    premiumPrice: 2750000,
+    tacPrice: 2950000,
+    keterangan: 'Kuliah & Sekolah Bahasa (Ryuugaku)',
+  },
+  {
+    id: 'visa-transit',
+    title: 'Visa Transit',
+    subtitle: 'Transit & Shore Pass',
+    desc: 'Transit Jepang atau stopover. Proses cepat, tidak perlu dummy hotel lama.',
+    durationPill: '3-15 Hari',
+    category: 'transit',
+    topRightBadge: 'Transit',
+    pricePill: 'Mulai dari Rp 550rb',
+    regulerPrice: 550000,
+    premiumPrice: 800000,
+    tacPrice: 1050000,
+    keterangan: 'Transit & Shore Pass (maks 15 hari)',
+  },
+  {
+    id: 'visa-dependent',
+    title: 'Visa Dependent / Spouse',
+    subtitle: 'Spouse / Child of Japanese',
+    desc: 'Pendamping keluarga, spouse of Japanese, COE dependent. Pendampingan dokumen sensitif.',
+    durationPill: 'Long Term',
+    category: 'keluarga',
+    topRightBadge: 'Keluarga',
+    pricePill: 'Mulai dari Rp 1,3jt',
+    regulerPrice: 1300000,
+    premiumPrice: 1550000,
+    tacPrice: 1800000,
+    keterangan: 'Spouse / Child of Japanese (CoE Dependent)',
   },
 ];
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v2_official_7_visas';
+const CURRENT_PRICING_VERSION = 'v4_clean_range_update';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
- * Jika belum ada di localStorage atau versi belum diperbarui, kembalikan default resmi.
+ * Jika belum ada di localStorage atau versi diperbarui, kembalikan default.
  */
 export function getVisaPricingList(): VisaPricingItem[] {
   if (typeof window === 'undefined') return DEFAULT_VISA_PRICING;
@@ -139,11 +195,7 @@ export function getVisaPricingList(): VisaPricingItem[] {
       return DEFAULT_VISA_PRICING;
     }
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_VISA_PRICING));
-      localStorage.setItem(PRICING_VERSION_KEY, CURRENT_PRICING_VERSION);
-      return DEFAULT_VISA_PRICING;
-    }
+    if (!raw) return DEFAULT_VISA_PRICING;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed;
@@ -266,7 +318,7 @@ export function resetVisaPricingList(): VisaPricingItem[] {
  */
 export function getVisaPrice(visaTitle?: string, paket: string = 'Reguler'): number {
   const list = getVisaPricingList();
-  if (!visaTitle) return 2650000;
+  if (!visaTitle) return 1650000;
   const cleanTitle = visaTitle.toLowerCase().trim();
 
   // 1. Coba exact title match
@@ -276,24 +328,30 @@ export function getVisaPrice(visaTitle?: string, paket: string = 'Reguler'): num
   if (!found) {
     found = list.find((item) => {
       const itemTitle = item.title.toLowerCase();
-      if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa') || cleanTitle.includes('e-visa')) {
-        return itemTitle.includes('waiver') || itemTitle.includes('evisa') || itemTitle.includes('e-visa');
+      if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa')) {
+        return itemTitle.includes('waiver') || itemTitle.includes('evisa');
       }
       if (cleanTitle.includes('multiple')) return itemTitle.includes('multiple');
-      if (cleanTitle.includes('single') || cleanTitle.includes('temporary visitor single') || cleanTitle.includes('tourist single')) {
-        return itemTitle.includes('single');
+      if (cleanTitle.includes('single')) return itemTitle.includes('single');
+      if (cleanTitle.includes('keluarga') || cleanTitle.includes('family')) {
+        return itemTitle.includes('keluarga') || itemTitle.includes('family');
       }
-      if (cleanTitle.includes('keluarga') || cleanTitle.includes('family') || cleanTitle.includes('teman')) {
-        return itemTitle.includes('keluarga') || itemTitle.includes('teman');
+      if (cleanTitle.includes('bisnis') || cleanTitle.includes('business')) {
+        return itemTitle.includes('bisnis');
       }
-      if (cleanTitle.includes('student') || cleanTitle.includes('pelajar') || cleanTitle.includes('ryuugaku')) {
-        return itemTitle.includes('student') || itemTitle.includes('pelajar');
+      if (cleanTitle.includes('pelajar') || cleanTitle.includes('student') || cleanTitle.includes('ryuugaku')) {
+        return itemTitle.includes('pelajar');
       }
-      if (cleanTitle.includes('internship') || cleanTitle.includes('magang') || cleanTitle.includes('kenshuusei')) {
-        return itemTitle.includes('internship') || itemTitle.includes('magang');
+      if (cleanTitle.includes('transit')) return itemTitle.includes('transit');
+      if (cleanTitle.includes('dependent') || cleanTitle.includes('spouse')) {
+        return itemTitle.includes('dependent');
       }
+      if (cleanTitle.includes('magang') || cleanTitle.includes('kenshuusei')) {
+        return itemTitle.includes('magang');
+      }
+      if (cleanTitle.includes('tekutei')) return itemTitle.includes('tekutei');
       if (cleanTitle.includes('tokutei') || cleanTitle.includes('ginou') || cleanTitle.includes('ssw')) {
-        return itemTitle.includes('tokutei') || itemTitle.includes('ssw');
+        return itemTitle.includes('tokutei');
       }
       return false;
     });
@@ -308,16 +366,26 @@ export function getVisaPrice(visaTitle?: string, paket: string = 'Reguler'): num
   }
 
   // 3. Fallback default jika tidak ditemukan sama sekali
-  let base = 2650000;
-  if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa') || cleanTitle.includes('e-visa')) {
-    base = p === 'premium' ? 250000 : p === 'tac' ? 300000 : 200000;
-  } else if (cleanTitle.includes('multiple')) {
-    base = p === 'premium' ? 4850000 : p === 'tac' ? 5100000 : 4500000;
-  } else if (cleanTitle.includes('keluarga') || cleanTitle.includes('single') || cleanTitle.includes('visitor')) {
-    base = p === 'premium' ? 2990000 : p === 'tac' ? 3200000 : 2750000;
-  } else {
-    base = p === 'premium' ? 2750000 : p === 'tac' ? 2950000 : 2650000;
+  if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa')) {
+    return p === 'premium' ? 250000 : p === 'tac' ? 300000 : 200000;
   }
-  return base;
+  if (cleanTitle.includes('multiple')) {
+    return p === 'premium' ? 4850000 : p === 'tac' ? 5100000 : 4500000;
+  }
+  if (cleanTitle.includes('single') || cleanTitle.includes('keluarga') || cleanTitle.includes('family')) {
+    return p === 'premium' ? 2990000 : p === 'tac' ? 3200000 : 2750000;
+  }
+  if (cleanTitle.includes('transit')) {
+    return p === 'premium' ? 800000 : p === 'tac' ? 1050000 : 550000;
+  }
+  if (cleanTitle.includes('bisnis')) {
+    return p === 'premium' ? 1200000 : p === 'tac' ? 1450000 : 950000;
+  }
+  if (cleanTitle.includes('dependent')) {
+    return p === 'premium' ? 1550000 : p === 'tac' ? 1800000 : 1300000;
+  }
+
+  // SSW, Magang, Student
+  return p === 'premium' ? 2750000 : p === 'tac' ? 2950000 : 2650000;
 }
 
