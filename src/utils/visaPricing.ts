@@ -257,6 +257,26 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
       };
     });
 
+    // Urutkan persis sesuai urutan prioritas 7 kartu yang ditentukan user
+    const orderPriority = [
+      'evisa-waiver',
+      'tokutei-ginou',
+      'kunjungan-keluarga',
+      'visa-pelajar',
+      'visa-magang',
+      'tourist-single',
+      'tourist-multiple',
+    ];
+
+    mapped.sort((a, b) => {
+      const idxA = orderPriority.indexOf(a.id);
+      const idxB = orderPriority.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
       window.dispatchEvent(new CustomEvent('mapahtrip:visa-prices-updated', { detail: mapped }));
