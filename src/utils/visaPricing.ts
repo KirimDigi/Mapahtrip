@@ -203,7 +203,7 @@ export function formatPricePillRange(reguler: number, tac?: number, premium?: nu
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v7_tokutei_featured_badge';
+const CURRENT_PRICING_VERSION = 'v8_badge_fix';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
@@ -248,19 +248,24 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
     const currentCached = getVisaPricingList();
 
     const mapped: VisaPricingItem[] = data.map((row: any) => {
-      const existing = currentCached.find((c) => c.id === String(row.id));
-      const defaultItem = DEFAULT_VISA_PRICING.find((d) => d.id === String(row.id));
+      const cleanRowTitle = (row.title || row.nama_visa || '').toLowerCase().replace(/[\s\-_/()]/g, '');
+      const existing =
+        currentCached.find((c) => c.id === String(row.id)) ||
+        currentCached.find((c) => (c.title || '').toLowerCase().replace(/[\s\-_/()]/g, '') === cleanRowTitle);
+      const defaultItem =
+        DEFAULT_VISA_PRICING.find((d) => d.id === String(row.id)) ||
+        DEFAULT_VISA_PRICING.find((d) => (d.title || '').toLowerCase().replace(/[\s\-_/()]/g, '') === cleanRowTitle);
 
       return {
         id: String(row.id),
         title: row.title || row.nama_visa || existing?.title || defaultItem?.title || 'Visa Jepang',
         category: row.category || existing?.category || defaultItem?.category || 'turis',
-        subtitle: row.subtitle || existing?.subtitle || defaultItem?.subtitle,
-        desc: row.desc || existing?.desc || defaultItem?.desc,
-        durationPill: row.duration_pill || row.durationPill || existing?.durationPill || defaultItem?.durationPill,
-        topRightBadge: row.top_right_badge || row.topRightBadge || existing?.topRightBadge || defaultItem?.topRightBadge,
-        popularBadge: row.popular_badge || row.popularBadge || existing?.popularBadge || defaultItem?.popularBadge,
-        pricePill: row.price_pill || row.pricePill || existing?.pricePill || defaultItem?.pricePill,
+        subtitle: existing?.subtitle || row.subtitle || defaultItem?.subtitle,
+        desc: existing?.desc || row.desc || (row.keterangan ? row.keterangan : defaultItem?.desc),
+        durationPill: existing?.durationPill || row.duration_pill || row.durationPill || defaultItem?.durationPill,
+        topRightBadge: existing?.topRightBadge || row.top_right_badge || row.topRightBadge || defaultItem?.topRightBadge,
+        popularBadge: existing?.popularBadge || row.popular_badge || row.popularBadge || defaultItem?.popularBadge,
+        pricePill: existing?.pricePill || row.price_pill || row.pricePill || defaultItem?.pricePill,
         regulerPrice: Number(row.reguler_price ?? row.regulerPrice ?? existing?.regulerPrice ?? defaultItem?.regulerPrice ?? 0),
         premiumPrice: Number(row.premium_price ?? row.premiumPrice ?? existing?.premiumPrice ?? defaultItem?.premiumPrice ?? 0),
         tacPrice: Number(row.tac_price ?? row.tacPrice ?? existing?.tacPrice ?? defaultItem?.tacPrice ?? 0),

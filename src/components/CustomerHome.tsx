@@ -547,11 +547,13 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
     }
 
     return currentPricingList.map((item, index) => {
-      const base = VISA_OPTIONS.find(
-        (v) =>
-          v.id === item.id ||
-          v.title.toLowerCase().trim() === item.title.toLowerCase().trim()
-      );
+      const cleanItemTitle = (item.title || '').toLowerCase().replace(/[\s\-_/()]/g, '');
+      const base =
+        VISA_OPTIONS.find((v) => {
+          const cleanVTitle = v.title.toLowerCase().replace(/[\s\-_/()]/g, '');
+          return cleanVTitle === cleanItemTitle || cleanVTitle.includes(cleanItemTitle) || cleanItemTitle.includes(cleanVTitle);
+        }) ||
+        VISA_OPTIONS.find((v) => v.id === item.id);
 
       const defaultIcon =
         item.category === 'turis'
@@ -3398,13 +3400,15 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
               if (activeVisaTab === 'kerja' && item.category === 'khusus') return true;
               return false;
             }).map((item) => {
+              const cleanTitle = (item.title || '').toLowerCase();
+              const badgeStr = typeof item.topRightBadge === 'string' ? item.topRightBadge.toLowerCase() : '';
+              const popStr = typeof item.popularBadge === 'string' ? item.popularBadge.toLowerCase() : '';
+
               const isFeatured =
-                item.id === 'tourist-single' ||
-                item.id === 'evisa-waiver' ||
-                item.id === 'tokutei-ginou' ||
-                item.id.includes('tokutei') ||
-                item.popularBadge === '★ TERPOPULER' ||
-                (typeof item.topRightBadge === 'string' && item.topRightBadge.includes('TERPOPULER'));
+                badgeStr.includes('populer') ||
+                popStr.includes('populer') ||
+                cleanTitle.includes('waiver') ||
+                cleanTitle.includes('tokutei');
 
               return (
                 <div
@@ -3470,36 +3474,22 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       </div>
 
                       {/* Subtle Badge */}
-                      {isFeatured ? (
+                      {item.topRightBadge ? (
                         <span
                           style={{
-                            background: '#EFF6FF',
-                            color: '#005BB5',
+                            background: isFeatured ? '#EFF6FF' : '#F8FAFC',
+                            color: isFeatured ? '#005BB5' : '#64748B',
                             fontSize: '0.68rem',
-                            fontWeight: 800,
+                            fontWeight: isFeatured ? 800 : 700,
                             padding: '4px 10px',
                             borderRadius: '9999px',
-                            letterSpacing: '0.04em',
-                            border: '1px solid #BFDBFE',
-                          }}
-                        >
-                          ★ TERPOPULER
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            background: '#F8FAFC',
-                            color: '#64748B',
-                            fontSize: '0.7rem',
-                            fontWeight: 600,
-                            padding: '3px 9px',
-                            borderRadius: '9999px',
-                            border: '1px solid #E2E8F0',
+                            letterSpacing: isFeatured ? '0.04em' : 'normal',
+                            border: isFeatured ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
                           }}
                         >
                           {item.topRightBadge}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Title & Subtitle (Aligned with Fixed Min-Heights) */}
