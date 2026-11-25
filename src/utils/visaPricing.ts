@@ -37,7 +37,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   },
   {
     id: 'tokutei-ginou',
-    title: 'Tokutei Ginou/SSW',
+    title: 'Visa Tokutei Ginou/SSW',
     subtitle: 'Specified Skilled Worker',
     desc: 'Dikunjungi keluarga/teman di Jepang? Kami siapkan surat undangan & penjamin.',
     durationPill: 'Sesuai kontrak/CoE',
@@ -66,7 +66,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   },
   {
     id: 'visa-pelajar',
-    title: 'Visa Pelajar/Student',
+    title: 'Visa Student',
     subtitle: 'Specified Skilled Worker',
     desc: 'Pekerja berketerampilan spesifik: pengolahan makanan, perhotelan, perawat/kaigo, manufaktur & pertanian.',
     durationPill: 'Sesuai Kontrak / CoE',
@@ -80,7 +80,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   },
   {
     id: 'visa-magang',
-    title: 'Visa Magang/Internship',
+    title: 'Visa Internship',
     subtitle: '5 Tahun / Multiple',
     desc: 'Untuk yang sering ke Jepang. Syarat lebih ketat, kami bantu review & strengthening.',
     durationPill: '15-90 Hari / kunjungan',
@@ -108,7 +108,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   },
   {
     id: 'tourist-multiple',
-    title: 'Tourist Multiple Entry',
+    title: 'Visa Temporary Visitor Multiple Entry',
     subtitle: '5 Tahun / Multiple',
     desc: 'Untuk yang sering ke Jepang. Syarat lebih ketat, kami bantu review & strengthening.',
     durationPill: '15-90 Hari / kunjungan',
@@ -147,7 +147,7 @@ export function formatPricePillRange(reguler: number, tac?: number, premium?: nu
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v11_exact_user_cards';
+const CURRENT_PRICING_VERSION = 'v12_user_exact_titles';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
@@ -376,14 +376,14 @@ export function getVisaPrice(visaTitle?: string, paket: string = 'Reguler'): num
         return itemTitle.includes('bisnis');
       }
       if (cleanTitle.includes('pelajar') || cleanTitle.includes('student') || cleanTitle.includes('ryuugaku')) {
-        return itemTitle.includes('pelajar');
+        return itemTitle.includes('pelajar') || itemTitle.includes('student');
       }
       if (cleanTitle.includes('transit')) return itemTitle.includes('transit');
       if (cleanTitle.includes('dependent') || cleanTitle.includes('spouse')) {
         return itemTitle.includes('dependent');
       }
-      if (cleanTitle.includes('magang') || cleanTitle.includes('kenshuusei')) {
-        return itemTitle.includes('magang');
+      if (cleanTitle.includes('magang') || cleanTitle.includes('kenshuusei') || cleanTitle.includes('internship')) {
+        return itemTitle.includes('magang') || itemTitle.includes('internship');
       }
       if (cleanTitle.includes('tekutei')) return itemTitle.includes('tekutei');
       if (cleanTitle.includes('tokutei') || cleanTitle.includes('ginou') || cleanTitle.includes('ssw')) {
