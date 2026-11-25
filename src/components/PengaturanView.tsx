@@ -418,6 +418,14 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       alert('Nama jenis visa wajib diisi.');
       return;
     }
+    const formatRegulerPricePill = (val: number) => {
+      if (!val) return 'Mulai dari Rp 0';
+      if (val >= 1000000) {
+        return `Mulai dari Rp ${(val / 1000000).toFixed(1).replace('.0', '')}jt`;
+      }
+      return `Mulai dari Rp ${Math.round(val / 1000)}rb`;
+    };
+
     let updated: VisaPricingItem[];
     if (editingVisa) {
       updated = pricingList.map((item) =>
@@ -430,6 +438,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               subtitle: newVisaSubtitle.trim() || undefined,
               desc: newVisaDesc.trim() || undefined,
               durationPill: newVisaDuration.trim() || undefined,
+              pricePill: formatRegulerPricePill(Number(newVisaReguler) || 0),
               regulerPrice: Number(newVisaReguler) || 0,
               premiumPrice: Number(newVisaPremium) || 0,
               tacPrice: Number(newVisaTac) || 0,
@@ -446,6 +455,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         subtitle: newVisaSubtitle.trim() || undefined,
         desc: newVisaDesc.trim() || undefined,
         durationPill: newVisaDuration.trim() || undefined,
+        pricePill: formatRegulerPricePill(Number(newVisaReguler) || 0),
         regulerPrice: Number(newVisaReguler) || 0,
         premiumPrice: Number(newVisaPremium) || 0,
         tacPrice: Number(newVisaTac) || 0,

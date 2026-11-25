@@ -286,14 +286,14 @@ const VISA_OPTIONS = [
   {
     id: 'evisa-waiver',
     title: 'Japan e-Visa / Waiver',
-    subtitle: 'Multiple Entry (3 Tahun)',
+    subtitle: 'e-Paspor & Visa Waiver Registration',
     theme: 'dark' as const,
     popularBadge: '★ POPULER',
     topRightBadge: '100% Online',
     icon: 'description',
     pricePill: 'Mulai dari Rp 200rb',
     durationPill: 'Maksimal 15 Hari',
-    desc: 'Registrasi bebas visa untuk e-paspor via online. Bebas bolak-balik 3 tahun ke Jepang.',
+    desc: 'Multiple entry (3 tahun). Maksimal stay 15 hari per kunjungan.',
     tags: ['e-Paspor', 'Foto Digital'],
     category: 'turis' as const,
     syaratLengkap: [
@@ -583,13 +583,15 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
       return {
         id: item.id,
         title: item.title,
-        subtitle: item.subtitle || base?.subtitle || item.keterangan || 'Layanan Visa Jepang',
+        subtitle: item.subtitle || base?.subtitle || 'Layanan Visa Jepang',
         theme: base?.theme || (index % 2 === 0 ? ('dark' as const) : ('light' as const)),
         popularBadge: item.popularBadge || base?.popularBadge,
-        topRightBadge: item.topRightBadge || base?.topRightBadge || (item.isCustom ? 'Layanan Baru' : 'Resmi'),
+        topRightBadge: item.topRightBadge !== undefined ? item.topRightBadge : (base?.topRightBadge || (item.isCustom ? 'Layanan Baru' : 'Resmi')),
         icon: base?.icon || defaultIcon,
-        pricePill: base?.pricePill || item.pricePill || `Mulai dari ${formatShort(item.regulerPrice)}`,
-        durationPill: base?.durationPill || item.durationPill || '15-90 Hari',
+        pricePill: (item.regulerPrice && (!base?.regulerPrice || item.regulerPrice !== base.regulerPrice))
+          ? `Mulai dari ${formatShort(item.regulerPrice)}`
+          : (item.pricePill || base?.pricePill || `Mulai dari ${formatShort(item.regulerPrice)}`),
+        durationPill: item.durationPill || base?.durationPill || '15-90 Hari',
         desc: item.desc || item.keterangan || base?.desc || 'Layanan pengurusan dan pendampingan visa Jepang resmi.',
         tags: base?.tags || ['Paspor', 'Dokumen Pendukung'],
         category: item.category,

@@ -51,8 +51,8 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   {
     id: 'evisa-waiver',
     title: 'Japan e-Visa / Waiver',
-    subtitle: 'Multiple Entry (3 Tahun)',
-    desc: 'Registrasi bebas visa untuk e-paspor via online. Bebas bolak-balik 3 tahun ke Jepang.',
+    subtitle: 'e-Paspor & Visa Waiver Registration',
+    desc: 'Multiple entry (3 tahun). Maksimal stay 15 hari per kunjungan.',
     durationPill: 'Maksimal 15 Hari',
     category: 'turis',
     popularBadge: '★ TERPOPULER',
@@ -61,7 +61,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     regulerPrice: 200000,
     premiumPrice: 250000,
     tacPrice: 300000,
-    keterangan: 'Multiple Entry (3 Tahun), Maksimal stay 15 hari',
+    keterangan: 'Multiple entry (3 tahun). Maksimal stay 15 hari per kunjungan',
   },
   {
     id: 'tokutei-ginou',
@@ -179,7 +179,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v4_clean_range_update';
+const CURRENT_PRICING_VERSION = 'v5_card_edit_sync';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
@@ -221,16 +221,29 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
       return null;
     }
 
-    const mapped: VisaPricingItem[] = data.map((row: any) => ({
-      id: String(row.id),
-      title: row.title || row.nama_visa || 'Visa Jepang',
-      category: row.category || 'turis',
-      regulerPrice: Number(row.reguler_price || row.regulerPrice) || 0,
-      premiumPrice: Number(row.premium_price || row.premiumPrice) || 0,
-      tacPrice: Number(row.tac_price || row.tacPrice) || 0,
-      keterangan: row.keterangan || '',
-      isCustom: Boolean(row.is_custom ?? row.isCustom),
-    }));
+    const currentCached = getVisaPricingList();
+
+    const mapped: VisaPricingItem[] = data.map((row: any) => {
+      const existing = currentCached.find((c) => c.id === String(row.id));
+      const defaultItem = DEFAULT_VISA_PRICING.find((d) => d.id === String(row.id));
+
+      return {
+        id: String(row.id),
+        title: row.title || row.nama_visa || existing?.title || defaultItem?.title || 'Visa Jepang',
+        category: row.category || existing?.category || defaultItem?.category || 'turis',
+        subtitle: row.subtitle || existing?.subtitle || defaultItem?.subtitle,
+        desc: row.desc || existing?.desc || defaultItem?.desc,
+        durationPill: row.duration_pill || row.durationPill || existing?.durationPill || defaultItem?.durationPill,
+        topRightBadge: row.top_right_badge || row.topRightBadge || existing?.topRightBadge || defaultItem?.topRightBadge,
+        popularBadge: row.popular_badge || row.popularBadge || existing?.popularBadge || defaultItem?.popularBadge,
+        pricePill: row.price_pill || row.pricePill || existing?.pricePill || defaultItem?.pricePill,
+        regulerPrice: Number(row.reguler_price ?? row.regulerPrice ?? existing?.regulerPrice ?? defaultItem?.regulerPrice ?? 0),
+        premiumPrice: Number(row.premium_price ?? row.premiumPrice ?? existing?.premiumPrice ?? defaultItem?.premiumPrice ?? 0),
+        tacPrice: Number(row.tac_price ?? row.tacPrice ?? existing?.tacPrice ?? defaultItem?.tacPrice ?? 0),
+        keterangan: row.keterangan || existing?.keterangan || defaultItem?.keterangan || '',
+        isCustom: Boolean(row.is_custom ?? row.isCustom ?? existing?.isCustom ?? defaultItem?.isCustom),
+      };
+    });
 
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
