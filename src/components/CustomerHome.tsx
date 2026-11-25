@@ -545,15 +545,6 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
       return VISA_OPTIONS;
     }
 
-    const formatShort = (val: number) => {
-      if (!val) return 'Rp 0';
-      if (val >= 1000000) {
-        const jt = (val / 1000000).toFixed(1).replace('.0', '');
-        return `Rp ${jt}jt`;
-      }
-      return `Rp ${Math.round(val / 1000)}rb`;
-    };
-
     return currentPricingList.map((item, index) => {
       const base = VISA_OPTIONS.find(
         (v) =>
