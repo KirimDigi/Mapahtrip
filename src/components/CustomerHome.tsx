@@ -310,7 +310,8 @@ const VISA_OPTIONS = [
     title: 'Tokutei Ginou (SSW 1)',
     subtitle: 'Specified Skilled Worker',
     theme: 'light' as const,
-    topRightBadge: 'Kerja Formal',
+    popularBadge: '★ TERPOPULER',
+    topRightBadge: '★ TERPOPULER',
     icon: 'engineering',
     pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
     durationPill: 'Sesuai Kontrak / CoE',
@@ -3397,7 +3398,13 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
               if (activeVisaTab === 'kerja' && item.category === 'khusus') return true;
               return false;
             }).map((item) => {
-              const isFeatured = item.id === 'tourist-single' || item.id === 'evisa-waiver';
+              const isFeatured =
+                item.id === 'tourist-single' ||
+                item.id === 'evisa-waiver' ||
+                item.id === 'tokutei-ginou' ||
+                item.id.includes('tokutei') ||
+                item.popularBadge === '★ TERPOPULER' ||
+                (typeof item.topRightBadge === 'string' && item.topRightBadge.includes('TERPOPULER'));
 
               return (
                 <div

@@ -70,7 +70,8 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     desc: 'Pekerja berketerampilan spesifik: pengolahan makanan, perhotelan, perawat/kaigo, manufaktur & pertanian.',
     durationPill: 'Sesuai Kontrak / CoE',
     category: 'kerja',
-    topRightBadge: 'Kerja Formal',
+    popularBadge: '★ TERPOPULER',
+    topRightBadge: '★ TERPOPULER',
     pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
     regulerPrice: 2650000,
     premiumPrice: 2750000,
@@ -202,7 +203,7 @@ export function formatPricePillRange(reguler: number, tac?: number, premium?: nu
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v6_range_price_sync';
+const CURRENT_PRICING_VERSION = 'v7_tokutei_featured_badge';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
