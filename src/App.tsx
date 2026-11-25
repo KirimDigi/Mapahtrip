@@ -17,7 +17,7 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { OwnerLoginModal } from './components/OwnerLoginModal';
 import { mockPengajuan, mockStaff } from './data/mockData';
 import type { Pengajuan, StatusPengajuan, StaffMaster } from './types';
-import { fetchAllPengajuanFromDB, fetchAllMitraFromDB, deletePengajuanInDB, supabase, mapDBToPengajuan, type PengajuanVisaDB } from './lib/supabase';
+import { fetchAllPengajuanFromDB, fetchAllMitraFromDB, deletePengajuanInDB, supabase, mapDBToPengajuan, syncMasterStaffToCloud, fetchMasterStaffFromCloud, type PengajuanVisaDB } from './lib/supabase';
 import { fetchVisaPricingFromDB } from './utils/visaPricing';
 import { isApplicantAssignedToStaff } from './utils/staffAssignment';
 import { removeApplicantFromWAOutbox } from './whatsapp';
@@ -53,37 +53,44 @@ export function App() {
       const saved = localStorage.getItem('mapahtrip_staff_list');
       if (saved) {
         const parsed: StaffMaster[] = JSON.parse(saved);
-        const legacyDummyWa = ['081214104332', '087894410144', '081280905425', '0895327970805', '087882925885', '081234567890'];
-        const sanitized = parsed.map((p) => {
-          const defaultStaff = mockStaff.find((ms) => ms.id === p.id);
-          const isUlla = p.nama.toLowerCase().includes('ulla') || p.nama.toLowerCase().includes('ulya');
-          const cleanWaDigits = (p.noWa || '').replace(/\D/g, '');
-          const isDummyWa = legacyDummyWa.includes(cleanWaDigits);
-          const isDummyRek = !p.noRekening || p.noRekening === '6240866950' || p.noRekening === '-';
-
+        const merged = mockStaff.map((def) => {
+          const found = parsed.find((p) => p.id === def.id);
+          if (!found) return def;
           return {
-            ...p,
-            konsjenTugas: isUlla && defaultStaff?.konsjenTugas ? defaultStaff.konsjenTugas : p.konsjenTugas,
-            role: isUlla && defaultStaff?.role ? defaultStaff.role : p.role,
-            noWa: isDummyWa ? '' : (p.noWa || ''),
-            bankName: isDummyRek ? '' : (p.bankName || ''),
-            noRekening: isDummyRek ? '' : p.noRekening,
-            atasNamaRekening: isDummyRek ? '' : (p.atasNamaRekening || ''),
-            defaultFeePerPaspor: p.defaultFeePerPaspor || defaultStaff?.defaultFeePerPaspor || 50000,
+            ...def,
+            ...found,
+            noWa: found.noWa && found.noWa !== '' ? found.noWa : def.noWa,
+            bankName: found.bankName && found.bankName !== '' ? found.bankName : def.bankName,
+            noRekening: found.noRekening && found.noRekening !== '-' && found.noRekening !== '6240866950' ? found.noRekening : def.noRekening,
+            atasNamaRekening: found.atasNamaRekening && found.atasNamaRekening !== '' ? found.atasNamaRekening : def.atasNamaRekening,
+            alamat: found.alamat && found.alamat !== '' && found.alamat !== '-' ? found.alamat : def.alamat,
           };
         });
-        localStorage.setItem('mapahtrip_staff_list', JSON.stringify(sanitized));
-        return sanitized;
+        localStorage.setItem('mapahtrip_staff_list', JSON.stringify(merged));
+        return merged;
       }
     } catch {}
     return mockStaff;
   });
+
+  // Sinkronisasi otomatis master staf & konsjen dari Supabase Storage
+  useEffect(() => {
+    fetchMasterStaffFromCloud().then((cloudStaff) => {
+      if (cloudStaff && Array.isArray(cloudStaff) && cloudStaff.length > 0) {
+        setStaffList(cloudStaff);
+        try {
+          localStorage.setItem('mapahtrip_staff_list', JSON.stringify(cloudStaff));
+        } catch {}
+      }
+    });
+  }, []);
 
   const handleUpdateStaffList = (newList: StaffMaster[]) => {
     setStaffList(newList);
     try {
       localStorage.setItem('mapahtrip_staff_list', JSON.stringify(newList));
     } catch {}
+    syncMasterStaffToCloud(newList);
   };
 
     // Sesi Staf yang sedang aktif login (Wajib login sebelum masuk dashboard)

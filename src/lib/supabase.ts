@@ -1277,4 +1277,38 @@ export async function updatePayoutInDB(
   }
 }
 
+export async function syncMasterStaffToCloud(staffList: any[]): Promise<boolean> {
+  try {
+    const jsonStr = JSON.stringify(staffList, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const { error } = await supabase.storage
+      .from('mapahtrip-storage')
+      .upload('_system/master_konsjen_staf.json', blob, { upsert: true, contentType: 'application/json' });
+    if (error) {
+      console.warn('Gagal sinkron staf ke Supabase Storage:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Error syncMasterStaffToCloud:', err);
+    return false;
+  }
+}
+
+export async function fetchMasterStaffFromCloud(): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from('mapahtrip-storage')
+      .download('_system/master_konsjen_staf.json');
+    if (error || !data) return null;
+    const text = await data.text();
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+
 

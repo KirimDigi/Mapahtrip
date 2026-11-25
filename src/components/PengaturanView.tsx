@@ -154,6 +154,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     customBankName: '',
     noRekening: '',
     atasNamaRekening: '',
+    alamat: '',
   });
 
   const availableKonsjen: KonsjenKota[] = ['Jakarta', 'Surabaya', 'Denpasar', 'Medan', 'Makassar'];
@@ -175,6 +176,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       customBankName: '',
       noRekening: '',
       atasNamaRekening: '',
+      alamat: '',
     });
     setIsStaffModalOpen(true);
   };
@@ -198,6 +200,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       customBankName: isCustom ? (staff.bankName || '') : '',
       noRekening: staff.noRekening && staff.noRekening !== '-' ? staff.noRekening : '',
       atasNamaRekening: staff.atasNamaRekening || staff.nama || '',
+      alamat: staff.alamat || '',
     });
     setIsStaffModalOpen(true);
   };
@@ -257,6 +260,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
             bankName: finalBankName,
             noRekening: finalNoRek,
             atasNamaRekening: finalAtasNama,
+            alamat: formData.alamat.trim(),
           };
         }
         return s;
@@ -278,6 +282,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         bankName: finalBankName,
         noRekening: finalNoRek,
         atasNamaRekening: finalAtasNama,
+        alamat: formData.alamat.trim(),
       };
       updatedList = [...staffList, newStaff];
     }
@@ -837,8 +842,25 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     )}
 
                     {/* Role */}
-                    <td style={{ padding: '6px 6px', whiteSpace: 'nowrap' }}>
-                      <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.72rem' }}>{staf.role}</span>
+                    <td style={{ padding: '6px 6px', maxWidth: '240px' }}>
+                      <span style={{ fontWeight: 700, color: '#334155', fontSize: '0.72rem', display: 'block' }}>{staf.role}</span>
+                      {staf.alamat && staf.alamat !== '-' && (
+                        <div
+                          style={{
+                            fontSize: '0.62rem',
+                            color: '#64748B',
+                            lineHeight: 1.25,
+                            marginTop: '2px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            cursor: 'help',
+                          }}
+                          title={`Alamat Pengiriman: ${staf.alamat}`}
+                        >
+                          📍 {staf.alamat}
+                        </div>
+                      )}
                     </td>
 
                     {/* Konsulat / Wilayah */}
@@ -1019,6 +1041,15 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                       {staf.noRekening ? `${staf.bankName || 'BCA'} • ${staf.noRekening}` : 'Belum diisi'}
                     </span>
                   </div>
+
+                  {staf.alamat && staf.alamat !== '-' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px dashed #E2E8F0', paddingTop: '5px' }}>
+                      <span style={{ color: '#64748B', fontSize: '0.68rem' }}>Alamat Kirim Berkas:</span>
+                      <span style={{ fontWeight: 600, color: '#334155', fontSize: '0.72rem', lineHeight: 1.35 }}>
+                        📍 {staf.alamat}
+                      </span>
+                    </div>
+                  )}
 
                   {isOwner && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderTop: '1px dashed #E2E8F0', paddingTop: '5px' }}>
@@ -1512,7 +1543,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                   <tr>
                     <th>Kota Konsulat</th>
                     <th>Lokasi Kantor Konsuler</th>
-                    <th>Staff PIC Default</th>
+                    <th>Staff PIC &amp; Alamat Kirim Berkas</th>
                     <th style={{ textAlign: 'center' }}>Pencapaian Handle</th>
                     <th style={{ textAlign: 'center' }}>SLA / Estimasi</th>
                     <th style={{ textAlign: 'center' }}>Status</th>
@@ -1523,7 +1554,14 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     <tr key={k.id}>
                       <td style={{ fontWeight: 700, color: '#0F172A' }}>{k.kota}</td>
                       <td>{k.lokasi}</td>
-                      <td style={{ fontWeight: 600 }}>{k.staffPicDefault}</td>
+                      <td>
+                        <div style={{ fontWeight: 700, color: '#0F172A' }}>{k.staffPicDefault}</div>
+                        {k.alamat && (
+                          <div style={{ fontSize: '0.70rem', color: '#64748B', lineHeight: 1.35, marginTop: '3px', maxWidth: '360px' }}>
+                            📍 {k.alamat}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ textAlign: 'center' }}>
                         <span
                           style={{
@@ -1586,6 +1624,15 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#94A3B8' }}>location_on</span>
                     <span>{k.lokasi}</span>
                   </div>
+
+                  {k.alamat && (
+                    <div style={{ backgroundColor: '#F8FAFC', borderRadius: '8px', padding: '8px 10px', fontSize: '0.72rem', color: '#334155', lineHeight: 1.35, border: '1px solid #E2E8F0' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '2px' }}>
+                        Alamat Kirim Berkas Fisik:
+                      </span>
+                      📍 {k.alamat}
+                    </div>
+                  )}
 
                   <div
                     style={{
@@ -3179,6 +3226,33 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* ALAMAT LENGKAP PENGIRIMAN BERKAS & DOMISILI PIC */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Alamat Pengiriman Berkas Fisik &amp; Domisili PIC *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Contoh: Perumahan ..., Jalan ..., No. ..., Kelurahan ..., Kecamatan ..., Kota ..., Kode Pos ..."
+                  value={formData.alamat}
+                  onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.80rem',
+                    lineHeight: 1.45,
+                    boxSizing: 'border-box',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                <span style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '3px', display: 'block' }}>
+                  Alamat ini otomatis muncul sebagai tujuan pengiriman paspor fisik &amp; berkas visa pemohon via kurir ekspedisi.
+                </span>
               </div>
 
               {/* REKENING BANK & E-WALLET TUJUAN PAYOUT FEE STAF */}

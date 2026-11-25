@@ -129,6 +129,7 @@ export interface KonsjenMaster {
   id: string;
   kota: KonsjenKota;
   lokasi: string;
+  alamat?: string;
   staffPicDefault: StaffName;
   biayaKonsulat: number;
   estimasiHariKerja: number;
@@ -153,6 +154,7 @@ export interface StaffMaster {
   noRekening?: string;
   atasNamaRekening?: string;
   defaultFeePerPaspor?: number;
+  alamat?: string;
 }
 
 export interface AffiliateMaster {
