@@ -3557,13 +3557,13 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                         gap: '6px',
                       }}
                     >
-                      {/* Row 1: Biaya (Lega & Sebaris) */}
+                      {/* Row 1: Biaya (Mulai Dari di Kiri, Nominal di Kanan agar Lega & Tidak Mepet) */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          gap: '16px',
+                          gap: '12px',
                         }}
                       >
                         <span
@@ -3574,18 +3574,18 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          Biaya
+                          Mulai dari
                         </span>
                         <span
                           style={{
-                            fontSize: '0.96rem',
+                            fontSize: '0.90rem',
                             fontWeight: 800,
                             color: '#0F172A',
                             letterSpacing: '-0.02em',
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {item.pricePill}
+                          {item.pricePill.replace(/^Mulai dari\s*/i, '')}
                         </span>
                       </div>
 
