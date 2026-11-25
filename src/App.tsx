@@ -53,19 +53,34 @@ export function App() {
       const saved = localStorage.getItem('mapahtrip_staff_list');
       if (saved) {
         const parsed: StaffMaster[] = JSON.parse(saved);
+        // Validasi apakah cache lokal masih menyimpan rekening dummy lama (6240866950) atau belum memakai norek asli
+        const hasDummy = parsed.some(
+          (p) =>
+            String(p.noRekening || '').includes('6240866950') ||
+            (p.id === 'staff-1' && p.noRekening !== '5780868611') ||
+            (p.id === 'staff-4' && p.noRekening !== '901696254950') ||
+            (p.id === 'staff-2' && p.noRekening !== '000803698165') ||
+            (p.id === 'staff-3' && p.noRekening !== '7700839693') ||
+            (p.id === 'staff-5' && p.noRekening !== '7233389492')
+        );
+        if (hasDummy) {
+          localStorage.setItem('mapahtrip_staff_list', JSON.stringify(mockStaff));
+          return mockStaff;
+        }
+
+        const extraStaff = parsed.filter((p) => !mockStaff.some((ms) => ms.id === p.id));
         const merged = mockStaff.map((def) => {
           const found = parsed.find((p) => p.id === def.id);
           if (!found) return def;
           return {
             ...def,
-            ...found,
             noWa: found.noWa && found.noWa !== '' ? found.noWa : def.noWa,
             bankName: found.bankName && found.bankName !== '' ? found.bankName : def.bankName,
-            noRekening: found.noRekening && found.noRekening !== '-' && found.noRekening !== '6240866950' ? found.noRekening : def.noRekening,
-            atasNamaRekening: found.atasNamaRekening && found.atasNamaRekening !== '' ? found.atasNamaRekening : def.atasNamaRekening,
+            noRekening: found.noRekening && !String(found.noRekening).includes('6240866950') ? found.noRekening : def.noRekening,
+            atasNamaRekening: found.atasNamaRekening && found.atasNamaRekening !== '' && !found.atasNamaRekening.toLowerCase().includes('dummy') ? found.atasNamaRekening : def.atasNamaRekening,
             alamat: found.alamat && found.alamat !== '' && found.alamat !== '-' ? found.alamat : def.alamat,
           };
-        });
+        }).concat(extraStaff);
         localStorage.setItem('mapahtrip_staff_list', JSON.stringify(merged));
         return merged;
       }

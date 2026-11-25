@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { mockKonsjen } from '../data/mockData';
+import { mockKonsjen, mockStaff } from '../data/mockData';
 import type { StaffMaster, KonsjenKota, StaffFeedback, Pengajuan } from '../types';
 import { kirimPesanWA } from '../whatsapp';
 import { getStoredFeedback, saveFeedbackList } from './StaffFeedbackModal';
 import { ALL_INDONESIA_PAYMENT_GROUPS, normalizeBankSelection, isEWallet } from '../data/bankData';
+import { fetchMasterStaffFromCloud } from '../lib/supabase';
 import {
   getVisaPricingList,
   saveVisaPricingList,
@@ -137,6 +138,32 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [showPins, setShowPins] = useState(false);
+  const [isSyncingStaff, setIsSyncingStaff] = useState(false);
+
+  const handleSyncStaffFromCloud = async () => {
+    setIsSyncingStaff(true);
+    try {
+      const cloudData = await fetchMasterStaffFromCloud();
+      const targetData = cloudData && Array.isArray(cloudData) && cloudData.length > 0 ? cloudData : mockStaff;
+      if (onUpdateStaffList) {
+        onUpdateStaffList(targetData);
+      }
+      try {
+        localStorage.setItem('mapahtrip_staff_list', JSON.stringify(targetData));
+      } catch {}
+      alert('Data staf & rekening payout resmi berhasil disinkronkan langsung dari Supabase Cloud!');
+    } catch {
+      if (onUpdateStaffList) {
+        onUpdateStaffList(mockStaff);
+      }
+      try {
+        localStorage.setItem('mapahtrip_staff_list', JSON.stringify(mockStaff));
+      } catch {}
+      alert('Data staf berhasil di-reset ke data master resmi!');
+    } finally {
+      setIsSyncingStaff(false);
+    }
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -685,9 +712,34 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               </p>
             </div>
 
-            <div className="pengaturan-staff-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="pengaturan-staff-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               {isOwner && (
                 <>
+                  <button
+                    type="button"
+                    onClick={handleSyncStaffFromCloud}
+                    disabled={isSyncingStaff}
+                    title="Sinkronkan data akun & rekening resmi dari Supabase Cloud"
+                    style={{
+                      backgroundColor: isSyncingStaff ? '#F1F5F9' : '#ECFDF5',
+                      color: isSyncingStaff ? '#94A3B8' : '#047857',
+                      border: '1px solid #A7F3D0',
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: isSyncingStaff ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', animation: isSyncingStaff ? 'mapahtripSpin 1s linear infinite' : 'none' }}>
+                      sync
+                    </span>
+                    <span>{isSyncingStaff ? 'Menyinkronkan...' : 'Sinkron Cloud'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setShowPins(!showPins)}

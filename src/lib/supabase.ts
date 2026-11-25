@@ -1297,6 +1297,15 @@ export async function syncMasterStaffToCloud(staffList: any[]): Promise<boolean>
 
 export async function fetchMasterStaffFromCloud(): Promise<any[] | null> {
   try {
+    // 1. Coba download via public URL dengan timestamp cache buster agar selalu up-to-date
+    const publicUrl = `https://vswmndovcmchqhyzlawo.supabase.co/storage/v1/object/public/mapahtrip-storage/_system/master_konsjen_staf.json?t=${Date.now()}`;
+    const res = await fetch(publicUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+
+    // 2. Fallback via Supabase SDK download
     const { data, error } = await supabase.storage
       .from('mapahtrip-storage')
       .download('_system/master_konsjen_staf.json');
