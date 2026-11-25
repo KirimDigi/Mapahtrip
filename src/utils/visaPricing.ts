@@ -177,9 +177,32 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   },
 ];
 
+export function formatNominalShort(val: number): string {
+  if (!val || val <= 0) return '0';
+  if (val >= 1000000) {
+    const num = val / 1000000;
+    const formatted = parseFloat(num.toFixed(2)).toString().replace('.', ',');
+    return `${formatted}jt`;
+  }
+  return `${Math.round(val / 1000)}rb`;
+}
+
+export function formatPricePillRange(reguler: number, tac?: number, premium?: number): string {
+  const min = reguler || 0;
+  const max = Math.max(min, Number(tac) || 0, Number(premium) || 0);
+
+  if (min > 0 && max > min) {
+    return `Mulai dari Rp ${formatNominalShort(min)} - ${formatNominalShort(max)}`;
+  }
+  if (min > 0) {
+    return `Mulai dari Rp ${formatNominalShort(min)}`;
+  }
+  return 'Mulai dari Rp 0';
+}
+
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v5_card_edit_sync';
+const CURRENT_PRICING_VERSION = 'v6_range_price_sync';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.

@@ -10,6 +10,7 @@ import {
   saveVisaPricingList,
   resetVisaPricingList,
   deleteVisaPricingFromDB,
+  formatPricePillRange,
   type VisaPricingItem,
 } from '../utils/visaPricing';
 
@@ -345,12 +346,24 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 
   const handleUpdatePrice = (id: string, field: 'regulerPrice' | 'premiumPrice' | 'tacPrice', val: number) => {
     setPricingList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: Math.max(0, val) } : item))
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const updatedItem = { ...item, [field]: Math.max(0, val) };
+        return {
+          ...updatedItem,
+          pricePill: formatPricePillRange(updatedItem.regulerPrice, updatedItem.tacPrice, updatedItem.premiumPrice),
+        };
+      })
     );
   };
 
   const handleSavePricing = () => {
-    saveVisaPricingList(pricingList);
+    const withPills = pricingList.map((item) => ({
+      ...item,
+      pricePill: formatPricePillRange(item.regulerPrice, item.tacPrice, item.premiumPrice),
+    }));
+    saveVisaPricingList(withPills);
+    setPricingList(withPills);
     setPricingSaveSuccess(true);
     setTimeout(() => setPricingSaveSuccess(false), 4500);
   };
@@ -418,14 +431,6 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       alert('Nama jenis visa wajib diisi.');
       return;
     }
-    const formatRegulerPricePill = (val: number) => {
-      if (!val) return 'Mulai dari Rp 0';
-      if (val >= 1000000) {
-        return `Mulai dari Rp ${(val / 1000000).toFixed(1).replace('.0', '')}jt`;
-      }
-      return `Mulai dari Rp ${Math.round(val / 1000)}rb`;
-    };
-
     let updated: VisaPricingItem[];
     if (editingVisa) {
       updated = pricingList.map((item) =>
@@ -438,7 +443,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               subtitle: newVisaSubtitle.trim() || undefined,
               desc: newVisaDesc.trim() || undefined,
               durationPill: newVisaDuration.trim() || undefined,
-              pricePill: formatRegulerPricePill(Number(newVisaReguler) || 0),
+              pricePill: formatPricePillRange(Number(newVisaReguler) || 0, Number(newVisaTac) || 0, Number(newVisaPremium) || 0),
               regulerPrice: Number(newVisaReguler) || 0,
               premiumPrice: Number(newVisaPremium) || 0,
               tacPrice: Number(newVisaTac) || 0,
@@ -455,7 +460,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         subtitle: newVisaSubtitle.trim() || undefined,
         desc: newVisaDesc.trim() || undefined,
         durationPill: newVisaDuration.trim() || undefined,
-        pricePill: formatRegulerPricePill(Number(newVisaReguler) || 0),
+        pricePill: formatPricePillRange(Number(newVisaReguler) || 0, Number(newVisaTac) || 0, Number(newVisaPremium) || 0),
         regulerPrice: Number(newVisaReguler) || 0,
         premiumPrice: Number(newVisaPremium) || 0,
         tacPrice: Number(newVisaTac) || 0,

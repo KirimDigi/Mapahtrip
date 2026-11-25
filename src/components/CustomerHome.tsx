@@ -20,7 +20,7 @@ import { determineDefaultStaffPic } from '../utils/staffAssignment';
 import { STORY_HIGHLIGHTS } from '../data/storyHighlights';
 import { StoryHighlightsBar } from './StoryHighlightsBar';
 import { InstagramStoryViewer } from './InstagramStoryViewer';
-import { getVisaPrice, getVisaPricingList, type VisaPricingItem } from '../utils/visaPricing';
+import { getVisaPrice, getVisaPricingList, formatPricePillRange, type VisaPricingItem } from '../utils/visaPricing';
 
 // Helper format Rupiah & Penentuan Nominal Biaya Visa
 const formatRupiah = (val: number): string => 'Rp\u00A0' + (val || 0).toLocaleString('id-ID');
@@ -580,6 +580,14 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
           ? 'badge'
           : 'business_center';
 
+      const computedPricePill =
+        (item.tacPrice && item.tacPrice > item.regulerPrice) ||
+        (item.premiumPrice && item.premiumPrice > item.regulerPrice) ||
+        !item.pricePill ||
+        item.pricePill.includes('2.6jt')
+          ? formatPricePillRange(item.regulerPrice, item.tacPrice, item.premiumPrice)
+          : item.pricePill;
+
       return {
         id: item.id,
         title: item.title,
@@ -588,7 +596,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
         popularBadge: item.popularBadge || base?.popularBadge,
         topRightBadge: item.topRightBadge !== undefined ? item.topRightBadge : (base?.topRightBadge || (item.isCustom ? 'Layanan Baru' : 'Resmi')),
         icon: base?.icon || defaultIcon,
-        pricePill: item.pricePill || (item.regulerPrice ? `Mulai dari ${formatShort(item.regulerPrice)}` : base?.pricePill) || 'Mulai dari Rp 0',
+        pricePill: computedPricePill || item.pricePill || base?.pricePill || 'Mulai dari Rp 0',
         durationPill: item.durationPill || base?.durationPill || '15-90 Hari',
         desc: item.desc || item.keterangan || base?.desc || 'Layanan pengurusan dan pendampingan visa Jepang resmi.',
         tags: base?.tags || ['Paspor', 'Dokumen Pendukung'],
