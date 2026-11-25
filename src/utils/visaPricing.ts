@@ -56,7 +56,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     durationPill: 'Maksimal 15 Hari',
     category: 'turis',
     popularBadge: '★ TERPOPULER',
-    topRightBadge: '100% Online',
+    topRightBadge: '★ TERPOPULER',
     pricePill: 'Mulai dari Rp 200rb',
     regulerPrice: 200000,
     premiumPrice: 250000,
@@ -113,7 +113,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     desc: 'Dikunjungi keluarga/teman di Jepang? Kami siapkan surat undangan & penjamin.',
     durationPill: 'Maksimal 90 Hari',
     category: 'keluarga',
-    topRightBadge: 'Visit',
+    topRightBadge: 'Aktivitas Khusus',
     pricePill: 'Mulai dari Rp 2,75jt - 2,99jt',
     regulerPrice: 2750000,
     premiumPrice: 2990000,
@@ -203,7 +203,7 @@ export function formatPricePillRange(reguler: number, tac?: number, premium?: nu
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v8_badge_fix';
+const CURRENT_PRICING_VERSION = 'v10_cloud_meta_sync';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
@@ -253,23 +253,62 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
         currentCached.find((c) => c.id === String(row.id)) ||
         currentCached.find((c) => (c.title || '').toLowerCase().replace(/[\s\-_/()]/g, '') === cleanRowTitle);
       const defaultItem =
-        DEFAULT_VISA_PRICING.find((d) => d.id === String(row.id)) ||
-        DEFAULT_VISA_PRICING.find((d) => (d.title || '').toLowerCase().replace(/[\s\-_/()]/g, '') === cleanRowTitle);
+        DEFAULT_VISA_PRICING.find((d) => (d.title || '').toLowerCase().replace(/[\s\-_/()]/g, '') === cleanRowTitle) ||
+        DEFAULT_VISA_PRICING.find((d) => d.id === String(row.id));
+
+      // Ekstrak meta tambahan jika disematkan di keterangan
+      let extraMeta: any = {};
+      let cleanDesc = row.keterangan || '';
+      const metaMatch = cleanDesc.match(/<!--extra:([\s\S]*?)-->/);
+      if (metaMatch) {
+        try {
+          extraMeta = JSON.parse(metaMatch[1]);
+          cleanDesc = cleanDesc.replace(metaMatch[0], '').trim();
+        } catch {}
+      }
+
+      const topRightBadge =
+        extraMeta.topRightBadge ||
+        row.top_right_badge ||
+        row.topRightBadge ||
+        existing?.topRightBadge ||
+        defaultItem?.topRightBadge;
+
+      const subtitle =
+        extraMeta.subtitle ||
+        existing?.subtitle ||
+        row.subtitle ||
+        defaultItem?.subtitle;
+
+      const durationPill =
+        extraMeta.durationPill ||
+        existing?.durationPill ||
+        row.duration_pill ||
+        row.durationPill ||
+        defaultItem?.durationPill;
+
+      const popularBadge =
+        extraMeta.popularBadge ||
+        (topRightBadge && typeof topRightBadge === 'string' && topRightBadge.includes('TERPOPULER') ? '★ TERPOPULER' : undefined) ||
+        existing?.popularBadge ||
+        row.popular_badge ||
+        row.popularBadge ||
+        defaultItem?.popularBadge;
 
       return {
         id: String(row.id),
         title: row.title || row.nama_visa || existing?.title || defaultItem?.title || 'Visa Jepang',
         category: row.category || existing?.category || defaultItem?.category || 'turis',
-        subtitle: existing?.subtitle || row.subtitle || defaultItem?.subtitle,
-        desc: existing?.desc || row.desc || (row.keterangan ? row.keterangan : defaultItem?.desc),
-        durationPill: existing?.durationPill || row.duration_pill || row.durationPill || defaultItem?.durationPill,
-        topRightBadge: existing?.topRightBadge || row.top_right_badge || row.topRightBadge || defaultItem?.topRightBadge,
-        popularBadge: existing?.popularBadge || row.popular_badge || row.popularBadge || defaultItem?.popularBadge,
+        subtitle: subtitle,
+        desc: cleanDesc || existing?.desc || (row.keterangan ? row.keterangan : defaultItem?.desc),
+        durationPill: durationPill,
+        topRightBadge: topRightBadge,
+        popularBadge: popularBadge,
         pricePill: existing?.pricePill || row.price_pill || row.pricePill || defaultItem?.pricePill,
         regulerPrice: Number(row.reguler_price ?? row.regulerPrice ?? existing?.regulerPrice ?? defaultItem?.regulerPrice ?? 0),
         premiumPrice: Number(row.premium_price ?? row.premiumPrice ?? existing?.premiumPrice ?? defaultItem?.premiumPrice ?? 0),
         tacPrice: Number(row.tac_price ?? row.tacPrice ?? existing?.tacPrice ?? defaultItem?.tacPrice ?? 0),
-        keterangan: row.keterangan || existing?.keterangan || defaultItem?.keterangan || '',
+        keterangan: cleanDesc || existing?.keterangan || defaultItem?.keterangan || '',
         isCustom: Boolean(row.is_custom ?? row.isCustom ?? existing?.isCustom ?? defaultItem?.isCustom),
       };
     });
@@ -290,17 +329,28 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
  */
 export async function saveVisaPricingToDB(items: VisaPricingItem[]): Promise<boolean> {
   try {
-    const payload = items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      category: item.category,
-      reguler_price: item.regulerPrice,
-      premium_price: item.premiumPrice,
-      tac_price: item.tacPrice,
-      keterangan: item.keterangan || '',
-      is_custom: Boolean(item.isCustom),
-      updated_at: new Date().toISOString(),
-    }));
+    const payload = items.map((item) => {
+      const meta = {
+        topRightBadge: item.topRightBadge,
+        subtitle: item.subtitle,
+        durationPill: item.durationPill,
+        popularBadge: item.popularBadge,
+      };
+      const cleanKeterangan = (item.keterangan || item.desc || '').replace(/<!--extra:[\s\S]*?-->/g, '').trim();
+      const combinedKeterangan = `${cleanKeterangan} <!--extra:${JSON.stringify(meta)}-->`;
+
+      return {
+        id: item.id,
+        title: item.title,
+        category: item.category,
+        reguler_price: item.regulerPrice,
+        premium_price: item.premiumPrice,
+        tac_price: item.tacPrice,
+        keterangan: combinedKeterangan,
+        is_custom: Boolean(item.isCustom),
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     const { error } = await supabase.from('master_tarif_visa').upsert(payload, { onConflict: 'id' });
     if (error) {
