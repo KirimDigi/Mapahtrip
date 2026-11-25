@@ -588,9 +588,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
         popularBadge: item.popularBadge || base?.popularBadge,
         topRightBadge: item.topRightBadge !== undefined ? item.topRightBadge : (base?.topRightBadge || (item.isCustom ? 'Layanan Baru' : 'Resmi')),
         icon: base?.icon || defaultIcon,
-        pricePill: (item.regulerPrice && (!base?.regulerPrice || item.regulerPrice !== base.regulerPrice))
-          ? `Mulai dari ${formatShort(item.regulerPrice)}`
-          : (item.pricePill || base?.pricePill || `Mulai dari ${formatShort(item.regulerPrice)}`),
+        pricePill: item.pricePill || (item.regulerPrice ? `Mulai dari ${formatShort(item.regulerPrice)}` : base?.pricePill) || 'Mulai dari Rp 0',
         durationPill: item.durationPill || base?.durationPill || '15-90 Hari',
         desc: item.desc || item.keterangan || base?.desc || 'Layanan pengurusan dan pendampingan visa Jepang resmi.',
         tags: base?.tags || ['Paspor', 'Dokumen Pendukung'],
