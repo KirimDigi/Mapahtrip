@@ -286,14 +286,14 @@ const VISA_OPTIONS = [
   {
     id: 'evisa-waiver',
     title: 'Japan e-Visa / Waiver',
-    subtitle: 'e-Paspor & Visa Waiver Registration',
+    subtitle: 'Multiple Entry (3 Tahun)',
     theme: 'dark' as const,
     popularBadge: '★ POPULER',
     topRightBadge: '100% Online',
     icon: 'description',
     pricePill: 'Mulai dari Rp 200rb',
-    durationPill: '15 Hari',
-    desc: 'Registrasi bebas visa untuk e-paspor atau e-Visa turis via online. Proses 3-5 hari.',
+    durationPill: 'Maksimal 15 Hari',
+    desc: 'Registrasi bebas visa untuk e-paspor via online. Bebas bolak-balik 3 tahun ke Jepang.',
     tags: ['e-Paspor', 'Foto Digital'],
     category: 'turis' as const,
     syaratLengkap: [

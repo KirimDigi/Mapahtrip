@@ -51,9 +51,9 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
   {
     id: 'evisa-waiver',
     title: 'Japan e-Visa / Waiver',
-    subtitle: 'e-Paspor & Visa Waiver Registration',
-    desc: 'Registrasi bebas visa untuk e-paspor atau e-Visa turis via online. Proses 3-5 hari.',
-    durationPill: '15 Hari',
+    subtitle: 'Multiple Entry (3 Tahun)',
+    desc: 'Registrasi bebas visa untuk e-paspor via online. Bebas bolak-balik 3 tahun ke Jepang.',
+    durationPill: 'Maksimal 15 Hari',
     category: 'turis',
     popularBadge: '★ TERPOPULER',
     topRightBadge: '100% Online',
@@ -61,7 +61,7 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     regulerPrice: 200000,
     premiumPrice: 250000,
     tacPrice: 300000,
-    keterangan: '100% Online, e-Paspor bebas visa 15 hari',
+    keterangan: 'Multiple Entry (3 Tahun), Maksimal stay 15 hari',
   },
   {
     id: 'tokutei-ginou',
