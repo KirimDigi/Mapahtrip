@@ -2050,7 +2050,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     fontWeight: 600,
                   }}
                 >
-                  Jabodetabek, Surabaya, Medan
+                  seluruh wilayah di seluruh Indonesia
                 </span>
               </div>
             </div>
