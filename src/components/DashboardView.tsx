@@ -70,6 +70,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalStaffFee = lunasList.reduce((acc, p) => acc + getEffectiveStaffFee(p), 0);
   const totalKomisi = totalReferralFee + totalStaffFee;
   const totalFeeBersih = lunasList.reduce((acc, p) => acc + getEffectiveFeeBersih(p), 0);
+  const marginLabaPersen = totalPemasukan > 0 ? ((totalFeeBersih / totalPemasukan) * 100).toFixed(1) + '%' : '0.0%';
 
   // 1. Pengajuan yang butuh tindakan staf segera (Pendaftaran baru belum diverifikasi)
   const tugasPerluTindakan = effectiveList.filter((p) => {
@@ -376,9 +377,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="owner-finance-val" style={{ color: '#059669' }}>
               Rp {totalFeeBersih.toLocaleString('id-ID')}
             </div>
-            <div className="owner-finance-sub" style={{ color: '#64748B' }}>
-              <span className="material-symbols-outlined" style={{ color: '#059669' }}>verified</span>
-              <span>Laba bersih riil terverifikasi</span>
+            <div className="owner-finance-sub" style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }} title="Laba bersih riil terverifikasi">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#059669' }}>trending_up</span>
+              <span>Margin Laba: {marginLabaPersen}</span>
             </div>
           </div>
         </div>
