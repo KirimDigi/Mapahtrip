@@ -333,28 +333,6 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
               </button>
             ))}
           </div>
-
-          {/* Petunjuk Geser Horizontal untuk Pengunjung */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontSize: '0.74rem',
-              color: '#005BB5',
-              backgroundColor: '#F0F9FF',
-              border: '1px solid #BAE6FD',
-              borderRadius: '9999px',
-              padding: '4px 12px',
-              marginTop: '6px',
-              fontWeight: 600,
-            }}
-          >
-            <span>👉</span>
-            <span>Geser untuk melihat kategori video lainnya</span>
-            <span style={{ fontSize: '0.70rem', color: '#0369A1' }}>({highlights.length} Kategori)</span>
-          </div>
         </div>
       </div>
     </section>
