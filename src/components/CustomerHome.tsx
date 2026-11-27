@@ -3883,9 +3883,9 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                 </div>
 
                 {/* Keunggulan & Layanan Pendampingan (Rahasia Dokumen Terlindungi) */}
-                <div style={{ marginBottom: '18px' }}>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0F172A', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#005BB5' }}>
                       verified_user
                     </span>
                     <span>Layanan Pengurusan Visa MapahTrip:</span>
@@ -3895,9 +3895,9 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       display: 'flex',
                       flexDirection: 'column',
                       backgroundColor: '#F8FAFC',
-                      borderRadius: '14px',
+                      borderRadius: '12px',
                       border: '1px solid #E2E8F0',
-                      padding: '2px 14px',
+                      padding: '1px 12px',
                     }}
                   >
                     {[
@@ -3911,16 +3911,16 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '10px',
-                          padding: '11px 0',
+                          gap: '8px',
+                          padding: '8px 0',
                           borderBottom: idx < 3 ? '1px solid #EDF2F7' : 'none',
-                          fontSize: '0.82rem',
+                          fontSize: '0.78rem',
                           color: '#1E293B',
                           fontWeight: 600,
-                          lineHeight: 1.4,
+                          lineHeight: 1.35,
                         }}
                       >
-                        <span className="material-symbols-outlined" style={{ color: '#16A34A', fontSize: '18px', flexShrink: 0 }}>
+                        <span className="material-symbols-outlined" style={{ color: '#16A34A', fontSize: '17px', flexShrink: 0 }}>
                           check_circle
                         </span>
                         <span>{text}</span>
@@ -3932,13 +3932,13 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                 {/* Info Tambahan */}
                 <div
                   style={{
-                    fontSize: '0.8rem',
-                    color: '#64748B',
-                    lineHeight: 1.5,
+                    fontSize: '0.76rem',
+                    color: '#475569',
+                    lineHeight: 1.45,
                     backgroundColor: '#EFF6FF',
-                    padding: '12px 16px',
-                    borderRadius: '12px',
-                    marginBottom: '18px',
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    marginBottom: '12px',
                     border: '1px solid #DBEAFE',
                   }}
                 >
@@ -3956,9 +3956,9 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                           : '1.5px solid #EF4444'
                         : '1.5px solid #005BB5'
                       : '1.5px solid #E2E8F0',
-                    borderRadius: '14px',
-                    padding: '12px 14px',
-                    marginBottom: '20px',
+                    borderRadius: '12px',
+                    padding: '10px 12px',
+                    marginBottom: '14px',
                     transition: 'all 0.2s ease',
                   }}
                 >
@@ -4129,8 +4129,8 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                   )}
                 </div>
 
-                {/* CTA BUTTON: PENGGANTI KONSULTASI VIA WHATSAPP -> DAFTAR (ISI FORMULIR) */}
-                <div style={{ display: 'flex', gap: '10px' }}>
+                {/* CTA BUTTON: PENGGANTI KONSULTASI VIA WHATSAPP -> DAFTAR SEKARANG */}
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     type="button"
                     disabled={hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)}
@@ -4151,19 +4151,20 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       flex: 1,
                       backgroundColor: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? '#94A3B8' : '#005BB5',
                       color: '#FFFFFF',
-                      padding: '14px 20px',
+                      padding: '12px 16px',
                       borderRadius: '9999px',
                       fontWeight: 700,
-                      fontSize: '0.92rem',
+                      fontSize: '0.88rem',
                       border: 'none',
                       cursor: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '8px',
+                      gap: '6px',
                       boxShadow: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'none' : '0 4px 14px rgba(0, 91, 181, 0.28)',
                       transition: 'all 0.15s ease',
                       opacity: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 0.7 : 1,
+                      whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={(e) => {
                       if (!(hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
@@ -4176,24 +4177,25 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       }
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                       assignment
                     </span>
-                    <span>Daftar (Isi Formulir)</span>
+                    <span>Daftar Sekarang</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setSelectedVisaModal(null)}
                     style={{
-                      padding: '14px 20px',
+                      padding: '12px 18px',
                       borderRadius: '9999px',
                       border: '1px solid #E2E8F0',
                       backgroundColor: '#FFFFFF',
                       color: '#475569',
                       fontWeight: 600,
-                      fontSize: '0.9rem',
+                      fontSize: '0.84rem',
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     Tutup
