@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { type StoryHighlight, resolveStoryAssetUrl } from '../data/storyHighlights';
 
@@ -12,11 +12,28 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
   onSelectHighlight,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+      setCanScrollLeft(scrollLeft > 10);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [highlights]);
 
   const handleScroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const scrollAmount = direction === 'left' ? -280 : 280;
+      const scrollAmount = direction === 'left' ? -260 : 260;
       scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setTimeout(checkScroll, 350);
     }
   };
 
@@ -95,34 +112,45 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
         }
         .story-nav-arrow {
           position: absolute;
-          top: 32px;
+          top: 24px;
           z-index: 10;
-          width: 36px;
-          height: 36px;
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
-          background: #FFFFFF;
-          border: 1px solid #E2E8F0;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-          display: none;
+          background: rgba(255, 255, 255, 0.96);
+          backdrop-filter: blur(6px);
+          border: 1.5px solid #CBD5E1;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+          display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
           transition: all 0.2s ease;
         }
+        @media (min-width: 640px) {
+          .story-nav-arrow {
+            top: 28px;
+            width: 38px;
+            height: 38px;
+          }
+        }
         .story-nav-arrow:hover {
-          background: #F8FAFC;
-          transform: scale(1.08);
-          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+          background: #FFFFFF;
+          transform: scale(1.1);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
         }
         .story-nav-arrow-left {
-          left: -8px;
+          left: -4px;
         }
         .story-nav-arrow-right {
-          right: -8px;
+          right: -4px;
         }
         @media (min-width: 768px) {
-          .story-nav-arrow {
-            display: flex;
+          .story-nav-arrow-left {
+            left: -12px;
+          }
+          .story-nav-arrow-right {
+            right: -12px;
           }
         }
       `}</style>
@@ -194,26 +222,36 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
 
         {/* Highlights Carousel with navigation buttons */}
         <div style={{ position: 'relative', width: '100%' }}>
-          {/* Left Arrow Button (Desktop) */}
-          <button
-            onClick={() => handleScroll('left')}
-            className="story-nav-arrow story-nav-arrow-left"
-            aria-label="Geser ke kiri"
-          >
-            <ChevronLeft size={20} color="#0F172A" />
-          </button>
+          {/* Left Arrow Button */}
+          {canScrollLeft && (
+            <button
+              onClick={() => handleScroll('left')}
+              className="story-nav-arrow story-nav-arrow-left"
+              aria-label="Geser ke kiri"
+              title="Lihat kategori sebelumnya"
+            >
+              <ChevronLeft size={18} color="#0F172A" />
+            </button>
+          )}
 
-          {/* Right Arrow Button (Desktop) */}
-          <button
-            onClick={() => handleScroll('right')}
-            className="story-nav-arrow story-nav-arrow-right"
-            aria-label="Geser ke kanan"
-          >
-            <ChevronRight size={20} color="#0F172A" />
-          </button>
+          {/* Right Arrow Button */}
+          {canScrollRight && (
+            <button
+              onClick={() => handleScroll('right')}
+              className="story-nav-arrow story-nav-arrow-right"
+              aria-label="Geser ke kanan"
+              title="Lihat kategori berikutnya"
+            >
+              <ChevronRight size={18} color="#005BB5" />
+            </button>
+          )}
 
           {/* Highlights Row */}
-          <div ref={scrollContainerRef} className="story-scroll-container">
+          <div
+            ref={scrollContainerRef}
+            className="story-scroll-container"
+            onScroll={checkScroll}
+          >
             {highlights.map((highlight) => (
               <button
                 key={highlight.id}
@@ -294,6 +332,28 @@ export const StoryHighlightsBar: React.FC<StoryHighlightsBarProps> = ({
                 </span>
               </button>
             ))}
+          </div>
+
+          {/* Petunjuk Geser Horizontal untuk Pengunjung */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '0.74rem',
+              color: '#005BB5',
+              backgroundColor: '#F0F9FF',
+              border: '1px solid #BAE6FD',
+              borderRadius: '9999px',
+              padding: '4px 12px',
+              marginTop: '6px',
+              fontWeight: 600,
+            }}
+          >
+            <span>👉</span>
+            <span>Geser untuk melihat kategori video lainnya</span>
+            <span style={{ fontSize: '0.70rem', color: '#0369A1' }}>({highlights.length} Kategori)</span>
           </div>
         </div>
       </div>
