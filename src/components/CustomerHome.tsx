@@ -13,7 +13,7 @@ import { searchPasporInDB, createPengajuanInDB, findAffiliateByCode, updatePenga
 import { kirimPesanWA } from '../whatsapp';
 import { REAL_AFFILIATE_LEADERBOARD } from '../data/affiliateLeaderboardData';
 import { REAL_SPREADSHEET_AFFILIATES } from '../data/spreadsheetData';
-import { mockStaff } from '../data/mockData';
+import { mockStaff, mockKonsjen } from '../data/mockData';
 import { optimizeDocumentUpload } from '../utils/documentOptimizer';
 import { getApplicantAccessKey, verifyApplicantAccessKey } from '../utils/accessKey';
 import { determineDefaultStaffPic } from '../utils/staffAssignment';
@@ -25,8 +25,43 @@ import { getVisaPrice, getVisaPricingList, formatPricePillRange, type VisaPricin
 // Helper format Rupiah & Penentuan Nominal Biaya Visa
 const formatRupiah = (val: number): string => 'Rp\u00A0' + (val || 0).toLocaleString('id-ID');
 
-const getNominalVisa = (visaTitle?: string, paket?: string): number => {
-  return getVisaPrice(visaTitle, paket);
+const getNominalVisa = (visaTitle?: string, paket?: string, konsulat?: string): number => {
+  return getVisaPrice(visaTitle, paket, konsulat);
+};
+
+export const getPicKonsjenDetails = (konsjenName?: string) => {
+  const clean = (konsjenName || 'Jakarta').toLowerCase().trim();
+  let kotaKey = 'Jakarta';
+  if (clean.includes('surabaya')) kotaKey = 'Surabaya';
+  else if (clean.includes('denpasar') || clean.includes('bali')) kotaKey = 'Denpasar';
+  else if (clean.includes('medan')) kotaKey = 'Medan';
+  else if (clean.includes('makassar')) kotaKey = 'Makassar';
+
+  // Ambil daftar staf dari localStorage jika ada pembaruan dari Owner
+  let staffList = mockStaff;
+  try {
+    const raw = localStorage.getItem('mapahtrip_staff_list');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) staffList = parsed;
+    }
+  } catch {}
+
+  const staff = staffList.find((s) => s.konsjenTugas?.includes(kotaKey as any) && s.aktif !== false) ||
+    mockStaff.find((s) => s.konsjenTugas?.includes(kotaKey as any));
+  const konsjenData = mockKonsjen.find((k) => k.kota === kotaKey) || mockKonsjen[0];
+
+  const namaPic = staff?.nama || konsjenData.staffPicDefault || 'Staf Operasional MapahTrip';
+  const noWa = staff?.noWa || '081214104332';
+  const alamat = (staff?.alamat && staff.alamat !== '-') ? staff.alamat : konsjenData.alamat;
+
+  return {
+    kota: kotaKey,
+    namaPic,
+    noWa,
+    alamat,
+    lokasi: konsjenData.lokasi,
+  };
 };
 
 // Rekening Bank Resmi Pembayaran Customer
@@ -248,7 +283,7 @@ const VISA_OPTIONS = [
     icon: 'flight',
     pricePill: 'Mulai dari Rp 2,75jt - 2,99jt',
     durationPill: '15-90 Hari',
-    desc: 'Liburan, jalan-jalan, Sakura/Harvest. Bantuan dummy tiket & itinerary Jepang.',
+    desc: 'Liburan, jalan-jalan, Sakura/Harvest. Bantuan itinerary harian & panduan berkas.',
     tags: ['Paspor', 'Rek Koran 3 Bulan', 'Itinerary'],
     category: 'turis' as const,
     syaratLengkap: [
@@ -256,7 +291,7 @@ const VISA_OPTIONS = [
       'Formulir Permohonan Visa Jepang & Pasfoto 4.5 x 3.5 cm (latar putih terbaru)',
       'Rekening Koran 3 Bulan Terakhir (stempel bank resmi)',
       'Jadwal Perjalanan (Itinerary) harian (kami bantu susun)',
-      'Reservasi Tiket Pesawat PP & Bukti Booking Hotel (dummy kami siapkan)',
+      'Reservasi Tiket Pesawat PP & Bukti Booking Hotel (tidak termasuk dummy ticket)',
       'Fotokopi KTP & Kartu Keluarga (KK)',
     ],
   },
@@ -574,13 +609,22 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
           ? 'badge'
           : 'business_center';
 
+      const jkt = item.priceJakarta ?? item.regulerPrice ?? 0;
+      const sby = item.priceSurabaya ?? item.priceLuarKota ?? jkt;
+      const mdn = item.priceMedan ?? item.priceLuarKota ?? jkt;
+      const mks = item.priceMakassar ?? item.priceLuarKota ?? jkt;
+      const dps = item.priceDenpasar ?? jkt;
+      const regMin = Math.min(jkt, sby, mdn, mks, dps);
+      const regMax = Math.max(jkt, sby, mdn, mks, dps);
+
       const computedPricePill =
-        (item.tacPrice && item.tacPrice > item.regulerPrice) ||
-        (item.premiumPrice && item.premiumPrice > item.regulerPrice) ||
-        !item.pricePill ||
-        item.pricePill.includes('2.6jt')
-          ? formatPricePillRange(item.regulerPrice, item.tacPrice, item.premiumPrice)
-          : item.pricePill;
+        item.pricePill &&
+        !item.pricePill.includes('3,25jt') &&
+        !item.pricePill.includes('3,35jt') &&
+        !item.pricePill.includes('5,1jt') &&
+        !item.pricePill.includes('2.6jt')
+          ? item.pricePill
+          : formatPricePillRange(regMin, regMax);
 
       return {
         id: item.id,
@@ -639,7 +683,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
   const [formDomisili, setFormDomisili] = useState('Jawa Barat');
   const [formDomisiliLainnya, setFormDomisiliLainnya] = useState('');
   const [formNoPaspor, setFormNoPaspor] = useState('');
-  const [formPaket, setFormPaket] = useState<'Reguler' | 'Premium' | 'TAC'>('Reguler');
+  const [formPaket, setFormPaket] = useState<'Reguler' | 'Premium'>('Reguler');
 
   const handleSelectDomisili = (selected: string) => {
     setFormDomisili(selected);
@@ -720,9 +764,20 @@ Mohon untuk segera diverifikasi dan diproses berkas permohonan visa saya. Terima
     const visaTitle = applicant?.program || selectedVisaModal?.title || 'Visa Jepang';
     const paket = applicant?.paket || formPaket;
     const konsjen = applicant?.konsjen || formKonsjen;
+    const pic = getPicKonsjenDetails(konsjen);
+    const targetProg = (visaTitle || '').toLowerCase();
+    const isWaiver = targetProg.includes('waiver') || targetProg.includes('evisa') || targetProg.includes('e-visa');
 
-    const text =
-`Halo Admin MapahTrip, saya sudah mendaftar pengajuan visa secara online:
+    const text = isWaiver
+      ? `Halo Admin MapahTrip, saya sudah mendaftar pengajuan e-Visa / Waiver Jepang secara online:
+
+📋 *Data Pendaftaran:*
+• *ID Pengajuan:* *${idPend}*
+• *Nama Pemohon:* ${nama}
+• *Program:* ${visaTitle}
+
+Mohon dicek kelengkapan berkas digital e-Paspor saya ya min. Terima kasih! 🙏⛩️🌸`
+      : `Halo Admin MapahTrip, saya sudah mendaftar pengajuan visa secara online:
 
 📋 *Data Pendaftaran:*
 • *ID Pengajuan:* *${idPend}*
@@ -730,7 +785,7 @@ Mohon untuk segera diverifikasi dan diproses berkas permohonan visa saya. Terima
 • *Program Visa:* ${visaTitle} (${paket})
 • *Konsulat Tujuan:* Konsjen ${konsjen}
 
-Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik & paspor asli via kurir ekspedisi. Mohon panduan alamat lengkap & nama penerimanya ya min. Terima kasih! 🙏⛩️🌸`;
+Saya ingin konfirmasi pendaftaran saya. Mohon arahan dan alamat tujuan pengiriman berkas fisik & paspor asli ke PIC Konsulat ${pic.kota} ya min. Terima kasih! 🙏⛩️🌸`;
 
     return `https://wa.me/6281214104332?text=${encodeURIComponent(text)}`;
   };
@@ -755,6 +810,7 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
 
   const handleOpenVisaModal = (item: any) => {
     setSelectedVisaModal(item);
+    setFormPaket('Reguler');
     setModalStep('detail');
     setFormSuccessMessage(null);
     setFormError(null);
@@ -872,6 +928,24 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
   const [uploadDocSuccessNotice, setUploadDocSuccessNotice] = useState<string | null>(null);
   const [previewCustomerDoc, setPreviewCustomerDoc] = useState<{ title: string; url: string; isPdf?: boolean } | null>(null);
   const [copiedTrackingLink, setCopiedTrackingLink] = useState(false);
+
+  // Handler tombol Escape (Esc) untuk menutup modal yang sedang terbuka
+  useEffect(() => {
+    if (!selectedVisaModal && !showEmailModal && !previewCustomerDoc) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (previewCustomerDoc) {
+          setPreviewCustomerDoc(null);
+        } else if (showEmailModal) {
+          setShowEmailModal(false);
+        } else if (selectedVisaModal) {
+          setSelectedVisaModal(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedVisaModal, showEmailModal, previewCustomerDoc]);
 
   const executeTracking = async (targetQuery: string) => {
     if (!targetQuery || !targetQuery.trim()) return;
@@ -1140,7 +1214,7 @@ Saya ingin konfirmasi alamat kantor operasional tujuan pengiriman berkas fisik &
     }
 
     const programVisa = selectedVisaModal?.title || 'Visa Jepang';
-    const visaNominal = getNominalVisa(programVisa, formPaket);
+    const visaNominal = getNominalVisa(programVisa, formPaket, formKonsjen);
     // Pengeluaran (modal konsulat), fee staf & fee mitra belum diisi owner di awal pendaftaran
     const feeBersihCalc = 0;
 
@@ -2050,7 +2124,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     fontWeight: 600,
                   }}
                 >
-                  seluruh wilayah di seluruh Indonesia
+                  semua wilayah di Indonesia
                 </span>
               </div>
             </div>
@@ -2649,6 +2723,14 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       icon: 'photo_camera',
                       isOk: Boolean(trackingResult.berkas?.foto || trackingResult.fotoBase64 || trackingResult.uploadedDocs?.foto),
                       fileData: trackingResult.uploadedDocs?.foto || (trackingResult.fotoBase64 ? { name: 'Pasfoto.jpg', base64: trackingResult.fotoBase64 } : undefined),
+                    },
+                    {
+                      key: 'suratTugas',
+                      label: 'Surat Tugas & Perizinan',
+                      desc: 'Surat penugasan / izin instansi resmi',
+                      icon: 'assignment',
+                      isOk: Boolean(trackingResult.berkas?.suratTugas || trackingResult.uploadedDocs?.suratTugas),
+                      fileData: trackingResult.uploadedDocs?.suratTugas,
                     },
                   ];
 
@@ -3783,12 +3865,20 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
-                      Proses Konsulat
-                    </span>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563EB' }}>
-                      3-7 Hari Kerja
-                    </div>
+                    {(() => {
+                      const cleanT = (selectedVisaModal?.title || '').toLowerCase();
+                      const isJaves = cleanT.includes('javes') || cleanT.includes('waiver') || cleanT.includes('evisa') || cleanT.includes('e-visa');
+                      return (
+                        <>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
+                            {isJaves ? 'Proses JAVES' : 'Proses Konsulat'}
+                          </span>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563EB' }}>
+                            {isJaves ? '2-3 Hari Kerja' : '6 Hari Kerja'}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -4774,21 +4864,37 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
 
                   {/* SECTION 2: PILIHAN PAKET */}
                   <div style={{ marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
-                        workspace_premium
-                      </span>
-                      <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                        2. Pilihan Paket Layanan
-                      </h4>
-                    </div>
+                    {(() => {
+                      const cleanVisaTitle = (selectedVisaModal?.title || '').toLowerCase();
+                      const isWaiver = cleanVisaTitle.includes('waiver') || cleanVisaTitle.includes('evisa') || cleanVisaTitle.includes('e-visa');
 
-                    <div className="modal-paket-grid">
-                      {[
-                        { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit', price: getNominalVisa(selectedVisaModal?.title, 'Reguler') },
-                        { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat', price: getNominalVisa(selectedVisaModal?.title, 'Premium') },
-                        { id: 'TAC' as const, title: 'TAC', desc: 'Pendampingan All-in', price: getNominalVisa(selectedVisaModal?.title, 'TAC') },
-                      ].map((pkg) => {
+                      const packageOptions = isWaiver
+                        ? [
+                            {
+                              id: 'Reguler' as const,
+                              title: 'Registrasi Resmi Waiver',
+                              desc: '100% Proses Online e-Paspor (Maks 15 Hari Kerja)',
+                              price: getNominalVisa(selectedVisaModal?.title, 'Reguler', formKonsjen),
+                            },
+                          ]
+                        : [
+                            { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit', price: getNominalVisa(selectedVisaModal?.title, 'Reguler', formKonsjen) },
+                            { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat (+Rp 600.000)', price: getNominalVisa(selectedVisaModal?.title, 'Premium', formKonsjen) },
+                          ];
+
+                      return (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                              workspace_premium
+                            </span>
+                            <h4 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                              2. {isWaiver ? 'Paket Layanan' : 'Pilihan Paket Layanan'}
+                            </h4>
+                          </div>
+
+                          <div className="modal-paket-grid" style={{ gridTemplateColumns: isWaiver ? '1fr' : 'repeat(2, 1fr)' }}>
+                            {packageOptions.map((pkg) => {
                         const isSelected = formPaket === pkg.id;
                         return (
                           <div
@@ -4848,10 +4954,10 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     >
                       <div>
                         <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Total Biaya Layanan ({formPaket})
+                          Total Biaya Layanan {isWaiver ? '(Waiver)' : `(${formPaket})`}
                         </div>
                         <div style={{ fontSize: '1.20rem', fontWeight: 900, color: '#0F172A', fontFamily: 'monospace', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                          {formatRupiah(getNominalVisa(selectedVisaModal?.title, formPaket))}
+                          {formatRupiah(getNominalVisa(selectedVisaModal?.title, formPaket, formKonsjen))}
                         </div>
                       </div>
                       <div
@@ -4874,6 +4980,9 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                         <span>Resmi &amp; Transparan</span>
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
 
                     {/* Catatan Transparansi Biaya & Penyesuaian Kasus (Opsi B) */}
                     <div
@@ -5127,22 +5236,47 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.80rem', color: '#334155', lineHeight: 1.5 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                      <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>1</span>
-                      <div>
-                        <strong style={{ color: '#0F172A' }}>Kirim Berkas Fisik &amp; Paspor Asli:</strong>
-                        <div style={{ color: '#64748B', marginTop: '2px' }}>
-                          Kirimkan paspor asli &amp; berkas fisik persyaratan ke kantor operasional MapahTrip (Ruko Palumboncity, Jl. Manunggal VII No. 3, Palumbonsari, Karawang Timur, Jawa Barat 41314) via kurir ekspedisi (JNE, J&amp;T, TIKI, Gosend/Grab) atau diserahkan langsung.
+                    {(() => {
+                      const targetProg = (newSubmittedApplicant?.program || selectedVisaModal?.title || '').toLowerCase();
+                      const isWaiverProgram = targetProg.includes('waiver') || targetProg.includes('evisa') || targetProg.includes('e-visa');
+                      const targetKonsjen = newSubmittedApplicant?.konsjen || formKonsjen || 'Jakarta';
+                      const picDetails = getPicKonsjenDetails(targetKonsjen);
+
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>1</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <strong style={{ color: '#0F172A' }}>
+                              {isWaiverProgram ? 'Verifikasi Dokumen Digital (100% Online):' : `Panduan & Alamat Pengiriman Berkas Fisik (Konsjen ${picDetails.kota}):`}
+                            </strong>
+                            {isWaiverProgram ? (
+                              <div style={{ color: '#0369A1', backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', padding: '8px 12px', borderRadius: '8px', marginTop: '6px', fontSize: '0.78rem' }}>
+                                ✨ <strong>100% Online:</strong> Untuk Japan e-Visa / Waiver, Anda <strong>tidak perlu mengirimkan paspor fisik</strong>. Dokumen e-Paspor Anda diverifikasi secara digital oleh tim staf operasional kami.
+                              </div>
+                            ) : (
+                              <div style={{ marginTop: '6px' }}>
+                                <div style={{ backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.80rem', fontWeight: 700, color: '#0F172A' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A' }}>lock</span>
+                                    <span>Alamat Pengiriman Aman via WhatsApp Resmi</span>
+                                  </div>
+                                  <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.5 }}>
+                                    Untuk menjamin keamanan dokumen dan privasi pengiriman, detail alamat lengkap <strong>Staf PIC Konsulat {picDetails.kota}</strong> beserta label pengiriman paspor akan dikirimkan langsung oleh Tim Konsultan kami ke WhatsApp Anda setelah verifikasi berkas awal.
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                       <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>2</span>
                       <div>
                         <strong style={{ color: '#0F172A' }}>Verifikasi Berkas oleh Staf Operasional:</strong>
                         <div style={{ color: '#64748B', marginTop: '2px' }}>
-                          Setibanya dokumen di kantor, tim staf kami akan melakukan pengecekan keaslian, kelengkapan, dan foto paspor Anda sesuai standar resmi Konsulat Jepang.
+                          Setibanya dokumen diterima oleh Staf PIC konsulat tujuan, tim kami akan langsung melakukan pengecekan keaslian, kelengkapan berkas, dan foto paspor Anda sesuai standar resmi Konsulat Jepang.
                         </div>
                       </div>
                     </div>
@@ -5162,7 +5296,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       <div>
                         <strong style={{ color: '#0F172A' }}>Pembayaran Dilakukan Setelah Berkas Sampai:</strong>
                         <div style={{ color: '#64748B', marginTop: '2px' }}>
-                          Anda tidak perlu membayar sekarang. Pembayaran baru ditransfer setelah berkas fisik dipastikan sampai dengan aman di kantor kami.
+                          Anda tidak perlu membayar sekarang. Pembayaran baru ditransfer setelah berkas fisik dipastikan telah sampai &amp; diterima dengan aman oleh Staf PIC Konsulat tujuan.
                         </div>
                       </div>
                     </div>
@@ -5631,7 +5765,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                   {
                     num: '02',
                     title: 'Dokumen Lengkap Tanpa Ribet',
-                    desc: 'Template surat kerja, itinerary harian detail, serta dummy tiket pesawat & hotel resmi standar JVAC (tanpa harus beli tiket asli).',
+                    desc: 'Template surat kerja, Guarantee Letter & Invitation Letter, serta itinerary harian detail resmi standar JVAC.',
                   },
                   {
                     num: '03',
@@ -5860,7 +5994,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
               {
                 idx: 1,
                 q: 'Berapa lama proses visa Jepang di MAPAHTRIP?',
-                a: 'Setelah dokumen lengkap, proses di JVAC 5-7 hari kerja (single), 7-10 hari (multiple/bisnis). Plus 1-2 hari pengecekan dokumen oleh kami sebelum submit.',
+                a: 'Proses Javes (e-Visa / Waiver) estimasi 2-3 hari kerja. Sedangkan untuk semua jenis visa selain Javes prosesnya 6 hari kerja.',
               },
               {
                 idx: 2,
@@ -5869,13 +6003,13 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
               },
               {
                 idx: 3,
-                q: 'Apakah MAPAHTRIP menyediakan reservasi tiket pesawat & hotel sementara?',
-                a: 'Ya, 100% sudah termasuk. Kami siapkan bukti reservasi tiket pesawat PP Jepang dan pemesanan hotel sementara + itinerary harian dalam bahasa Inggris/Jepang sesuai standar Kedutaan. Anda tidak perlu beli tiket pesawat lunas sebelum visa disetujui.',
+                q: 'Apakah MAPAHTRIP menyediakan reservasi tiket pesawat & dokumen pendukung?',
+                a: 'Layanan kami sudah termasuk Free Itinerary, Guarantee Letter dan Invitation Letter. Catatan: Dummy ticket tidak termasuk.',
               },
               {
                 idx: 4,
                 q: 'Bagaimana jika visa ditolak?',
-                a: 'Approval rate kami 100% karena screening ketat di awal. Jika ditolak karena kesalahan kami, biaya jasa kami refund. Biaya JVAC/Kedutaan mengikuti aturan kedutaan.',
+                a: 'Selama seluruh dokumen dan persyaratan terpenuhi dengan benar sesuai arahan screening kami, sejauh ini tingkat keberhasilan (win rate) kami 100%. Namun, keputusan akhir disetujui atau ditolaknya visa merupakan hak mutlak pihak Kedutaan (Embassy). Perihal biaya, apabila terjadi penolakan otomatis hangus karena pembayaran langsung dibayarkan ke pihak VFS/Konsulat saat dokumen disubmit.',
               },
             ].map((item) => {
               const isOpen = openFaqIndex === item.idx;

@@ -50,9 +50,12 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   const [newVisaSubtitle, setNewVisaSubtitle] = useState('');
   const [newVisaDesc, setNewVisaDesc] = useState('');
   const [newVisaDuration, setNewVisaDuration] = useState('15-90 Hari');
-  const [newVisaReguler, setNewVisaReguler] = useState<number>(1000000);
-  const [newVisaPremium, setNewVisaPremium] = useState<number>(1250000);
-  const [newVisaTac, setNewVisaTac] = useState<number>(1500000);
+  const [newVisaPriceJakarta, setNewVisaPriceJakarta] = useState<number>(2650000);
+  const [newVisaPriceSurabaya, setNewVisaPriceSurabaya] = useState<number>(2700000);
+  const [newVisaPriceMedan, setNewVisaPriceMedan] = useState<number>(2700000);
+  const [newVisaPriceMakassar, setNewVisaPriceMakassar] = useState<number>(2700000);
+  const [newVisaPriceDenpasar, setNewVisaPriceDenpasar] = useState<number>(2750000);
+  const [newVisaPremium, setNewVisaPremium] = useState<number>(3250000);
   const [newVisaKeterangan, setNewVisaKeterangan] = useState('');
 
   // Sinkronisasi otomatis saat master tarif diperbarui di halaman / tab lain
@@ -151,7 +154,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       }
       try {
         localStorage.setItem('mapahtrip_staff_list', JSON.stringify(targetData));
-      } catch {}
+      } catch { }
       alert('Data staf & rekening payout resmi berhasil disinkronkan langsung dari Supabase Cloud!');
     } catch {
       if (onUpdateStaffList) {
@@ -159,7 +162,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       }
       try {
         localStorage.setItem('mapahtrip_staff_list', JSON.stringify(mockStaff));
-      } catch {}
+      } catch { }
       alert('Data staf berhasil di-reset ke data master resmi!');
     } finally {
       setIsSyncingStaff(false);
@@ -344,24 +347,78 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   // Helper & Handlers Master Tarif & Biaya Visa
   const formatRupiah = (val: number) => 'Rp ' + (val || 0).toLocaleString('id-ID');
 
-  const handleUpdatePrice = (id: string, field: 'regulerPrice' | 'premiumPrice' | 'tacPrice', val: number) => {
+  const handleUpdatePrice = (
+    id: string,
+    field: 'priceJakarta' | 'priceSurabaya' | 'priceMedan' | 'priceMakassar' | 'priceDenpasar' | 'priceLuarKota' | 'regulerPrice' | 'premiumPrice',
+    val: number
+  ) => {
     setPricingList((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
-        const updatedItem = { ...item, [field]: Math.max(0, val) };
+        const newVal = Math.max(0, val);
+        const isWaiver = item.id === 'evisa-waiver' || item.title.toLowerCase().includes('waiver');
+        const updatedItem = {
+          ...item,
+          [field]: newVal,
+          ...(field === 'priceJakarta' ? { regulerPrice: newVal, premiumPrice: isWaiver ? newVal : newVal + 600000 } : {}),
+          ...(field === 'regulerPrice' ? { priceJakarta: newVal, premiumPrice: isWaiver ? newVal : newVal + 600000 } : {}),
+        };
+        if (isWaiver && (field.startsWith('price') || field === 'regulerPrice')) {
+          updatedItem.priceJakarta = newVal;
+          updatedItem.priceSurabaya = newVal;
+          updatedItem.priceMedan = newVal;
+          updatedItem.priceMakassar = newVal;
+          updatedItem.priceDenpasar = newVal;
+          updatedItem.regulerPrice = newVal;
+          updatedItem.premiumPrice = newVal;
+        }
+        const minPrice = Math.min(
+          updatedItem.priceJakarta ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceSurabaya ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceMedan ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceMakassar ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceDenpasar ?? updatedItem.regulerPrice ?? 0
+        );
+        const maxPrice = Math.max(
+          updatedItem.priceJakarta ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceSurabaya ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceMedan ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceMakassar ?? updatedItem.regulerPrice ?? 0,
+          updatedItem.priceDenpasar ?? updatedItem.regulerPrice ?? 0
+        );
         return {
           ...updatedItem,
-          pricePill: formatPricePillRange(updatedItem.regulerPrice, updatedItem.tacPrice, updatedItem.premiumPrice),
+          pricePill: formatPricePillRange(minPrice, maxPrice),
         };
       })
     );
   };
 
   const handleSavePricing = () => {
-    const withPills = pricingList.map((item) => ({
-      ...item,
-      pricePill: formatPricePillRange(item.regulerPrice, item.tacPrice, item.premiumPrice),
-    }));
+    const withPills = pricingList.map((item) => {
+      const isW = item.id === 'evisa-waiver' || item.title.toLowerCase().includes('waiver');
+      const reg = item.priceJakarta ?? item.regulerPrice ?? 0;
+      const sby = isW ? reg : (item.priceSurabaya ?? (reg === 200000 ? 200000 : reg + 50000));
+      const mdn = isW ? reg : (item.priceMedan ?? (reg === 200000 ? 200000 : reg + 50000));
+      const mks = isW ? reg : (item.priceMakassar ?? (reg === 200000 ? 200000 : reg + 50000));
+      const dps = isW ? reg : (item.priceDenpasar ?? (reg === 200000 ? 200000 : reg + 100000));
+      const prem = isW ? reg : (item.premiumPrice ?? (reg === 200000 ? 200000 : reg + 600000));
+      const minPrice = Math.min(reg, sby, mdn, mks, dps);
+      const maxPrice = Math.max(reg, sby, mdn, mks, dps);
+      return {
+        ...item,
+        regulerPrice: reg,
+        priceJakarta: reg,
+        priceSurabaya: sby,
+        priceMedan: mdn,
+        priceMakassar: mks,
+        priceDenpasar: dps,
+        priceLuarKota: sby,
+        premiumPrice: prem,
+        tacPrice: 0,
+        pricePill: formatPricePillRange(minPrice, maxPrice),
+      };
+    });
     saveVisaPricingList(withPills);
     setPricingList(withPills);
     setPricingSaveSuccess(true);
@@ -385,9 +442,12 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     setNewVisaSubtitle('');
     setNewVisaDesc('');
     setNewVisaDuration('15-90 Hari');
-    setNewVisaReguler(1000000);
-    setNewVisaPremium(1250000);
-    setNewVisaTac(1500000);
+    setNewVisaPriceJakarta(2650000);
+    setNewVisaPriceSurabaya(2700000);
+    setNewVisaPriceMedan(2700000);
+    setNewVisaPriceMakassar(2700000);
+    setNewVisaPriceDenpasar(2750000);
+    setNewVisaPremium(3250000);
     setNewVisaKeterangan('');
     setShowAddVisaModal(true);
   };
@@ -400,9 +460,17 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     setNewVisaSubtitle(item.subtitle || '');
     setNewVisaDesc(item.desc || item.keterangan || '');
     setNewVisaDuration(item.durationPill || '15-90 Hari');
-    setNewVisaReguler(item.regulerPrice || 0);
-    setNewVisaPremium(item.premiumPrice || 0);
-    setNewVisaTac(item.tacPrice || 0);
+    const jkt = item.priceJakarta ?? item.regulerPrice ?? 2650000;
+    const sby = item.priceSurabaya ?? item.priceLuarKota ?? (jkt === 200000 ? 200000 : jkt + 50000);
+    const mdn = item.priceMedan ?? item.priceLuarKota ?? (jkt === 200000 ? 200000 : jkt + 50000);
+    const mks = item.priceMakassar ?? item.priceLuarKota ?? (jkt === 200000 ? 200000 : jkt + 50000);
+    const dps = item.priceDenpasar ?? (jkt === 200000 ? 200000 : jkt + 100000);
+    setNewVisaPriceJakarta(jkt);
+    setNewVisaPriceSurabaya(sby);
+    setNewVisaPriceMedan(mdn);
+    setNewVisaPriceMakassar(mks);
+    setNewVisaPriceDenpasar(dps);
+    setNewVisaPremium(item.premiumPrice ?? (jkt === 200000 ? 200000 : jkt + 600000));
     setNewVisaKeterangan(item.keterangan || '');
     setShowAddVisaModal(true);
   };
@@ -431,24 +499,39 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
       alert('Nama jenis visa wajib diisi.');
       return;
     }
+    const jkt = Number(newVisaPriceJakarta) || 0;
+    const sby = Number(newVisaPriceSurabaya) || 0;
+    const mdn = Number(newVisaPriceMedan) || 0;
+    const mks = Number(newVisaPriceMakassar) || 0;
+    const dps = Number(newVisaPriceDenpasar) || 0;
+    const prem = Number(newVisaPremium) || 0;
+    const minPrice = Math.min(jkt, sby, mdn, mks, dps);
+    const maxPrice = Math.max(jkt, sby, mdn, mks, dps);
+
     let updated: VisaPricingItem[];
     if (editingVisa) {
       updated = pricingList.map((item) =>
         item.id === editingVisa.id
           ? {
-              ...item,
-              title: newVisaTitle.trim(),
-              category: newVisaCategory,
-              topRightBadge: newVisaBadge.trim() || undefined,
-              subtitle: newVisaSubtitle.trim() || undefined,
-              desc: newVisaDesc.trim() || undefined,
-              durationPill: newVisaDuration.trim() || undefined,
-              pricePill: formatPricePillRange(Number(newVisaReguler) || 0, Number(newVisaTac) || 0, Number(newVisaPremium) || 0),
-              regulerPrice: Number(newVisaReguler) || 0,
-              premiumPrice: Number(newVisaPremium) || 0,
-              tacPrice: Number(newVisaTac) || 0,
-              keterangan: newVisaDesc.trim() || newVisaKeterangan.trim() || undefined,
-            }
+            ...item,
+            title: newVisaTitle.trim(),
+            category: newVisaCategory,
+            topRightBadge: newVisaBadge.trim() || undefined,
+            subtitle: newVisaSubtitle.trim() || undefined,
+            desc: newVisaDesc.trim() || undefined,
+            durationPill: newVisaDuration.trim() || undefined,
+            pricePill: formatPricePillRange(minPrice, maxPrice),
+            regulerPrice: jkt,
+            priceJakarta: jkt,
+            priceSurabaya: sby,
+            priceMedan: mdn,
+            priceMakassar: mks,
+            priceDenpasar: dps,
+            priceLuarKota: sby,
+            premiumPrice: prem,
+            tacPrice: 0,
+            keterangan: newVisaDesc.trim() || newVisaKeterangan.trim() || undefined,
+          }
           : item
       );
     } else {
@@ -460,10 +543,16 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         subtitle: newVisaSubtitle.trim() || undefined,
         desc: newVisaDesc.trim() || undefined,
         durationPill: newVisaDuration.trim() || undefined,
-        pricePill: formatPricePillRange(Number(newVisaReguler) || 0, Number(newVisaTac) || 0, Number(newVisaPremium) || 0),
-        regulerPrice: Number(newVisaReguler) || 0,
-        premiumPrice: Number(newVisaPremium) || 0,
-        tacPrice: Number(newVisaTac) || 0,
+        pricePill: formatPricePillRange(minPrice, maxPrice),
+        regulerPrice: jkt,
+        priceJakarta: jkt,
+        priceSurabaya: sby,
+        priceMedan: mdn,
+        priceMakassar: mks,
+        priceDenpasar: dps,
+        priceLuarKota: sby,
+        premiumPrice: prem,
+        tacPrice: 0,
         keterangan: newVisaDesc.trim() || newVisaKeterangan.trim() || undefined,
         isCustom: true,
       };
@@ -487,7 +576,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     const updated = pricingList.filter((item) => item.id !== id);
     setPricingList(updated);
     saveVisaPricingList(updated);
-    deleteVisaPricingFromDB(id).catch(() => {});
+    deleteVisaPricingFromDB(id).catch(() => { });
   };
 
   const filteredPricingList = useMemo(() => {
@@ -521,196 +610,196 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         <div className="pengaturan-tabs-wrapper">
           <div className="pengaturan-tabs-bar" style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '4px', borderRadius: '10px', gap: '4px', flexShrink: 0 }}>
             {isOwner ? (
-            <>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('staff')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'staff' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'staff' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'staff' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>badge</span>
-                <span>Kelola Staf ({staffList.length})</span>
-              </button>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('konsjen')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'konsjen' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'konsjen' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'konsjen' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>domain</span>
-                <span>Master Konsjen</span>
-              </button>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('tarif')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'tarif' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'tarif' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'tarif' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#16A34A' }}>payments</span>
-                <span>Tarif &amp; Biaya Visa ({pricingList.length})</span>
-              </button>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('profile')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'profile' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'profile' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'profile' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>admin_panel_settings</span>
-                <span>Profil &amp; Kontak Owner</span>
-              </button>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('feedback')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'feedback' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'feedback' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'feedback' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0F3D82' }}>forum</span>
-                <span>Forum Komunikasi</span>
-                {feedbackList.filter(f => f.status === 'Baru').length > 0 && (
-                  <span style={{ backgroundColor: '#EF4444', color: '#FFFFFF', padding: '1px 6px', borderRadius: '10px', fontSize: '0.68rem', fontWeight: 800 }}>
-                    {feedbackList.filter(f => f.status === 'Baru').length}
-                  </span>
-                )}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('konsjen')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'konsjen' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'konsjen' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'konsjen' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>domain</span>
-                <span>Master Konsjen</span>
-              </button>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('profile')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'profile' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'profile' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'profile' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_circle</span>
-                <span>Profil Akun</span>
-              </button>
-              <button
-                type="button"
-                className="pengaturan-tab-btn"
-                onClick={() => setActiveTab('feedback')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: activeTab === 'feedback' ? '#FFFFFF' : 'transparent',
-                  color: activeTab === 'feedback' ? '#0F172A' : '#64748B',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: activeTab === 'feedback' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0F3D82' }}>forum</span>
-                <span>Forum Komunikasi</span>
-              </button>
-            </>
-          )}
+              <>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('staff')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'staff' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'staff' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'staff' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>badge</span>
+                  <span>Kelola Staf ({staffList.length})</span>
+                </button>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('konsjen')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'konsjen' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'konsjen' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'konsjen' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>domain</span>
+                  <span>Master Konsjen</span>
+                </button>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('tarif')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'tarif' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'tarif' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'tarif' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#16A34A' }}>payments</span>
+                  <span>Tarif &amp; Biaya Visa ({pricingList.length})</span>
+                </button>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('profile')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'profile' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'profile' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'profile' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>admin_panel_settings</span>
+                  <span>Profil &amp; Kontak Owner</span>
+                </button>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('feedback')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'feedback' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'feedback' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'feedback' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0F3D82' }}>forum</span>
+                  <span>Forum Komunikasi</span>
+                  {feedbackList.filter(f => f.status === 'Baru').length > 0 && (
+                    <span style={{ backgroundColor: '#EF4444', color: '#FFFFFF', padding: '1px 6px', borderRadius: '10px', fontSize: '0.68rem', fontWeight: 800 }}>
+                      {feedbackList.filter(f => f.status === 'Baru').length}
+                    </span>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('konsjen')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'konsjen' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'konsjen' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'konsjen' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>domain</span>
+                  <span>Master Konsjen</span>
+                </button>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('profile')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'profile' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'profile' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'profile' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>account_circle</span>
+                  <span>Profil Akun</span>
+                </button>
+                <button
+                  type="button"
+                  className="pengaturan-tab-btn"
+                  onClick={() => setActiveTab('feedback')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'feedback' ? '#FFFFFF' : 'transparent',
+                    color: activeTab === 'feedback' ? '#0F172A' : '#64748B',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: activeTab === 'feedback' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#0F3D82' }}>forum</span>
+                  <span>Forum Komunikasi</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
 
       {/* TAB 1: KELOLA AKUN STAF (Owner Only) */}
       {activeTab === 'staff' && isOwner && (
@@ -1886,6 +1975,8 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               </div>
             )}
 
+
+
             {/* Quick Filter & Search Bar */}
             <div className="pengaturan-filter-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', borderTop: '1px solid #F1F5F9', paddingTop: '14px' }}>
               {/* Category Pills (Horizontal scrollable chip list on mobile) */}
@@ -1948,25 +2039,37 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
             </div>
 
             {/* Desktop Table View */}
-            <div className="pengaturan-desktop-staff-table data-table-container" style={{ marginTop: '14px', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+            <div className="pengaturan-desktop-staff-table data-table-container" style={{ marginTop: '14px', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'visible', background: '#FFFFFF' }}>
               <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.80rem' }}>
-                <thead style={{ backgroundColor: '#F8FAFC' }}>
+                <thead style={{ position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC' }}>
                   <tr>
-                    <th style={{ padding: '10px 8px', width: '40px', textAlign: 'center', borderBottom: '2px solid #E2E8F0' }}>No.</th>
-                    <th style={{ padding: '10px 14px', textAlign: 'left', borderBottom: '2px solid #E2E8F0' }}>Jenis Program Visa</th>
-                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0' }}>
-                      <div style={{ fontWeight: 800, color: '#1E293B' }}>Paket Reguler</div>
-                      <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Standar QC &amp; Submit</div>
+                    <th style={{ padding: '10px 6px', width: '30px', textAlign: 'center', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)', borderTopLeftRadius: '11px' }}>No.</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', minWidth: '150px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>Jenis Program Visa</th>
+                    <th style={{ padding: '10px 4px', textAlign: 'center', width: '108px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>📍 Jakarta</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 500 }}>Kedutaan / JVAC</div>
                     </th>
-                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0' }}>
-                      <div style={{ fontWeight: 800, color: '#1E293B' }}>Paket Premium</div>
-                      <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Prioritas &amp; Cepat</div>
+                    <th style={{ padding: '10px 4px', textAlign: 'center', width: '108px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>📍 Surabaya</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 500 }}>Konsulat Jenderal</div>
                     </th>
-                    <th style={{ padding: '10px 14px', textAlign: 'center', width: '190px', borderBottom: '2px solid #E2E8F0' }}>
-                      <div style={{ fontWeight: 800, color: '#1E293B' }}>Paket TAC</div>
-                      <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Pendampingan All-in</div>
+                    <th style={{ padding: '10px 4px', textAlign: 'center', width: '108px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>📍 Medan</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 500 }}>Konsulat Jenderal</div>
                     </th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', width: '100px', borderBottom: '2px solid #E2E8F0' }}>Status / Aksi</th>
+                    <th style={{ padding: '10px 4px', textAlign: 'center', width: '108px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>📍 Makassar</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 500 }}>Kantor Konsuler</div>
+                    </th>
+                    <th style={{ padding: '10px 4px', textAlign: 'center', width: '108px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>📍 Denpasar</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 500 }}>Konsulat Bali</div>
+                    </th>
+                    <th style={{ padding: '10px 4px', textAlign: 'center', width: '115px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      <div style={{ fontWeight: 800, color: '#1E293B' }}>⭐ Premium (+600k)</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 500 }}>Prioritas &amp; Cepat</div>
+                    </th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', width: '85px', borderBottom: '2px solid #CBD5E1', position: 'sticky', top: '68px', zIndex: 35, backgroundColor: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)', borderTopRightRadius: '11px' }}>Status / Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1975,70 +2078,83 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                       item.category === 'turis'
                         ? { bg: '#E0F2FE', text: '#0369A1', label: 'Turis' }
                         : item.category === 'kerja'
-                        ? { bg: '#DCFCE7', text: '#15803D', label: 'Kerja' }
-                        : item.category === 'magang'
-                        ? { bg: '#F3E8FF', text: '#7E22CE', label: 'Pemagangan' }
-                        : item.category === 'studi'
-                        ? { bg: '#E0E7FF', text: '#4338CA', label: 'Studi' }
-                        : item.category === 'transit'
-                        ? { bg: '#F1F5F9', text: '#475569', label: 'Transit' }
-                        : item.category === 'keluarga'
-                        ? { bg: '#FFE4E6', text: '#BE123C', label: 'Keluarga' }
-                        : item.category === 'medis'
-                        ? { bg: '#ECFDF5', text: '#047857', label: 'Medis' }
-                        : item.category === 'khusus'
-                        ? { bg: '#FDF4FF', text: '#A21CAF', label: 'Khusus' }
-                        : { bg: '#FEF3C7', text: '#B45309', label: 'Bisnis' };
+                          ? { bg: '#DCFCE7', text: '#15803D', label: 'Kerja' }
+                          : item.category === 'magang'
+                            ? { bg: '#F3E8FF', text: '#7E22CE', label: 'Pemagangan' }
+                            : item.category === 'studi'
+                              ? { bg: '#E0E7FF', text: '#4338CA', label: 'Studi' }
+                              : item.category === 'transit'
+                                ? { bg: '#F1F5F9', text: '#475569', label: 'Transit' }
+                                : item.category === 'keluarga'
+                                  ? { bg: '#FFE4E6', text: '#BE123C', label: 'Keluarga' }
+                                  : item.category === 'medis'
+                                    ? { bg: '#ECFDF5', text: '#047857', label: 'Medis' }
+                                    : item.category === 'khusus'
+                                      ? { bg: '#FDF4FF', text: '#A21CAF', label: 'Khusus' }
+                                      : { bg: '#FEF3C7', text: '#B45309', label: 'Bisnis' };
+
+                    const isWaiver = item.id === 'evisa-waiver' || item.title.toLowerCase().includes('waiver');
+                    const regJkt = item.priceJakarta ?? item.regulerPrice;
+                    const regSby = isWaiver ? regJkt : (item.priceSurabaya ?? item.priceLuarKota ?? (regJkt === 200000 ? 200000 : regJkt + 50000));
+                    const regMdn = isWaiver ? regJkt : (item.priceMedan ?? item.priceLuarKota ?? (regJkt === 200000 ? 200000 : regJkt + 50000));
+                    const regMks = isWaiver ? regJkt : (item.priceMakassar ?? item.priceLuarKota ?? (regJkt === 200000 ? 200000 : regJkt + 50000));
+                    const regDps = isWaiver ? regJkt : (item.priceDenpasar ?? (regJkt === 200000 ? 200000 : regJkt + 100000));
+                    const premPrice = isWaiver ? regJkt : (item.premiumPrice ?? (regJkt === 200000 ? 200000 : regJkt + 600000));
 
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 800, color: '#64748B', borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 800, color: '#64748B', borderBottom: '1px solid #F1F5F9' }}>
                           {idx + 1}
                         </td>
-                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #F1F5F9' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.86rem' }}>
+                        <td style={{ padding: '8px 10px', borderBottom: '1px solid #F1F5F9' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.84rem' }}>
                               {item.title}
                             </span>
                             <span style={{
-                              fontSize: '0.64rem',
+                              fontSize: '0.62rem',
                               fontWeight: 700,
-                              padding: '1px 7px',
+                              padding: '1px 6px',
                               borderRadius: '10px',
                               backgroundColor: catBadge.bg,
                               color: catBadge.text,
                             }}>
                               {catBadge.label}
                             </span>
+                            {isWaiver && (
+                              <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '10px', backgroundColor: '#E0F2FE', color: '#0369A1' }}>
+                                ⚡ 100% Online (Flat Semua Wilayah)
+                              </span>
+                            )}
                             {item.isCustom && (
-                              <span style={{ fontSize: '0.64rem', fontWeight: 700, padding: '1px 6px', borderRadius: '10px', backgroundColor: '#F3E8FF', color: '#7E22CE' }}>
+                              <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 5px', borderRadius: '10px', backgroundColor: '#F3E8FF', color: '#7E22CE' }}>
                                 Custom
                               </span>
                             )}
                           </div>
                           {item.keterangan && (
-                            <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '2px' }}>
+                            <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: '2px', lineHeight: 1.3 }}>
                               {item.keterangan}
                             </div>
                           )}
                         </td>
 
-                        {/* Input Reguler */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                        {/* Input Jakarta */}
+                        <td style={{ padding: '6px 3px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
                           {isOwner ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
                               <input
                                 type="number"
                                 step="10000"
-                                value={item.regulerPrice}
-                                onChange={(e) => handleUpdatePrice(item.id, 'regulerPrice', Number(e.target.value))}
+                                value={regJkt}
+                                onChange={(e) => handleUpdatePrice(item.id, 'priceJakarta', Number(e.target.value))}
                                 style={{
-                                  width: '120px',
-                                  padding: '6px 8px',
+                                  width: '80px',
+                                  padding: '5px 4px',
                                   borderRadius: '6px',
                                   border: '1.5px solid #CBD5E1',
-                                  fontSize: '0.80rem',
+                                  fontSize: '0.74rem',
                                   fontFamily: 'monospace',
                                   fontWeight: 700,
                                   textAlign: 'right',
@@ -2049,28 +2165,172 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                               />
                             </div>
                           ) : (
-                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
-                              {formatRupiah(item.regulerPrice)}
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: '0.74rem' }}>
+                              {formatRupiah(regJkt)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Input Surabaya */}
+                        <td style={{ padding: '6px 3px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                          {isOwner ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
+                              <input
+                                type="number"
+                                step="10000"
+                                value={regSby}
+                                onChange={(e) => handleUpdatePrice(item.id, 'priceSurabaya', Number(e.target.value))}
+                                style={{
+                                  width: '80px',
+                                  padding: '5px 4px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid #CBD5E1',
+                                  fontSize: '0.74rem',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  textAlign: 'right',
+                                  color: '#0F172A',
+                                  backgroundColor: '#FFFFFF',
+                                  outline: 'none',
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: '0.74rem' }}>
+                              {formatRupiah(regSby)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Input Medan */}
+                        <td style={{ padding: '6px 3px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                          {isOwner ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
+                              <input
+                                type="number"
+                                step="10000"
+                                value={regMdn}
+                                onChange={(e) => handleUpdatePrice(item.id, 'priceMedan', Number(e.target.value))}
+                                style={{
+                                  width: '80px',
+                                  padding: '5px 4px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid #CBD5E1',
+                                  fontSize: '0.74rem',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  textAlign: 'right',
+                                  color: '#0F172A',
+                                  backgroundColor: '#FFFFFF',
+                                  outline: 'none',
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: '0.74rem' }}>
+                              {formatRupiah(regMdn)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Input Makassar */}
+                        <td style={{ padding: '6px 3px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                          {isOwner ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
+                              <input
+                                type="number"
+                                step="10000"
+                                value={regMks}
+                                onChange={(e) => handleUpdatePrice(item.id, 'priceMakassar', Number(e.target.value))}
+                                style={{
+                                  width: '80px',
+                                  padding: '5px 4px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid #CBD5E1',
+                                  fontSize: '0.74rem',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  textAlign: 'right',
+                                  color: '#0F172A',
+                                  backgroundColor: '#FFFFFF',
+                                  outline: 'none',
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: '0.74rem' }}>
+                              {formatRupiah(regMks)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Input Denpasar */}
+                        <td style={{ padding: '6px 3px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                          {isOwner ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
+                              <input
+                                type="number"
+                                step="10000"
+                                value={regDps}
+                                onChange={(e) => handleUpdatePrice(item.id, 'priceDenpasar', Number(e.target.value))}
+                                style={{
+                                  width: '80px',
+                                  padding: '5px 4px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid #CBD5E1',
+                                  fontSize: '0.74rem',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  textAlign: 'right',
+                                  color: '#0F172A',
+                                  backgroundColor: '#FFFFFF',
+                                  outline: 'none',
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: '0.74rem' }}>
+                              {formatRupiah(regDps)}
                             </span>
                           )}
                         </td>
 
                         {/* Input Premium */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
-                          {isOwner ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
+                        <td style={{ padding: '6px 3px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                          {isWaiver ? (
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                color: '#64748B',
+                                backgroundColor: '#F1F5F9',
+                                border: '1px dashed #CBD5E1',
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                fontWeight: 700,
+                                display: 'inline-block',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Tidak Ada (Flat)
+                            </span>
+                          ) : isOwner ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
                               <input
                                 type="number"
                                 step="10000"
-                                value={item.premiumPrice}
+                                value={premPrice}
                                 onChange={(e) => handleUpdatePrice(item.id, 'premiumPrice', Number(e.target.value))}
                                 style={{
-                                  width: '120px',
-                                  padding: '6px 8px',
+                                  width: '85px',
+                                  padding: '5px 4px',
                                   borderRadius: '6px',
                                   border: '1.5px solid #CBD5E1',
-                                  fontSize: '0.80rem',
+                                  fontSize: '0.74rem',
                                   fontFamily: 'monospace',
                                   fontWeight: 700,
                                   color: '#0F172A',
@@ -2081,47 +2341,15 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                               />
                             </div>
                           ) : (
-                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
-                              {formatRupiah(item.premiumPrice)}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Input TAC */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
-                          {isOwner ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Rp</span>
-                              <input
-                                type="number"
-                                step="10000"
-                                value={item.tacPrice}
-                                onChange={(e) => handleUpdatePrice(item.id, 'tacPrice', Number(e.target.value))}
-                                style={{
-                                  width: '120px',
-                                  padding: '6px 8px',
-                                  borderRadius: '6px',
-                                  border: '1.5px solid #CBD5E1',
-                                  fontSize: '0.80rem',
-                                  fontFamily: 'monospace',
-                                  fontWeight: 700,
-                                  color: '#0F172A',
-                                  textAlign: 'right',
-                                  backgroundColor: '#FFFFFF',
-                                  outline: 'none',
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
-                              {formatRupiah(item.tacPrice)}
+                            <span style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: '0.74rem' }}>
+                              {formatRupiah(premPrice)}
                             </span>
                           )}
                         </td>
 
                         {/* Aksi */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                        <td style={{ padding: '8px 8px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
                             {isOwner && (
                               <button
                                 type="button"
@@ -2132,13 +2360,13 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   border: '1px solid #CBD5E1',
                                   color: '#334155',
                                   borderRadius: '6px',
-                                  padding: '4px 8px',
-                                  fontSize: '0.70rem',
+                                  padding: '4px 6px',
+                                  fontSize: '0.68rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '3px',
+                                  gap: '2px',
                                   transition: 'all 0.15s ease',
                                 }}
                                 onMouseEnter={(e) => {
@@ -2148,8 +2376,8 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   e.currentTarget.style.backgroundColor = '#F8FAFC';
                                 }}
                               >
-                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit_note</span>
-                                <span>Edit Kartu</span>
+                                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>edit_note</span>
+                                <span>Edit</span>
                               </button>
                             )}
                             {isOwner && (
@@ -2162,13 +2390,13 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   border: '1px solid #FECACA',
                                   color: '#DC2626',
                                   borderRadius: '6px',
-                                  padding: '4px 8px',
-                                  fontSize: '0.70rem',
+                                  padding: '4px 6px',
+                                  fontSize: '0.68rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '3px',
+                                  gap: '2px',
                                   transition: 'all 0.15s ease',
                                 }}
                                 onMouseEnter={(e) => {
@@ -2178,7 +2406,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                                   e.currentTarget.style.backgroundColor = '#FFFFFF';
                                 }}
                               >
-                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+                                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
                                 <span>Hapus</span>
                               </button>
                             )}
@@ -2199,182 +2427,300 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 
             {/* Mobile Card List View */}
             <div className="pengaturan-mobile-staff-list" style={{ display: 'none', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-              {filteredPricingList.map((item) => (
-                <div
-                  key={`mob-${item.id}`}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '12px',
-                    border: '1px solid #E2E8F0',
-                    padding: '12px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '0.90rem', color: '#0F172A' }}>
-                        {item.title}
-                      </div>
-                      <div style={{ fontSize: '0.70rem', color: '#64748B' }}>
-                        {item.keterangan || 'Layanan Visa Jepang'}
-                      </div>
-                    </div>
-                    {isOwner && (
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditVisa(item)}
-                          style={{
-                            background: '#F8FAFC',
-                            border: '1px solid #CBD5E1',
-                            color: '#334155',
-                            borderRadius: '6px',
-                            padding: '3px 8px',
-                            fontSize: '0.70rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>edit_note</span>
-                          <span>Edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteVisa(item.id, item.title)}
-                          style={{
-                            background: '#FFFFFF',
-                            border: '1px solid #FECACA',
-                            color: '#DC2626',
-                            borderRadius: '6px',
-                            padding: '3px 8px',
-                            fontSize: '0.70rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
-                          <span>Hapus</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+              {filteredPricingList.map((item) => {
+                const isWaiver = item.id === 'evisa-waiver' || item.title.toLowerCase().includes('waiver');
+                const regJkt = item.priceJakarta ?? item.regulerPrice;
+                const regSby = isWaiver ? regJkt : (item.priceSurabaya ?? item.priceLuarKota ?? (regJkt === 200000 ? 200000 : regJkt + 50000));
+                const regMdn = isWaiver ? regJkt : (item.priceMedan ?? item.priceLuarKota ?? (regJkt === 200000 ? 200000 : regJkt + 50000));
+                const regMks = isWaiver ? regJkt : (item.priceMakassar ?? item.priceLuarKota ?? (regJkt === 200000 ? 200000 : regJkt + 50000));
+                const regDps = isWaiver ? regJkt : (item.priceDenpasar ?? (regJkt === 200000 ? 200000 : regJkt + 100000));
+                const premPrice = isWaiver ? regJkt : (item.premiumPrice ?? (regJkt === 200000 ? 200000 : regJkt + 600000));
 
-                  {/* 3 Price Inputs on Mobile - Calm Unified Palette */}
+                return (
                   <div
+                    key={`mob-${item.id}`}
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
-                      gap: '8px',
-                      backgroundColor: '#F8FAFC',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '12px',
                       border: '1px solid #E2E8F0',
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                     }}
                   >
-                    {/* Reguler */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>Reguler</div>
-                      {isOwner ? (
-                        <input
-                          type="number"
-                          step="10000"
-                          value={item.regulerPrice}
-                          onChange={(e) => handleUpdatePrice(item.id, 'regulerPrice', Number(e.target.value))}
-                          style={{
-                            width: '100%',
-                            padding: '4px 6px',
-                            borderRadius: '6px',
-                            border: '1px solid #CBD5E1',
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            fontFamily: 'monospace',
-                            color: '#0F172A',
-                            backgroundColor: '#FFFFFF',
-                            textAlign: 'right',
-                            boxSizing: 'border-box',
-                            outline: 'none',
-                          }}
-                        />
-                      ) : (
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', marginTop: '2px' }}>
-                          {formatRupiah(item.regulerPrice)}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.90rem', color: '#0F172A' }}>
+                          {item.title}
+                        </div>
+                        <div style={{ fontSize: '0.70rem', color: '#64748B' }}>
+                          {item.keterangan || 'Layanan Visa Jepang'}
+                        </div>
+                      </div>
+                      {isOwner && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditVisa(item)}
+                            style={{
+                              background: '#F8FAFC',
+                              border: '1px solid #CBD5E1',
+                              color: '#334155',
+                              borderRadius: '6px',
+                              padding: '3px 8px',
+                              fontSize: '0.70rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>edit_note</span>
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVisa(item.id, item.title)}
+                            style={{
+                              background: '#FFFFFF',
+                              border: '1px solid #FECACA',
+                              color: '#DC2626',
+                              borderRadius: '6px',
+                              padding: '3px 8px',
+                              fontSize: '0.70rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
+                            <span>Hapus</span>
+                          </button>
                         </div>
                       )}
                     </div>
 
-                    {/* Premium */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>Premium</div>
-                      {isOwner ? (
-                        <input
-                          type="number"
-                          step="10000"
-                          value={item.premiumPrice}
-                          onChange={(e) => handleUpdatePrice(item.id, 'premiumPrice', Number(e.target.value))}
-                          style={{
-                            width: '100%',
-                            padding: '4px 6px',
-                            borderRadius: '6px',
-                            border: '1px solid #CBD5E1',
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            fontFamily: 'monospace',
-                            color: '#0F172A',
-                            backgroundColor: '#FFFFFF',
-                            textAlign: 'right',
-                            boxSizing: 'border-box',
-                            outline: 'none',
-                          }}
-                        />
-                      ) : (
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', marginTop: '2px' }}>
-                          {formatRupiah(item.premiumPrice)}
-                        </div>
-                      )}
-                    </div>
+                    {/* 5 Regional Price Inputs + Premium on Mobile */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                        gap: '8px',
+                        backgroundColor: '#F8FAFC',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #E2E8F0',
+                      }}
+                    >
+                      {/* Jakarta */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>📍 Jakarta</div>
+                        {isOwner ? (
+                          <input
+                            type="number"
+                            step="10000"
+                            value={regJkt}
+                            onChange={(e) => handleUpdatePrice(item.id, 'priceJakarta', Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              color: '#0F172A',
+                              backgroundColor: '#FFFFFF',
+                              textAlign: 'right',
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {formatRupiah(regJkt)}
+                          </div>
+                        )}
+                      </div>
 
-                    {/* TAC */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>TAC</div>
-                      {isOwner ? (
-                        <input
-                          type="number"
-                          step="10000"
-                          value={item.tacPrice}
-                          onChange={(e) => handleUpdatePrice(item.id, 'tacPrice', Number(e.target.value))}
-                          style={{
-                            width: '100%',
-                            padding: '4px 6px',
-                            borderRadius: '6px',
-                            border: '1px solid #CBD5E1',
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            fontFamily: 'monospace',
-                            color: '#0F172A',
-                            backgroundColor: '#FFFFFF',
-                            textAlign: 'right',
-                            boxSizing: 'border-box',
-                            outline: 'none',
-                          }}
-                        />
-                      ) : (
-                        <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', marginTop: '2px' }}>
-                          {formatRupiah(item.tacPrice)}
-                        </div>
-                      )}
+                      {/* Surabaya */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>📍 Surabaya</div>
+                        {isOwner ? (
+                          <input
+                            type="number"
+                            step="10000"
+                            value={regSby}
+                            onChange={(e) => handleUpdatePrice(item.id, 'priceSurabaya', Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              color: '#0F172A',
+                              backgroundColor: '#FFFFFF',
+                              textAlign: 'right',
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {formatRupiah(regSby)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Medan */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>📍 Medan</div>
+                        {isOwner ? (
+                          <input
+                            type="number"
+                            step="10000"
+                            value={regMdn}
+                            onChange={(e) => handleUpdatePrice(item.id, 'priceMedan', Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              color: '#0F172A',
+                              backgroundColor: '#FFFFFF',
+                              textAlign: 'right',
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {formatRupiah(regMdn)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Makassar */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>📍 Makassar</div>
+                        {isOwner ? (
+                          <input
+                            type="number"
+                            step="10000"
+                            value={regMks}
+                            onChange={(e) => handleUpdatePrice(item.id, 'priceMakassar', Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              color: '#0F172A',
+                              backgroundColor: '#FFFFFF',
+                              textAlign: 'right',
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {formatRupiah(regMks)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Denpasar */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>📍 Denpasar (Bali)</div>
+                        {isOwner ? (
+                          <input
+                            type="number"
+                            step="10000"
+                            value={regDps}
+                            onChange={(e) => handleUpdatePrice(item.id, 'priceDenpasar', Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              color: '#0F172A',
+                              backgroundColor: '#FFFFFF',
+                              textAlign: 'right',
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {formatRupiah(regDps)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Premium */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>⭐ Premium (+600k)</div>
+                        {isWaiver ? (
+                          <div
+                            style={{
+                              fontSize: '0.74rem',
+                              color: '#64748B',
+                              backgroundColor: '#F1F5F9',
+                              border: '1px dashed #CBD5E1',
+                              borderRadius: '6px',
+                              padding: '5px 8px',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                            }}
+                          >
+                            Tidak Ada (Flat)
+                          </div>
+                        ) : isOwner ? (
+                          <input
+                            type="number"
+                            step="10000"
+                            value={premPrice}
+                            onChange={(e) => handleUpdatePrice(item.id, 'premiumPrice', Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              color: '#0F172A',
+                              backgroundColor: '#FFFFFF',
+                              textAlign: 'right',
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {formatRupiah(premPrice)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Bottom Floating Save Button for Mobile / Quick Access */}
@@ -3628,23 +3974,83 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#0369A1', marginBottom: '4px' }}>
-                    Harga Reguler (Rp)
+                    📍 Tarif Jakarta (Kedutaan / JVAC)
                   </label>
                   <input
                     type="number"
                     step="10000"
                     required
-                    value={newVisaReguler}
-                    onChange={(e) => setNewVisaReguler(Number(e.target.value))}
+                    value={newVisaPriceJakarta}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setNewVisaPriceJakarta(val);
+                      setNewVisaPriceSurabaya(val === 200000 ? 200000 : val + 50000);
+                      setNewVisaPriceMedan(val === 200000 ? 200000 : val + 50000);
+                      setNewVisaPriceMakassar(val === 200000 ? 200000 : val + 50000);
+                      setNewVisaPriceDenpasar(val === 200000 ? 200000 : val + 100000);
+                      setNewVisaPremium(val === 200000 ? 200000 : val + 600000);
+                    }}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#0369A1', marginBottom: '4px' }}>
+                    📍 Tarif Surabaya (Konsulat Jenderal)
+                  </label>
+                  <input
+                    type="number"
+                    step="10000"
+                    required
+                    value={newVisaPriceSurabaya}
+                    onChange={(e) => setNewVisaPriceSurabaya(Number(e.target.value))}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#0369A1', marginBottom: '4px' }}>
+                    📍 Tarif Medan (Konsulat Jenderal)
+                  </label>
+                  <input
+                    type="number"
+                    step="10000"
+                    required
+                    value={newVisaPriceMedan}
+                    onChange={(e) => setNewVisaPriceMedan(Number(e.target.value))}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#0369A1', marginBottom: '4px' }}>
+                    📍 Tarif Makassar (Kantor Konsuler)
+                  </label>
+                  <input
+                    type="number"
+                    step="10000"
+                    required
+                    value={newVisaPriceMakassar}
+                    onChange={(e) => setNewVisaPriceMakassar(Number(e.target.value))}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#0369A1', marginBottom: '4px' }}>
+                    📍 Tarif Denpasar (Konsulat Bali)
+                  </label>
+                  <input
+                    type="number"
+                    step="10000"
+                    required
+                    value={newVisaPriceDenpasar}
+                    onChange={(e) => setNewVisaPriceDenpasar(Number(e.target.value))}
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#B45309', marginBottom: '4px' }}>
-                    Harga Premium (Rp)
+                    ⭐ Paket Premium (+600k) (Rp)
                   </label>
                   <input
                     type="number"
@@ -3652,19 +4058,6 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                     required
                     value={newVisaPremium}
                     onChange={(e) => setNewVisaPremium(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#15803D', marginBottom: '4px' }}>
-                    Harga TAC (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    step="10000"
-                    required
-                    value={newVisaTac}
-                    onChange={(e) => setNewVisaTac(Number(e.target.value))}
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.80rem', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right', boxSizing: 'border-box' }}
                   />
                 </div>

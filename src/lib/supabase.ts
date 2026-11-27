@@ -270,6 +270,7 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
           coe: db.coe ?? true,
           foto: db.foto ?? true,
           pasporFisik: true,
+          suratTugas: Boolean(uploadedDocsData?.suratTugas),
         }
       : {
           formVisa: Boolean(db.form_visa || uploadedDocsData?.formVisa),
@@ -278,6 +279,7 @@ export function mapDBToPengajuan(db: PengajuanVisaDB): Pengajuan {
           coe: Boolean(db.coe || uploadedDocsData?.coe),
           foto: Boolean(db.foto || fotoData || uploadedDocsData?.foto),
           pasporFisik: Boolean((db as any).paspor_fisik || uploadedDocsData?.pasporFisik),
+          suratTugas: Boolean(uploadedDocsData?.suratTugas),
         },
     catatan: noteText,
     fotoBase64: fotoData,

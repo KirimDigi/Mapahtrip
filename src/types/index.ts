@@ -28,6 +28,7 @@ export interface BerkasChecklist {
   coe: boolean;
   foto: boolean;
   pasporFisik: boolean;
+  suratTugas?: boolean;
 }
 
 export interface Pengajuan {

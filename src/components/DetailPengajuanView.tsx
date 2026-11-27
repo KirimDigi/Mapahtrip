@@ -1498,6 +1498,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 { key: 'coe', isOk: !!currentPengajuan.uploadedDocs?.coe?.base64 },
                 { key: 'foto', isOk: !!(currentPengajuan.fotoBase64 || currentPengajuan.uploadedDocs?.foto?.base64) },
                 { key: 'ktp', isOk: !!currentPengajuan.uploadedDocs?.ktp?.base64 },
+                { key: 'suratTugas', isOk: !!currentPengajuan.uploadedDocs?.suratTugas?.base64 },
               ];
               const totalUploaded = docList.filter((d) => d.isOk).length;
               return (
@@ -1508,8 +1509,8 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                     fontWeight: 700,
                     padding: '3px 10px',
                     borderRadius: '999px',
-                    backgroundColor: totalUploaded === 6 ? '#EFF6FF' : '#F1F5F9',
-                    color: totalUploaded === 6 ? '#1D4ED8' : '#475569',
+                    backgroundColor: totalUploaded === 7 ? '#EFF6FF' : '#F1F5F9',
+                    color: totalUploaded === 7 ? '#1D4ED8' : '#475569',
                     border: '1px solid #DBEAFE',
                     whiteSpace: 'nowrap',
                     flexShrink: 0,
@@ -1578,6 +1579,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
               { key: 'coe', title: 'Certificate of Eligibility (COE)', note: 'Asli & legalisir dari MOJ Jepang', sample: sampleCoeBase64 },
               { key: 'foto', title: 'Pas Foto 4.5 × 3.5 cm (Background Putih)', note: 'Standar konsulat (< 100KB)', sample: samplePasfotoBase64 },
               { key: 'ktp', title: 'Fotokopi KTP & Kartu Keluarga', note: 'Tervalidasi Dukcapil', sample: sampleKtpBase64 },
+              { key: 'suratTugas', title: 'Surat Tugas & Perizinan', note: 'Surat penugasan / izin instansi resmi', sample: sampleFormVisaBase64 },
             ].map((doc, docIdx) => {
               const docFile = currentPengajuan.uploadedDocs?.[doc.key];
               const realBase64 = doc.key === 'foto' ? (currentPengajuan.fotoBase64 || docFile?.base64) : docFile?.base64;
@@ -1596,7 +1598,7 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                     padding: '12px 10px',
                     borderRadius: '8px',
                     background: 'transparent',
-                    borderBottom: docIdx < 5 ? '1px solid #F1F5F9' : 'none',
+                    borderBottom: docIdx < 6 ? '1px solid #F1F5F9' : 'none',
                     gap: '12px',
                     flexWrap: 'wrap',
                     transition: 'background-color 0.15s ease',
@@ -2945,15 +2947,15 @@ export const DetailPengajuanView: React.FC<DetailPengajuanViewProps> = ({
                 )}
               </div>
 
-              {/* Pilihan 3 Paket Layanan */}
+              {/* Pilihan 2 Paket Layanan */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>
                   PILIH PAKET LAYANAN BARU:
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                  {(['Reguler', 'Premium', 'TAC'] as PaketVisa[]).map((pkt) => {
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  {(['Reguler', 'Premium'] as PaketVisa[]).map((pkt) => {
                     const isSelected = selectedPaket === pkt;
-                    const pktPrice = getVisaPrice(currentPengajuan.program, pkt);
+                    const pktPrice = getVisaPrice(currentPengajuan.program, pkt, currentPengajuan.konsjen);
                     const isCurrent = (currentPengajuan.paket || 'Reguler') === pkt;
 
                     return (

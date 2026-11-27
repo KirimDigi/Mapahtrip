@@ -36,8 +36,8 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
   const [paket, setPaket] = useState<PaketVisa>('Reguler');
 
   // Keuangan & Pembayaran Pemohon (dapat diedit oleh Owner maupun Staf)
-  const [dibayarPemohon, setDibayarPemohon] = useState(() => getVisaPrice('Tokutei Ginou (SSW 1)', 'Reguler'));
-  const [nominalKeluar, setNominalKeluar] = useState(() => Math.round(getVisaPrice('Tokutei Ginou (SSW 1)', 'Reguler') * 0.68));
+  const [dibayarPemohon, setDibayarPemohon] = useState(() => getVisaPrice('Tokutei Ginou (SSW 1)', 'Reguler', 'Jakarta'));
+  const [nominalKeluar, setNominalKeluar] = useState(() => Math.round(getVisaPrice('Tokutei Ginou (SSW 1)', 'Reguler', 'Jakarta') * 0.68));
   const [cashback, setCashback] = useState(100000);
   const [referralFee, setReferralFee] = useState(100000);
 
@@ -79,7 +79,13 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
 
   const handleProgramChange = (newProg: string) => {
     setProgram(newProg);
-    const price = getVisaPrice(newProg, paket);
+    const cleanProg = newProg.toLowerCase();
+    const isW = cleanProg.includes('waiver') || cleanProg.includes('evisa') || cleanProg.includes('e-visa');
+    const effectivePaket = isW ? 'Reguler' : paket;
+    if (isW && paket !== 'Reguler') {
+      setPaket('Reguler');
+    }
+    const price = getVisaPrice(newProg, effectivePaket, konsjen);
     setDibayarPemohon(price);
     setNominalKeluar(Math.round(price * 0.68));
 
@@ -90,7 +96,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
 
   const handlePaketChange = (newPkg: PaketVisa) => {
     setPaket(newPkg);
-    const price = getVisaPrice(program, newPkg);
+    const price = getVisaPrice(program, newPkg, konsjen);
     setDibayarPemohon(price);
     setNominalKeluar(Math.round(price * 0.68));
   };
@@ -103,6 +109,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
     ektln: false,
     coe: false,
     foto: false,
+    suratTugas: false,
   });
 
   // Upload dokumen & foto (sama persis dengan customer form)
@@ -132,6 +139,9 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
     if (autoStaff) {
       setStaffPic(autoStaff as StaffName);
     }
+    const price = getVisaPrice(program, paket, targetKonsjen);
+    setDibayarPemohon(price);
+    setNominalKeluar(Math.round(price * 0.68));
   };
 
   const handleSelectKonsjenManual = (k: KonsjenKota) => {
@@ -140,6 +150,9 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
     if (autoStaff) {
       setStaffPic(autoStaff as StaffName);
     }
+    const price = getVisaPrice(program, paket, k);
+    setDibayarPemohon(price);
+    setNominalKeluar(Math.round(price * 0.68));
   };
 
   const handleUploadDocFile = async (docKey: string, file: File) => {
@@ -238,7 +251,7 @@ export const NewPengajuanModal: React.FC<NewPengajuanModalProps> = ({
       paket,
       tglBerkasMasuk: todayStr,
       tglApply: 'Jadwal Hari Kerja Berikutnya',
-      tglEstimasiSelesai: '5 Hari Kerja Konsuler',
+      tglEstimasiSelesai: isWaiver ? '2-3 Hari Kerja' : '6 Hari Kerja Konsuler',
       status: 'Menunggu Verifikasi',
       dibayarPemohon,
       nominalKeluar: isWaiver ? 0 : nominalKeluar,
@@ -907,59 +920,70 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
                 Pilihan Paket Layanan
               </label>
-              <div className="modal-paket-grid">
-                {[
-                  { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit', icon: 'check_circle', price: getVisaPrice(program, 'Reguler') },
-                  { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat', icon: 'bolt', price: getVisaPrice(program, 'Premium') },
-                  { id: 'TAC' as const, title: 'TAC', desc: 'Pendampingan All-in', icon: 'verified', price: getVisaPrice(program, 'TAC') },
-                ].map((pkg) => {
-                  const isSelected = paket === pkg.id;
-                  return (
-                    <div
-                      key={pkg.id}
-                      className="modal-paket-card"
-                      onClick={() => handlePaketChange(pkg.id)}
-                      style={{
-                        border: isSelected ? '2px solid #005BB5' : '1px solid #E2E8F0',
-                        backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC',
-                        boxShadow: isSelected ? '0 2px 8px rgba(0, 91, 181, 0.15)' : 'none',
-                      }}
-                    >
-                      <div className="modal-paket-card-left">
+              {(() => {
+                const cleanProg = (program || '').toLowerCase();
+                const isWaiver = cleanProg.includes('waiver') || cleanProg.includes('evisa') || cleanProg.includes('e-visa');
+                const pkgList = isWaiver
+                  ? [
+                      { id: 'Reguler' as const, title: 'Registrasi Resmi Waiver', desc: '100% Proses Online e-Paspor (Maks 15 Hari Kerja)', icon: 'check_circle', price: getVisaPrice(program, 'Reguler', konsjen) },
+                    ]
+                  : [
+                      { id: 'Reguler' as const, title: 'Reguler', desc: 'Standar QC & Submit', icon: 'check_circle', price: getVisaPrice(program, 'Reguler', konsjen) },
+                      { id: 'Premium' as const, title: 'Premium', desc: 'Prioritas & Cepat (+Rp 600.000)', icon: 'bolt', price: getVisaPrice(program, 'Premium', konsjen) },
+                    ];
+
+                return (
+                  <div className="modal-paket-grid" style={{ gridTemplateColumns: isWaiver ? '1fr' : 'repeat(2, 1fr)' }}>
+                    {pkgList.map((pkg) => {
+                      const isSelected = paket === pkg.id;
+                      return (
                         <div
-                          className="modal-paket-card-radio"
+                          key={pkg.id}
+                          className="modal-paket-card"
+                          onClick={() => handlePaketChange(pkg.id)}
                           style={{
-                            border: isSelected ? '5px solid #005BB5' : '2px solid #CBD5E1',
-                            backgroundColor: '#FFFFFF',
-                          }}
-                        />
-                        <div className="modal-paket-card-info">
-                          <div className="modal-paket-title" style={{ color: isSelected ? '#005BB5' : '#1E293B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: isSelected ? '#005BB5' : '#94A3B8' }}>
-                              {pkg.icon}
-                            </span>
-                            <span>{pkg.title}</span>
-                          </div>
-                          <div className="modal-paket-desc" style={{ color: isSelected ? '#1E40AF' : '#64748B' }}>
-                            {pkg.desc}
-                          </div>
-                        </div>
-                      </div>
-                      {isOwner && (
-                        <div
-                          className="modal-paket-card-price"
-                          style={{
-                            color: isSelected ? '#005BB5' : '#15803D',
-                            fontFamily: 'monospace',
+                            border: isSelected ? '2px solid #005BB5' : '1px solid #E2E8F0',
+                            backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC',
+                            boxShadow: isSelected ? '0 2px 8px rgba(0, 91, 181, 0.15)' : 'none',
                           }}
                         >
-                          {'Rp\u00A0' + (pkg.price || 0).toLocaleString('id-ID')}
+                          <div className="modal-paket-card-left">
+                            <div
+                              className="modal-paket-card-radio"
+                              style={{
+                                border: isSelected ? '5px solid #005BB5' : '2px solid #CBD5E1',
+                                backgroundColor: '#FFFFFF',
+                              }}
+                            />
+                            <div className="modal-paket-card-info">
+                              <div className="modal-paket-title" style={{ color: isSelected ? '#005BB5' : '#1E293B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: isSelected ? '#005BB5' : '#94A3B8' }}>
+                                  {pkg.icon}
+                                </span>
+                                <span>{pkg.title}</span>
+                              </div>
+                              <div className="modal-paket-desc" style={{ color: isSelected ? '#1E40AF' : '#64748B' }}>
+                                {pkg.desc}
+                              </div>
+                            </div>
+                          </div>
+                          {isOwner && (
+                            <div
+                              className="modal-paket-card-price"
+                              style={{
+                                color: isSelected ? '#005BB5' : '#15803D',
+                                fontFamily: 'monospace',
+                              }}
+                            >
+                              {'Rp\u00A0' + (pkg.price || 0).toLocaleString('id-ID')}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -984,7 +1008,7 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
                   color: Object.keys(uploadedDocs).length === 6 ? '#15803D' : '#005BB5',
                 }}
               >
-                {Object.keys(uploadedDocs).length}/6 Dokumen Terunggah
+                {Object.keys(uploadedDocs).length}/7 Dokumen Terunggah
               </span>
             </div>
 
@@ -996,6 +1020,7 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
                 { key: 'ektln' as const, label: 'E-KTLN', sub: 'Elektronik Kartu Tenaga Kerja Luar Negeri BP2MI', accept: '.pdf,image/*' },
                 { key: 'coe' as const, label: 'COE', sub: 'Certificate of Eligibility resmi MOJ Jepang', accept: '.pdf,image/*' },
                 { key: 'foto' as const, label: 'Pas Foto', sub: 'Pasfoto 4.5 × 3.5 cm latar putih polos (< 100KB)', accept: 'image/*' },
+                { key: 'suratTugas' as const, label: 'Surat Tugas & Perizinan', sub: 'Surat penugasan / izin instansi resmi', accept: '.pdf,image/*' },
               ].map((item) => {
                 const docUploaded = uploadedDocs[item.key];
                 const isImage = docUploaded?.base64 && docUploaded.base64.startsWith('data:image/');

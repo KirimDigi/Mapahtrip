@@ -5,9 +5,15 @@ export interface VisaPricingItem {
   id: string;
   title: string;
   category: 'turis' | 'kerja' | 'magang' | 'studi' | 'transit' | 'keluarga' | 'bisnis' | 'medis' | 'khusus' | string;
-  regulerPrice: number;
+  regulerPrice: number; // Baseline / Jakarta
+  priceJakarta?: number; // Jakarta (Kedutaan / JVAC Kuningan)
+  priceSurabaya?: number; // Surabaya (Konsulat Jenderal)
+  priceMedan?: number; // Medan (Konsulat Jenderal)
+  priceMakassar?: number; // Makassar (Kantor Konsuler)
+  priceDenpasar?: number; // Denpasar (Konsulat Bali)
+  priceLuarKota?: number; // Fallback legacy
   premiumPrice: number;
-  tacPrice: number;
+  tacPrice?: number;
   pricePill?: string;
   subtitle?: string;
   desc?: string;
@@ -31,8 +37,14 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     topRightBadge: '★ TERPOPULER',
     pricePill: 'Mulai dari Rp 200rb',
     regulerPrice: 200000,
-    premiumPrice: 250000,
-    tacPrice: 300000,
+    priceJakarta: 200000,
+    priceSurabaya: 200000,
+    priceMedan: 200000,
+    priceMakassar: 200000,
+    priceDenpasar: 200000,
+    priceLuarKota: 200000,
+    premiumPrice: 200000,
+    tacPrice: 0,
     keterangan: 'Multiple entry (3 tahun). Maksimal stay 15 hari per kunjungan.',
   },
   {
@@ -46,8 +58,14 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     topRightBadge: '★ TERPOPULER',
     pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
     regulerPrice: 2650000,
-    premiumPrice: 2700000,
-    tacPrice: 2750000,
+    priceJakarta: 2650000,
+    priceSurabaya: 2700000,
+    priceMedan: 2700000,
+    priceMakassar: 2700000,
+    priceDenpasar: 2750000,
+    priceLuarKota: 2700000,
+    premiumPrice: 3250000,
+    tacPrice: 0,
     keterangan: 'Dikunjungi keluarga/teman di Jepang? Kami siapkan surat undangan & penjamin.',
   },
   {
@@ -60,8 +78,14 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     topRightBadge: 'Aktivitas Khusus',
     pricePill: 'Mulai dari Rp 2,75jt - 2,99jt',
     regulerPrice: 2750000,
-    premiumPrice: 2850000,
-    tacPrice: 2990000,
+    priceJakarta: 2750000,
+    priceSurabaya: 2800000,
+    priceMedan: 2800000,
+    priceMakassar: 2800000,
+    priceDenpasar: 2990000,
+    priceLuarKota: 2800000,
+    premiumPrice: 3350000,
+    tacPrice: 0,
     keterangan: 'Aktivitas khusus magang lanjutan, transisi visa kerja, atau magang mahasiswa universitas di Jepang, Single Entry.',
   },
   {
@@ -74,8 +98,14 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     topRightBadge: 'Long Stay',
     pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
     regulerPrice: 2650000,
-    premiumPrice: 2700000,
-    tacPrice: 2750000,
+    priceJakarta: 2650000,
+    priceSurabaya: 2700000,
+    priceMedan: 2700000,
+    priceMakassar: 2700000,
+    priceDenpasar: 2750000,
+    priceLuarKota: 2700000,
+    premiumPrice: 3250000,
+    tacPrice: 0,
     keterangan: 'Pekerja berketerampilan spesifik: pengolahan makanan, perhotelan, perawat/kaigo, manufaktur & pertanian.',
   },
   {
@@ -88,37 +118,55 @@ export const DEFAULT_VISA_PRICING: VisaPricingItem[] = [
     topRightBadge: 'Hemat Jangka Panjang',
     pricePill: 'Mulai dari Rp 2,65jt - 2,75jt',
     regulerPrice: 2650000,
-    premiumPrice: 2700000,
-    tacPrice: 2750000,
+    priceJakarta: 2650000,
+    priceSurabaya: 2700000,
+    priceMedan: 2700000,
+    priceMakassar: 2700000,
+    priceDenpasar: 2750000,
+    priceLuarKota: 2700000,
+    premiumPrice: 3250000,
+    tacPrice: 0,
     keterangan: 'Untuk yang sering ke Jepang. Syarat lebih ketat, kami bantu review & strengthening.',
   },
   {
     id: 'tourist-single',
     title: 'Visa Temporary Visitor Single Entry',
     subtitle: 'e-Paspor & Reguler',
-    desc: 'Liburan, jalan-jalan, Sakura/Harvest. Bantuan dummy tiket & itinerary Jepang.',
+    desc: 'Cocok untuk liburan, jalan-jalan, kunjungan keluarga, atau perjalanan singkat ke Jepang. Berlaku untuk satu kali masuk.',
     durationPill: '15-90 Hari',
     category: 'turis',
-    topRightBadge: 'Paling Populer',
+    topRightBadge: 'Sekali Kunjungan',
     pricePill: 'Mulai dari Rp 2,75jt - 2,99jt',
     regulerPrice: 2750000,
-    premiumPrice: 2850000,
-    tacPrice: 2990000,
-    keterangan: 'Liburan, jalan-jalan, Sakura/Harvest. Bantuan dummy tiket & itinerary Jepang.',
+    priceJakarta: 2750000,
+    priceSurabaya: 2800000,
+    priceMedan: 2800000,
+    priceMakassar: 2800000,
+    priceDenpasar: 2990000,
+    priceLuarKota: 2800000,
+    premiumPrice: 3350000,
+    tacPrice: 0,
+    keterangan: 'Cocok untuk liburan, jalan-jalan, kunjungan keluarga, atau perjalanan singkat ke Jepang. Berlaku untuk satu kali masuk.',
   },
   {
     id: 'tourist-multiple',
     title: 'Visa Temporary Visitor Multiple Entry',
     subtitle: '5 Tahun / Multiple',
-    desc: 'Untuk yang sering ke Jepang. Syarat lebih ketat, kami bantu review & strengthening.',
+    desc: 'Cocok untuk yang sering bepergian ke Jepang. Bisa digunakan untuk beberapa kali kunjungan tanpa perlu mengajukan visa baru setiap kali berkunjung.',
     durationPill: '15-90 Hari / kunjungan',
     category: 'turis',
-    topRightBadge: 'Hemat Jangka Panjang',
+    topRightBadge: 'Kunjungan Berulang',
     pricePill: 'Mulai dari Rp 4,5jt - 4,85jt',
     regulerPrice: 4500000,
-    premiumPrice: 4650000,
-    tacPrice: 4850000,
-    keterangan: 'Untuk yang sering ke Jepang. Syarat lebih ketat, kami bantu review & strengthening.',
+    priceJakarta: 4500000,
+    priceSurabaya: 4550000,
+    priceMedan: 4550000,
+    priceMakassar: 4550000,
+    priceDenpasar: 4850000,
+    priceLuarKota: 4550000,
+    premiumPrice: 5100000,
+    tacPrice: 0,
+    keterangan: 'Cocok untuk yang sering bepergian ke Jepang. Bisa digunakan untuk beberapa kali kunjungan tanpa perlu mengajukan visa baru setiap kali berkunjung.',
   },
 ];
 
@@ -132,11 +180,11 @@ export function formatNominalShort(val: number): string {
   return `${Math.round(val / 1000)}rb`;
 }
 
-export function formatPricePillRange(reguler: number, tac?: number, premium?: number): string {
+export function formatPricePillRange(reguler: number, tacOrPremium?: number, premium?: number): string {
   const min = reguler || 0;
-  const max = Math.max(min, Number(tac) || 0, Number(premium) || 0);
+  const max = Math.max(min, Number(tacOrPremium) || 0, Number(premium) || 0);
 
-  if (min > 0 && max > min) {
+  if (min > 0 && max > min && min !== 200000) {
     return `Mulai dari Rp ${formatNominalShort(min)} - ${formatNominalShort(max)}`;
   }
   if (min > 0) {
@@ -147,7 +195,7 @@ export function formatPricePillRange(reguler: number, tac?: number, premium?: nu
 
 const STORAGE_KEY = 'mapahtrip_visa_prices';
 const PRICING_VERSION_KEY = 'mapahtrip_visa_prices_version';
-const CURRENT_PRICING_VERSION = 'v12_user_exact_titles';
+const CURRENT_PRICING_VERSION = 'v17_pure_reguler_ranges';
 
 /**
  * Mengambil daftar tarif harga seluruh visa yang tersimpan.
@@ -156,17 +204,58 @@ const CURRENT_PRICING_VERSION = 'v12_user_exact_titles';
 export function getVisaPricingList(): VisaPricingItem[] {
   if (typeof window === 'undefined') return DEFAULT_VISA_PRICING;
   try {
+    const raw = localStorage.getItem(STORAGE_KEY);
     const ver = localStorage.getItem(PRICING_VERSION_KEY);
     if (ver !== CURRENT_PRICING_VERSION) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_VISA_PRICING));
       localStorage.setItem(PRICING_VERSION_KEY, CURRENT_PRICING_VERSION);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const merged = DEFAULT_VISA_PRICING.map((def) => {
+              const userItem = parsed.find((p) => p.id === def.id || p.title === def.title);
+              if (userItem) {
+                return {
+                  ...def,
+                  ...userItem,
+                  desc: userItem.desc || userItem.keterangan || def.desc,
+                  keterangan: userItem.keterangan || userItem.desc || def.keterangan,
+                  topRightBadge: userItem.topRightBadge || def.topRightBadge,
+                  subtitle: userItem.subtitle || def.subtitle,
+                  durationPill: userItem.durationPill || def.durationPill,
+                };
+              }
+              return def;
+            });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            return merged;
+          }
+        } catch { }
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_VISA_PRICING));
       return DEFAULT_VISA_PRICING;
     }
-    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_VISA_PRICING;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      return parsed.map((item) => {
+        const isW = item.id === 'evisa-waiver' || (item.title && item.title.toLowerCase().includes('waiver'));
+        if (isW) {
+          const flatPrice = item.priceJakarta ?? item.regulerPrice ?? 200000;
+          return {
+            ...item,
+            regulerPrice: flatPrice,
+            priceJakarta: flatPrice,
+            priceSurabaya: flatPrice,
+            priceMedan: flatPrice,
+            priceMakassar: flatPrice,
+            priceDenpasar: flatPrice,
+            priceLuarKota: flatPrice,
+            premiumPrice: flatPrice,
+          };
+        }
+        return item;
+      });
     }
   } catch (e) {
     console.error('Error loading visa pricing:', e);
@@ -208,7 +297,7 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
         try {
           extraMeta = JSON.parse(metaMatch[1]);
           cleanDesc = cleanDesc.replace(metaMatch[0], '').trim();
-        } catch {}
+        } catch { }
       }
 
       const topRightBadge =
@@ -239,6 +328,14 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
         row.popularBadge ||
         defaultItem?.popularBadge;
 
+      const reg = Number(row.reguler_price ?? row.regulerPrice ?? existing?.regulerPrice ?? defaultItem?.regulerPrice ?? 0);
+      const jkt = Number(extraMeta.priceJakarta ?? row.price_jakarta ?? existing?.priceJakarta ?? defaultItem?.priceJakarta ?? reg);
+      const sby = Number(extraMeta.priceSurabaya ?? existing?.priceSurabaya ?? defaultItem?.priceSurabaya ?? (reg === 200000 ? 200000 : reg + 50000));
+      const mdn = Number(extraMeta.priceMedan ?? existing?.priceMedan ?? defaultItem?.priceMedan ?? (reg === 200000 ? 200000 : reg + 50000));
+      const mks = Number(extraMeta.priceMakassar ?? existing?.priceMakassar ?? defaultItem?.priceMakassar ?? (reg === 200000 ? 200000 : reg + 50000));
+      const dps = Number(extraMeta.priceDenpasar ?? row.price_denpasar ?? existing?.priceDenpasar ?? defaultItem?.priceDenpasar ?? (reg === 200000 ? 200000 : reg + 100000));
+      const luar = Number(extraMeta.priceLuarKota ?? row.price_luar_kota ?? existing?.priceLuarKota ?? sby);
+
       return {
         id: String(row.id),
         title: row.title || row.nama_visa || existing?.title || defaultItem?.title || 'Visa Jepang',
@@ -249,7 +346,13 @@ export async function fetchVisaPricingFromDB(): Promise<VisaPricingItem[] | null
         topRightBadge: topRightBadge,
         popularBadge: popularBadge,
         pricePill: existing?.pricePill || row.price_pill || row.pricePill || defaultItem?.pricePill,
-        regulerPrice: Number(row.reguler_price ?? row.regulerPrice ?? existing?.regulerPrice ?? defaultItem?.regulerPrice ?? 0),
+        regulerPrice: reg,
+        priceJakarta: jkt,
+        priceSurabaya: sby,
+        priceMedan: mdn,
+        priceMakassar: mks,
+        priceDenpasar: dps,
+        priceLuarKota: luar,
         premiumPrice: Number(row.premium_price ?? row.premiumPrice ?? existing?.premiumPrice ?? defaultItem?.premiumPrice ?? 0),
         tacPrice: Number(row.tac_price ?? row.tacPrice ?? existing?.tacPrice ?? defaultItem?.tacPrice ?? 0),
         keterangan: cleanDesc || existing?.keterangan || defaultItem?.keterangan || '',
@@ -299,6 +402,12 @@ export async function saveVisaPricingToDB(items: VisaPricingItem[]): Promise<boo
         subtitle: item.subtitle,
         durationPill: item.durationPill,
         popularBadge: item.popularBadge,
+        priceJakarta: item.priceJakarta,
+        priceSurabaya: item.priceSurabaya,
+        priceMedan: item.priceMedan,
+        priceMakassar: item.priceMakassar,
+        priceDenpasar: item.priceDenpasar,
+        priceLuarKota: item.priceSurabaya || item.priceMedan || item.priceMakassar || item.priceLuarKota,
       };
       const cleanKeterangan = (item.keterangan || item.desc || '').replace(/<!--extra:[\s\S]*?-->/g, '').trim();
       const combinedKeterangan = `${cleanKeterangan} <!--extra:${JSON.stringify(meta)}-->`;
@@ -309,7 +418,7 @@ export async function saveVisaPricingToDB(items: VisaPricingItem[]): Promise<boo
         category: item.category,
         reguler_price: item.regulerPrice,
         premium_price: item.premiumPrice,
-        tac_price: item.tacPrice,
+        tac_price: Number(item.tacPrice) || 0,
         keterangan: combinedKeterangan,
         is_custom: Boolean(item.isCustom),
         updated_at: new Date().toISOString(),
@@ -355,7 +464,7 @@ export function saveVisaPricingList(items: VisaPricingItem[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     window.dispatchEvent(new CustomEvent('mapahtrip:visa-prices-updated', { detail: items }));
     // Asynchronous sync ke Supabase Database Cloud
-    saveVisaPricingToDB(items).catch(() => {});
+    saveVisaPricingToDB(items).catch(() => { });
   } catch (e) {
     console.error('Error saving visa pricing:', e);
   }
@@ -369,79 +478,93 @@ export function resetVisaPricingList(): VisaPricingItem[] {
   return DEFAULT_VISA_PRICING;
 }
 
+export interface ConsulatePricingConfig {
+  jakarta: number;
+  luarKota: number; // Medan, Surabaya, Makassar
+  denpasar: number; // Denpasar (Bali)
+  premiumAddon: number; // Upgrade Paket Premium (+Rp 600.000)
+}
+
+export const DEFAULT_CONSULATE_PRICING: ConsulatePricingConfig = {
+  jakarta: 2650000,
+  luarKota: 2700000,
+  denpasar: 2750000,
+  premiumAddon: 600000,
+};
+
+const CONSULATE_STORAGE_KEY = 'mapahtrip_consulate_pricing';
+
+export function getConsulatePricing(): ConsulatePricingConfig {
+  if (typeof window === 'undefined') return DEFAULT_CONSULATE_PRICING;
+  try {
+    const raw = localStorage.getItem(CONSULATE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        jakarta: Number(parsed.jakarta) || DEFAULT_CONSULATE_PRICING.jakarta,
+        luarKota: Number(parsed.luarKota) || DEFAULT_CONSULATE_PRICING.luarKota,
+        denpasar: Number(parsed.denpasar) || DEFAULT_CONSULATE_PRICING.denpasar,
+        premiumAddon: Number(parsed.premiumAddon) || DEFAULT_CONSULATE_PRICING.premiumAddon,
+      };
+    }
+  } catch { }
+  return DEFAULT_CONSULATE_PRICING;
+}
+
+export function saveConsulatePricing(config: ConsulatePricingConfig): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CONSULATE_STORAGE_KEY, JSON.stringify(config));
+    window.dispatchEvent(new CustomEvent('mapahtrip:consulate-prices-updated', { detail: config }));
+  } catch { }
+}
+
 /**
- * Mencari nominal biaya visa berdasarkan judul program dan paket (Reguler, Premium, TAC).
+ * Mencari nominal biaya visa berdasarkan judul program, paket (Reguler, Premium), dan wilayah konsulat.
+ * Mengambil langsung harga spesifik wilayah per visa yang diinput oleh Owner di tabel:
+ * - Jakarta: priceJakarta (default Rp 2.650.000)
+ * - Medan, Surabaya, Makassar: priceLuarKota (default Rp 2.700.000)
+ * - Denpasar (Bali): priceDenpasar (default Rp 2.750.000)
+ * - Japan e-Visa / Waiver: Flat Rp 200.000 (100% online)
+ * - Paket Premium: Harga Reguler Wilayah + Rp 600.000
  */
-export function getVisaPrice(visaTitle?: string, paket: string = 'Reguler'): number {
-  const list = getVisaPricingList();
-  if (!visaTitle) return 1650000;
+export function getVisaPrice(visaTitle?: string, paket: string = 'Reguler', konsulat?: string): number {
+  if (!visaTitle) return 2650000;
   const cleanTitle = visaTitle.toLowerCase().trim();
-
-  // 1. Coba exact title match
-  let found = list.find((item) => item.title.toLowerCase().trim() === cleanTitle);
-
-  // 2. Coba fuzzy keyword match
-  if (!found) {
-    found = list.find((item) => {
-      const itemTitle = item.title.toLowerCase();
-      if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa')) {
-        return itemTitle.includes('waiver') || itemTitle.includes('evisa');
-      }
-      if (cleanTitle.includes('multiple')) return itemTitle.includes('multiple');
-      if (cleanTitle.includes('single')) return itemTitle.includes('single');
-      if (cleanTitle.includes('keluarga') || cleanTitle.includes('family')) {
-        return itemTitle.includes('keluarga') || itemTitle.includes('family');
-      }
-      if (cleanTitle.includes('bisnis') || cleanTitle.includes('business')) {
-        return itemTitle.includes('bisnis');
-      }
-      if (cleanTitle.includes('pelajar') || cleanTitle.includes('student') || cleanTitle.includes('ryuugaku')) {
-        return itemTitle.includes('pelajar') || itemTitle.includes('student');
-      }
-      if (cleanTitle.includes('transit')) return itemTitle.includes('transit');
-      if (cleanTitle.includes('dependent') || cleanTitle.includes('spouse')) {
-        return itemTitle.includes('dependent');
-      }
-      if (cleanTitle.includes('magang') || cleanTitle.includes('kenshuusei') || cleanTitle.includes('internship')) {
-        return itemTitle.includes('magang') || itemTitle.includes('internship');
-      }
-      if (cleanTitle.includes('tekutei')) return itemTitle.includes('tekutei');
-      if (cleanTitle.includes('tokutei') || cleanTitle.includes('ginou') || cleanTitle.includes('ssw')) {
-        return itemTitle.includes('tokutei');
-      }
-      return false;
-    });
-  }
-
   const p = (paket || 'Reguler').toLowerCase().trim();
 
-  if (found) {
-    if (p === 'premium') return Number(found.premiumPrice) || 0;
-    if (p === 'tac') return Number(found.tacPrice) || 0;
-    return Number(found.regulerPrice) || 0;
+  // 1. Japan e-Visa / Waiver (Flat 200rb, online)
+  if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa') || cleanTitle.includes('e-visa')) {
+    return 200000;
   }
 
-  // 3. Fallback default jika tidak ditemukan sama sekali
-  if (cleanTitle.includes('waiver') || cleanTitle.includes('evisa')) {
-    return p === 'premium' ? 250000 : p === 'tac' ? 300000 : 200000;
-  }
-  if (cleanTitle.includes('multiple')) {
-    return p === 'premium' ? 4850000 : p === 'tac' ? 5100000 : 4500000;
-  }
-  if (cleanTitle.includes('single') || cleanTitle.includes('keluarga') || cleanTitle.includes('family')) {
-    return p === 'premium' ? 2990000 : p === 'tac' ? 3200000 : 2750000;
-  }
-  if (cleanTitle.includes('transit')) {
-    return p === 'premium' ? 800000 : p === 'tac' ? 1050000 : 550000;
-  }
-  if (cleanTitle.includes('bisnis')) {
-    return p === 'premium' ? 1200000 : p === 'tac' ? 1450000 : 950000;
-  }
-  if (cleanTitle.includes('dependent')) {
-    return p === 'premium' ? 1550000 : p === 'tac' ? 1800000 : 1300000;
+  // 2. Cari dari daftar harga per visa
+  const list = getVisaPricingList();
+  const found = list.find((v) => {
+    const t = (v.title || '').toLowerCase().trim();
+    return t === cleanTitle || cleanTitle.includes(t) || t.includes(cleanTitle);
+  });
+
+  const k = (konsulat || '').toLowerCase().trim();
+  let basePrice = found?.regulerPrice || 2650000;
+
+  if (k.includes('denpasar') || k.includes('bali')) {
+    basePrice = found?.priceDenpasar ?? (found?.regulerPrice ? found.regulerPrice + 100000 : 2750000);
+  } else if (k.includes('surabaya')) {
+    basePrice = found?.priceSurabaya ?? found?.priceLuarKota ?? (found?.regulerPrice ? found.regulerPrice + 50000 : 2700000);
+  } else if (k.includes('medan')) {
+    basePrice = found?.priceMedan ?? found?.priceLuarKota ?? (found?.regulerPrice ? found.regulerPrice + 50000 : 2700000);
+  } else if (k.includes('makassar')) {
+    basePrice = found?.priceMakassar ?? found?.priceLuarKota ?? (found?.regulerPrice ? found.regulerPrice + 50000 : 2700000);
+  } else {
+    basePrice = found?.priceJakarta ?? found?.regulerPrice ?? 2650000;
   }
 
-  // SSW, Magang, Student
-  return p === 'premium' ? 2750000 : p === 'tac' ? 2950000 : 2650000;
+  // 3. Paket Premium = Harga Reguler Wilayah + 600.000
+  if (p === 'premium') {
+    return basePrice + 600000;
+  }
+
+  return basePrice;
 }
 

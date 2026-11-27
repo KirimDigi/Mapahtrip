@@ -206,6 +206,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
       { name: 'Fotokopi / Scan KTP & Kartu Keluarga', ok: Boolean(item.berkas?.ktp || item.uploadedDocs?.ktp) },
       { name: 'COE / Bukti Booking Hotel & Tiket', ok: Boolean(item.berkas?.coe || item.uploadedDocs?.coe) },
       { name: 'Bukti Keuangan / Rekening Koran / E-KTLN', ok: Boolean(item.berkas?.ektln || item.uploadedDocs?.ektln) },
+      { name: 'Surat Tugas & Perizinan', ok: Boolean(item.berkas?.suratTugas || item.uploadedDocs?.suratTugas) },
     ];
     const missing = berkasList.filter((b) => !b.ok).map((b) => `• ${b.name}`).join('\n');
 
@@ -3230,6 +3231,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                           { label: 'KTP', ok: Boolean(row.berkas?.ktp || row.uploadedDocs?.ktp) },
                           { label: 'COE', ok: Boolean(row.berkas?.coe || row.uploadedDocs?.coe) },
                           { label: 'E-KTLN', ok: Boolean(row.berkas?.ektln || row.uploadedDocs?.ektln) },
+                          { label: 'Tugas', ok: Boolean(row.berkas?.suratTugas || row.uploadedDocs?.suratTugas) },
                         ];
                         const completeCount = berkasList.filter((b) => b.ok).length;
                         const isAllComplete = completeCount === berkasList.length;
@@ -4403,6 +4405,7 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                     { label: 'KTP Asli / Scan', short: 'KTP', ok: Boolean(row.berkas?.ktp || row.uploadedDocs?.ktp) },
                     { label: 'COE Dokumen', short: 'COE', ok: Boolean(row.berkas?.coe || row.uploadedDocs?.coe) },
                     { label: 'E-KTLN Dokumen', short: 'E-KTLN', ok: Boolean(row.berkas?.ektln || row.uploadedDocs?.ektln) },
+                    { label: 'Surat Tugas & Izin', short: 'Tugas', ok: Boolean(row.berkas?.suratTugas || row.uploadedDocs?.suratTugas) },
                   ];
                   const completeCount = berkasList.filter((b) => b.ok).length;
                   const isAllComplete = completeCount === berkasList.length;
@@ -5928,15 +5931,15 @@ Terima kasih atas kerja sama dan pengertiannya. Tetap semangat merekomendasikan 
                 )}
               </div>
 
-              {/* Pilihan 3 Paket Layanan */}
+              {/* Pilihan 2 Paket Layanan */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>
                   PILIH PAKET LAYANAN BARU:
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                  {(['Reguler', 'Premium', 'TAC'] as PaketVisa[]).map((pkt) => {
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  {(['Reguler', 'Premium'] as PaketVisa[]).map((pkt) => {
                     const isSelected = newSelectedPaket === pkt;
-                    const pktPrice = getVisaPrice(editingPaketTarget.program, pkt);
+                    const pktPrice = getVisaPrice(editingPaketTarget.program, pkt, editingPaketTarget.konsjen);
                     const isCurrent = (editingPaketTarget.paket || 'Reguler') === pkt;
 
                     return (
