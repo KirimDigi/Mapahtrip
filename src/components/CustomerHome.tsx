@@ -5228,14 +5228,14 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     marginBottom: '18px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: 800, fontSize: '0.88rem', marginBottom: '12px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '22px', color: '#16A34A' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: 800, fontSize: '0.84rem', marginBottom: '10px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#16A34A' }}>
                       local_shipping
                     </span>
-                    <span>Langkah Selanjutnya: Pengiriman Berkas &amp; Pembayaran</span>
+                    <span>Langkah Selanjutnya:</span>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.80rem', color: '#334155', lineHeight: 1.5 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.78rem', color: '#334155', lineHeight: 1.45 }}>
                     {(() => {
                       const targetProg = (newSubmittedApplicant?.program || selectedVisaModal?.title || '').toLowerCase();
                       const isWaiverProgram = targetProg.includes('waiver') || targetProg.includes('evisa') || targetProg.includes('e-visa');
@@ -5243,68 +5243,48 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       const picDetails = getPicKonsjenDetails(targetKonsjen);
 
                       return (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>1</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <strong style={{ color: '#0F172A' }}>
-                              {isWaiverProgram ? 'Verifikasi Dokumen Digital (100% Online):' : `Panduan & Alamat Pengiriman Berkas Fisik (Konsjen ${picDetails.kota}):`}
-                            </strong>
-                            {isWaiverProgram ? (
-                              <div style={{ color: '#0369A1', backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', padding: '8px 12px', borderRadius: '8px', marginTop: '6px', fontSize: '0.78rem' }}>
-                                ✨ <strong>100% Online:</strong> Untuk Japan e-Visa / Waiver, Anda <strong>tidak perlu mengirimkan paspor fisik</strong>. Dokumen e-Paspor Anda diverifikasi secara digital oleh tim staf operasional kami.
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.72rem' }}>1</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={{ color: '#0F172A' }}>
+                                {isWaiverProgram ? 'Verifikasi Digital (100% Online):' : `Alamat Kirim PIC (Konsjen ${picDetails.kota}):`}
+                              </strong>
+                              <div style={{ color: '#475569', marginTop: '2px' }}>
+                                {isWaiverProgram
+                                  ? 'Tidak perlu kirim paspor fisik. Dokumen e-Paspor Anda diverifikasi secara online oleh tim staf kami.'
+                                  : `Detail alamat lengkap PIC Konsulat ${picDetails.kota} & format label kirim akan dikirimkan CS via WhatsApp demi privasi & keamanan.`}
                               </div>
-                            ) : (
-                              <div style={{ marginTop: '6px' }}>
-                                <div style={{ backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.80rem', fontWeight: 700, color: '#0F172A' }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#16A34A' }}>lock</span>
-                                    <span>Alamat Pengiriman Aman via WhatsApp Resmi</span>
-                                  </div>
-                                  <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.5 }}>
-                                    Untuk menjamin keamanan dokumen dan privasi pengiriman, detail alamat lengkap <strong>Staf PIC Konsulat {picDetails.kota}</strong> beserta label pengiriman paspor akan dikirimkan langsung oleh Tim Konsultan kami ke WhatsApp Anda setelah verifikasi berkas awal.
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
+
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.72rem' }}>2</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={{ color: '#0F172A' }}>Pemeriksaan &amp; Screening:</strong>
+                              <div style={{ color: '#475569', marginTop: '2px' }}>
+                                Tim staf konsulat mengecek keaslian dan kelengkapan dokumen sesuai standar resmi konsulat Jepang.
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.72rem' }}>3</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={{ color: '#15803D' }}>Invoice &amp; Pembayaran Aman:</strong>
+                              <div style={{ color: '#166534', marginTop: '2px' }}>
+                                Anda tidak perlu membayar sekarang. Tagihan resmi dan rekening transfer dikirim via WhatsApp setelah berkas tiba &amp; diverifikasi staf.
+                              </div>
+                            </div>
+                          </div>
+                        </>
                       );
                     })()}
-
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                      <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>2</span>
-                      <div>
-                        <strong style={{ color: '#0F172A' }}>Verifikasi Berkas oleh Staf Operasional:</strong>
-                        <div style={{ color: '#64748B', marginTop: '2px' }}>
-                          Setibanya dokumen diterima oleh Staf PIC konsulat tujuan, tim kami akan langsung melakukan pengecekan keaslian, kelengkapan berkas, dan foto paspor Anda sesuai standar resmi Konsulat Jepang.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                      <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>3</span>
-                      <div>
-                        <strong style={{ color: '#15803D' }}>Notifikasi WhatsApp &amp; Tagihan Resmi Dikirimkan:</strong>
-                        <div style={{ color: '#166534', marginTop: '2px', backgroundColor: '#FFFFFF', padding: '8px 12px', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
-                          💬 <strong>PENTING:</strong> Begitu berkas fisik telah tiba &amp; dikonfirmasi <em>"Sampai"</em> oleh staf kami, Anda akan <strong>otomatis menerima WhatsApp resmi</strong> berisi konfirmasi berkas tiba, rincian invoice tagihan, dan nomor rekening transfer resmi (Bank BTN a.n Tokyo Asia Connection).
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                      <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>4</span>
-                      <div>
-                        <strong style={{ color: '#0F172A' }}>Pembayaran Dilakukan Setelah Berkas Sampai:</strong>
-                        <div style={{ color: '#64748B', marginTop: '2px' }}>
-                          Anda tidak perlu membayar sekarang. Pembayaran baru ditransfer setelah berkas fisik dipastikan telah sampai &amp; diterima dengan aman oleh Staf PIC Konsulat tujuan.
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
                 {/* Tombol Aksi WhatsApp & Lacak Paspor */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <a
                     href={getWhatsAppConfirmShipmentUrl(newSubmittedApplicant)}
                     target="_blank"
@@ -5312,10 +5292,10 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     style={{
                       backgroundColor: '#16A34A',
                       color: '#FFFFFF',
-                      padding: '13px 20px',
+                      padding: '12px 16px',
                       borderRadius: '9999px',
                       fontWeight: 700,
-                      fontSize: '0.92rem',
+                      fontSize: '0.90rem',
                       border: 'none',
                       cursor: 'pointer',
                       display: 'flex',
@@ -5323,17 +5303,18 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       justifyContent: 'center',
                       gap: '8px',
                       textDecoration: 'none',
-                      boxShadow: '0 4px 14px rgba(22, 163, 74, 0.3)',
+                      boxShadow: '0 4px 14px rgba(22, 163, 74, 0.25)',
                       transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#15803D')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#16A34A')}
                   >
                     <WhatsAppBrandIcon size={20} inverted />
-                    <span>Konfirmasi Pengiriman Berkas / Tanya Alamat via WhatsApp</span>
+                    <span>Konfirmasi via WhatsApp</span>
                   </a>
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       type="button"
                       onClick={() => handleDoneAndTrack(newSubmittedApplicant)}
@@ -5341,39 +5322,41 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                         flex: 1,
                         backgroundColor: '#005BB5',
                         color: '#FFFFFF',
-                        padding: '12px 18px',
+                        padding: '10px 14px',
                         borderRadius: '9999px',
                         fontWeight: 700,
-                        fontSize: '0.88rem',
+                        fontSize: '0.82rem',
                         border: 'none',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '6px',
-                        boxShadow: '0 4px 12px rgba(0, 91, 181, 0.25)',
+                        boxShadow: '0 2px 8px rgba(0, 91, 181, 0.2)',
+                        whiteSpace: 'nowrap',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#00478F')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#005BB5')}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>
                         search_check
                       </span>
-                      <span>Lacak Status Paspor</span>
+                      <span>Lacak Paspor</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setSelectedVisaModal(null)}
                       style={{
-                        padding: '12px 18px',
+                        padding: '10px 18px',
                         borderRadius: '9999px',
                         border: '1px solid #CBD5E1',
                         backgroundColor: '#FFFFFF',
                         color: '#64748B',
                         fontWeight: 600,
-                        fontSize: '0.88rem',
+                        fontSize: '0.82rem',
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       Tutup
