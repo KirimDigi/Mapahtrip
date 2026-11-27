@@ -73,8 +73,8 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 
   // Owner WhatsApp & Notification Settings (Tersimpan di localStorage)
   const [ownerWa, setOwnerWa] = useState<string>(() => {
-    if (typeof window === 'undefined') return '081214104332';
-    return localStorage.getItem('mapahtrip_owner_wa') || '081214104332';
+    if (typeof window === 'undefined') return '081401735648';
+    return localStorage.getItem('mapahtrip_owner_wa') || '081401735648';
   });
   const [ownerName, setOwnerName] = useState<string>(() => {
     if (typeof window === 'undefined') return 'Owner MapahTrip';

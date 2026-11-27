@@ -1026,7 +1026,7 @@ export const PengajuanView: React.FC<PengajuanViewProps> = ({
     // Otomatis Kirim WhatsApp Laporan ke Owner saat Staf / Admin klik "Sampai"
     // Customer TIDAK dikirimi WA saat ini agar tidak spam; customer baru dikirimi saat Owner klik "Kirim Tagihan".
     if (shouldSendWASampai) {
-      let ownerWa = '081214104332';
+      let ownerWa = '081401735648';
       let isOwnerNotifyActive = true;
       if (typeof window !== 'undefined') {
         const savedWa = localStorage.getItem('mapahtrip_owner_wa');

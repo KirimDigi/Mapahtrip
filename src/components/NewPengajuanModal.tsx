@@ -375,7 +375,7 @@ Pandu berkas & pantau kedatangan berkas.`;
 
     // Otomatis kirim WhatsApp ke Owner MapahTrip
     try {
-      let ownerWa = '081214104332';
+      let ownerWa = '081401735648';
       let isOwnerNotifyActive = true;
       if (typeof window !== 'undefined') {
         const savedWa = localStorage.getItem('mapahtrip_owner_wa');

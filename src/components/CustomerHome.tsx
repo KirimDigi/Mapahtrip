@@ -755,7 +755,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ pengajuanList, onAdd
 
 Mohon untuk segera diverifikasi dan diproses berkas permohonan visa saya. Terima kasih! 🙏🇯🇵`;
 
-    return `https://wa.me/6281214104332?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/6281401735648?text=${encodeURIComponent(text)}`;
   };
 
   const getWhatsAppConfirmShipmentUrl = (applicant: Pengajuan | null) => {
@@ -787,7 +787,7 @@ Mohon dicek kelengkapan berkas digital e-Paspor saya ya min. Terima kasih! 🙏�
 
 Saya ingin konfirmasi pendaftaran saya. Mohon arahan dan alamat tujuan pengiriman berkas fisik & paspor asli ke PIC Konsulat ${pic.kota} ya min. Terima kasih! 🙏⛩️🌸`;
 
-    return `https://wa.me/6281214104332?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/6281401735648?text=${encodeURIComponent(text)}`;
   };
 
   const handleDoneAndTrack = (submitted?: Pengajuan | null) => {
@@ -1456,7 +1456,7 @@ Pandu berkas & infokan alamat kirim paspor.`;
 
     // 2d. Otomatis kirim WhatsApp ke Owner MapahTrip (Notifikasi Eksekutif Seluruh Wilayah)
     try {
-      let ownerWa = '081214104332';
+      let ownerWa = '081401735648';
       let isOwnerNotifyActive = true;
       if (typeof window !== 'undefined') {
         const savedWa = localStorage.getItem('mapahtrip_owner_wa');
