@@ -5,14 +5,15 @@ Buku panduan ini disusun khusus untuk mitra affiliate MapahTrip, mulai dari pend
 
 ---
 
-## 🎯 1. Keuntungan Menjadi Mitra Affiliate MapahTrip
+## 🎯 1. Skema Komisi & Keuntungan Mitra MapahTrip
 
 Sebagai mitra resmi MapahTrip, Anda mendapatkan:
-1. **Komisi Menarik & Pasti:**
-   - **Rp 50.000 / paspor** untuk kategori Visa Turis / Kunjungan / e-Visa Waiver.
-   - **Hingga Rp 150.000 / paspor** untuk program khusus (Tokutei Ginou / Bekerja / Visa Bisnis).
+1. **Komisi Pasti & Transparan:**
+   - **Rp 100.000 / orang (pemohon visa)** untuk seluruh kategori visa standar (Visa Turis Single Entry, Multiple Entry, Kunjungan Keluarga/Teman, Bisnis).
+   - **Hingga Rp 150.000 / orang** untuk program khusus kerja (Tokutei Ginou / Specified Skilled Worker).
+   - Komisi dihitung **per paspor / per orang**, sehingga jika satu keluarga/rombongan mendaftar 5 orang, Anda langsung berhak atas komisi **Rp 500.000**!
 2. **Dashboard Mandiri Realtime:** Pantau langsung berapa banyak calon pemohon yang mendaftar menggunakan kode Anda, status kelengkapan berkas fisik, proses di JVAC/Kedutaan, hingga visa terbit.
-3. **Pencairan Terbuka & Transparan:** Komisi otomatis terhitung saat biaya visa pemohon telah lunas diverifikasi oleh tim pusat MapahTrip.
+3. **Pencairan Langsung ke Rekening:** Begitu pengajuan visa pemohon dinyatakan selesai dan lunas, komisi otomatis masuk ke antrean pencairan Owner dan ditransfer langsung ke rekening bank Anda disertai bukti transfer resmi.
 4. **Mapah Partner Club (MPC):** Program reward berjenjang (Bronze, Silver, Gold, Platinum) dengan bonus tambahan bagi mitra aktif.
 
 ---
@@ -29,13 +30,13 @@ Untuk bergabung menjadi mitra affiliate, ikuti langkah berikut:
 ### 🔍 Penjelasan Setiap Bagian Formulir Pendaftaran:
 1. **Header "PORTAL MITRA ⛩️":** Menandakan Anda berada di formulir resmi pendaftaran mitra bisnis MapahTrip.
 2. **Field "Nama Lengkap":** Masukkan nama asli sesuai KTP agar sesuai saat pengecekan rekening bank.
-3. **Field "Nomor WhatsApp":** Wajib nomor WhatsApp aktif. Nomor ini digunakan sistem untuk mengirimkan notifikasi otomatis saat ada kandidat baru yang mendaftar menggunakan kode Anda dan konfirmasi transfer komisi.
+3. **Field "Nomor WhatsApp":** Wajib nomor WhatsApp aktif. Nomor ini digunakan sistem untuk mengirimkan notifikasi otomatis saat ada kandidat baru yang mendaftar menggunakan kode Anda dan pemberitahuan saat komisi Rp 100.000/orang telah ditransfer ke rekening Anda.
 4. **Field "Alamat Email":** Digunakan sebagai username utama saat login ke portal mitra.
 5. **Field "Kata Sandi":** Buat kata sandi minimal 6 karakter. Terdapat tombol ikon mata untuk melihat karakter sandi.
 6. **Kotak "Data Rekening Pencairan Komisi":**
    - **Nama Bank:** Pilih atau ketik nama bank Anda (BCA, Bank BTN, BRI, BNI, Mandiri, BSI, dll).
-   - **Nomor Rekening:** Masukkan nomor rekening tujuan transfer.
-   - **Nama Pemilik Rekening:** Pastikan sama dengan nama Anda agar tidak terjadi gagal transfer dari bank pusat.
+   - **Nomor Rekening:** Masukkan nomor rekening tujuan transfer komisi.
+   - **Nama Pemilik Rekening:** Pastikan sama dengan nama Anda agar transfer komisi tidak mengalami kendala kliring perbankan.
 7. **Tombol "Daftar Sebagai Mitra ➔":** Klik untuk mengaktifkan akun. Setelah terdaftar, sistem langsung menerbitkan **Kode Referral Unik** Anda (misal: `MPH965RE`).
 
 ---
@@ -90,12 +91,20 @@ Saat Anda merekomendasikan seseorang untuk membuat visa di `mapahtrip.id`:
 2. Pada formulir akan muncul pertanyaan:
    > *"Apakah kamu punya kode referral mitra?"*
 3. Pemohon memilih radio button: **"Ya, Punya Kode"**, lalu memasukkan kode Anda (contoh: `MPH965RE`).
-4. Begitu formulir disubmit, nama pemohon otomatis terhubung ke akun mitra Anda, dan komisi Anda terkunci aman di sistem.
+4. Begitu formulir disubmit, nama pemohon otomatis terhubung ke akun mitra Anda, dan komisi **Rp 100.000 / orang** terkunci atas nama Anda di sistem.
 
 ---
 
 ## 💰 6. Prosedur & Pencairan Komisi
 
-- **Status Menunggu Pembayaran:** Pemohon baru mendaftar atau berkas baru tiba, namun invoice belum dilunasi ke kantor pusat.
-- **Status Siap Cair:** Biaya visa pemohon telah lunas diterima oleh Owner MapahTrip di Bank BTN PT Tokyo Asia Connection.
-- **Status Sudah Ditransfer:** Tim Finance MapahTrip telah mentransfer komisi ke rekening bank mitra yang didaftarkan.
+1. **Kapan Komisi Berhak Cair?**
+   Komisi berhak cair setelah berkas pemohon diproses selesai dan biaya visa telah lunas diverifikasi oleh tim Owner MapahTrip.
+2. **Pencairan Otomatis ke Antrean Owner:**
+   Nama pemohon binaan Anda akan langsung masuk ke menu **"Antrean Payout Mitra"** di sistem pusat Owner.
+3. **Notifikasi WhatsApp Resmi:**
+   Setelah Owner mentransfer dana komisi (Rp 100.000 / orang), sistem secara otomatis mengirim pesan WhatsApp resmi ke nomor Anda berisi rincian:
+   - Nama Pemohon yang diurus
+   - Nominal Komisi yang ditransfer
+   - Rekening Bank Tujuan
+   - Nomor Referensi Payout (`TRX-PAYOUT-...`)
+   - Lampiran struk bukti transfer resmi.
