@@ -298,8 +298,8 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Indikator Live WA Gateway & Antrean Outbox */}
-        <WAGatewayIndicator />
+        {/* Indikator Live WA Gateway & Antrean Outbox (Hanya Muncul di Tampilan Owner) */}
+        {isOwner && <WAGatewayIndicator />}
 
         {/* Notifications (Pojok Kanan) */}
         <div ref={dropdownRef} style={{ position: 'relative' }}>
