@@ -1,7 +1,7 @@
-# 📖 Panduan Resmi Mitra Affiliate MapahTrip
+# 📖 Panduan Lengkap Mitra Affiliate MapahTrip
 **Spesialis Jasa Pengurusan Visa Jepang & e-Visa / Waiver**
 
-Buku panduan ini disusun khusus untuk mitra affiliate MapahTrip, mulai dari pendaftaran akun baru, pengambilan dan penyebaran kode referral, pemantauan status berkas pemohon binaan, hingga mekanisme pencairan komisi ke rekening bank Anda.
+Buku panduan ini disusun khusus untuk mitra affiliate MapahTrip, mulai dari pendaftaran akun baru, pengambilan dan penyebaran kode referral, pemantauan status berkas pemohon binaan, hingga mekanisme pencairan komisi ke rekening bank Anda, disertai **penjelasan rinci setiap gambar tampilan (screenshot)**.
 
 ---
 
@@ -20,95 +20,82 @@ Sebagai mitra resmi MapahTrip, Anda mendapatkan:
 ## 📝 2. Tahap Pendaftaran Akun Mitra Baru
 
 Untuk bergabung menjadi mitra affiliate, ikuti langkah berikut:
-
-1. Buka halaman portal mitra melalui tautan: `https://mapahtrip.id/#affiliate`.
-2. Pada form masuk, klik tombol biru **"Daftar Akun Baru"**.
-3. Lengkapi formulir pendaftaran mitra:
-   - **Nama Lengkap:** Masukkan nama asli sesuai identitas KTP.
-   - **Nomor WhatsApp:** Gunakan nomor WhatsApp aktif (digunakan untuk notifikasi pendaftaran pemohon binaan dan konfirmasi transfer komisi).
-   - **Alamat Email:** Email aktif untuk keperluan login ke portal.
-   - **Kata Sandi (Password):** Buat kata sandi minimal 6 karakter yang aman.
-   - **Data Rekening Bank Pencairan:**
-     * Nama Bank (BCA, Mandiri, BRI, BNI, BTN, BSI, dll).
-     * Nomor Rekening Bank.
-     * Nama Pemilik Rekening (pastikan sama dengan nama Anda agar proses transfer komisi tidak tertolak).
-4. Klik tombol **"Daftar Sebagai Mitra"**. Akun Anda akan langsung aktif dan Anda akan mendapatkan **Kode Referral Resmi Unik** (misal: `MPH965RE`).
+1. Buka tautan: `https://mapahtrip.id/#affiliate`.
+2. Klik tombol biru **"Daftar Akun Baru"**.
+3. Isi data pada formulir pendaftaran seperti gambar di bawah ini:
 
 ![Formulir Pendaftaran Mitra Baru](images/sop_affiliate_register.png)
-*(Tampilan Formulir Pendaftaran Mitra Resmi MapahTrip)*
+
+### 🔍 Penjelasan Setiap Bagian Formulir Pendaftaran:
+1. **Header "PORTAL MITRA ⛩️":** Menandakan Anda berada di formulir resmi pendaftaran mitra bisnis MapahTrip.
+2. **Field "Nama Lengkap":** Masukkan nama asli sesuai KTP agar sesuai saat pengecekan rekening bank.
+3. **Field "Nomor WhatsApp":** Wajib nomor WhatsApp aktif. Nomor ini digunakan sistem untuk mengirimkan notifikasi otomatis saat ada kandidat baru yang mendaftar menggunakan kode Anda dan konfirmasi transfer komisi.
+4. **Field "Alamat Email":** Digunakan sebagai username utama saat login ke portal mitra.
+5. **Field "Kata Sandi":** Buat kata sandi minimal 6 karakter. Terdapat tombol ikon mata untuk melihat karakter sandi.
+6. **Kotak "Data Rekening Pencairan Komisi":**
+   - **Nama Bank:** Pilih atau ketik nama bank Anda (BCA, Bank BTN, BRI, BNI, Mandiri, BSI, dll).
+   - **Nomor Rekening:** Masukkan nomor rekening tujuan transfer.
+   - **Nama Pemilik Rekening:** Pastikan sama dengan nama Anda agar tidak terjadi gagal transfer dari bank pusat.
+7. **Tombol "Daftar Sebagai Mitra ➔":** Klik untuk mengaktifkan akun. Setelah terdaftar, sistem langsung menerbitkan **Kode Referral Unik** Anda (misal: `MPH965RE`).
 
 ---
 
 ## 🔑 3. Login & Akses Portal Mitra
 
-Setiap kali ingin mengecek performa atau menyalin kode referral:
 1. Kunjungi `https://mapahtrip.id/#affiliate`.
-2. Masukkan **Alamat Email** atau **Kode Referral** Anda serta **Kata Sandi**.
+2. Masukkan **Email** atau **Kode Referral** dan **Kata Sandi**.
 3. Klik tombol **"Masuk ke Portal Mitra ➔"**.
-4. Jika lupa kata sandi, klik tautan *"Lupa kata sandi?"* untuk terhubung langsung ke WhatsApp Helpdesk Admin MapahTrip di `0814-0173-5648`.
+4. Jika lupa sandi, klik tautan *"Lupa kata sandi?"* untuk chat otomatis ke Admin MapahTrip di `0814-0173-5648`.
 
 ---
 
-## 🚀 4. Cara Mengambil & Membagikan Kode Referral
+## 🚀 4. Bedah Fitur Tampilan Dashboard Mitra
 
-Di bagian paling atas dashboard mitra, Anda akan melihat kartu selamat datang yang memuat kode referral resmi Anda.
+Begitu Anda berhasil login, Anda akan disambut oleh Dashboard Utama Mitra:
 
 ![Dashboard Portal Mitra MapahTrip](images/sop_affiliate_portal.png)
-*(Tampilan Dashboard Utama Mitra Affiliate MapahTrip)*
 
-### Langkah Membagikan Rekomendasi:
-1. Klik tombol **"Salin Kode"** pada kotak kode referral Anda (contoh: `MPH965RE`).
-2. Bagikan kode tersebut kepada rekan, keluarga, siswa LPK, atau klien travel yang membutuhkan jasa pengurusan visa Jepang.
-3. **Penerapan oleh Pemohon:**
-   - Arahkan pemohon membuka `https://mapahtrip.id`.
-   - Saat pemohon memilih paket visa dan menekan tombol pendaftaran, akan muncul pertanyaan:
-     > *"Apakah kamu punya kode referral mitra?"*
-   - Pemohon memilih opsi **"Ya, Punya Kode"** dan memasukkan kode Anda (contoh: `MPH965RE`).
-   - Begitu formulir dikirim, pemohon tersebut otomatis tercatat sebagai **Kandidat Binaan Anda** secara permanen di sistem MapahTrip!
+### 🔍 Penjelasan Rinci Setiap Bagian Dashboard Mitra:
 
----
+#### 1. Panel Header & Kartu Kode Referral:
+- **Badge "MITRA RESMI MAPAHTRIP ⛩️":** Status verifikasi keanggotaan kemitraan Anda.
+- **Nama Mitra:** Menyapa nama akun Anda (misal: *Selamat Datang, Rizki Reihan Febrian!*).
+- **Kotak Kode Referral (Contoh: `MPH965RE`):** Ini adalah kode unik pengenal Anda di sistem.
+- **Tombol "Salin Kode":** Klik tombol ini untuk menyalin kode referral ke clipboard HP/komputer Anda dengan satu sentuhan. Bagikan kode ini ke calon pemohon visa.
 
-## 📊 5. Memahami Fungsi Menu & Indikator Dashboard
+#### 2. Banner Notifikasi Pemohon Baru (Warna Kuning):
+- Menampilkan alert jika ada pemohon baru yang mendaftar memakai kode Anda (contoh: *"Terdapat 5 pemohon visa yang mendaftar melalui kode referral Anda"*).
+- Tombol **"Buka Notifikasi"** untuk melihat detail riwayat aktivitas pendaftaran.
 
-Dashboard mitra dirancang agar Anda bisa mengawasi seluruh tahapan berkas kandidat binaan Anda tanpa perlu bertanya manual ke admin:
+#### 3. Empat (4) Kartu Metrik Statistik:
+- **Total Pemohon (Angka 5):** Jumlah total kandidat yang mendaftar lewat kode referral Anda.
+- **Berkas Lengkap (Angka 5):** Jumlah kandidat yang berkas fisiknya (paspor asli & dokumen) telah sampai di kantor staf PIC MapahTrip.
+- **Proses JVAC (Angka 5):** Jumlah kandidat yang berkasnya sedang diverifikasi di loket Kedutaan/JVAC.
+- **Visa Terbit (Angka 0):** Jumlah paspor binaan yang stiker visanya sudah selesai dicetak kedutaan dan siap terbang.
 
-### A. Kartu Ringkasan Statistik
-- **Total Pemohon:** Total akumulasi orang yang pernah mendaftar memakai kode referral Anda.
-- **Berkas Lengkap:** Jumlah pemohon yang paspor fisik dan dokumen persyaratannya sudah tiba di kantor staf PIC MapahTrip.
-- **Proses JVAC:** Jumlah pemohon yang berkasnya sedang antre/diverifikasi oleh pihak Konsulat Jenderal Jepang / JVAC VFS Global.
-- **Visa Terbit:** Jumlah pengajuan yang telah berhasil disetujui dan visanya selesai ditempel di paspor.
-
-### B. Daftar Pemohon Binaan
-Tabel interaktif yang menampilkan:
-- **Nama Pemohon:** Ditampilkan nama depan dengan sensor privasi (contoh: `BIMA H*****`).
-- **Program Visa:** Menjelaskan jenis visa (Tokutei Ginou, Turis Single Entry, Multiple Entry, atau e-Visa Waiver).
-- **Status Berkas:** Menunjukkan posisi berkas secara live (`Berkas Tiba` ➔ `Proses JVAC` ➔ `Visa Terbit` ➔ `Dikirim`).
-- **Status Komisi:**
-  * `Menunggu Pembayaran Pemohon`: Pemohon belum melunasi biaya visa ke kantor pusat.
-  * `Siap Cair`: Biaya visa pemohon telah lunas, menunggu jadwal transfer komisi.
-  * `Sudah Ditransfer`: Komisi telah dikirimkan ke rekening bank Anda.
-
-### C. Program Mapah Partner Club (MPC)
-Tingkatkan terus jumlah pengajuan visa melalui kode Anda untuk membuka jenjang kemitraan yang lebih tinggi:
-- **Bronze Partner:** 1 - 10 pemohon / bulan.
-- **Silver Partner:** 11 - 25 pemohon / bulan (+ Bonus insentif).
-- **Gold Partner:** 26 - 50 pemohon / bulan (+ Prioritas screening).
-- **Platinum Club:** > 50 pemohon / bulan (+ Custom branding & sharing profit eksklusif).
+#### 4. Panel Navigasi Sidebar Kiri:
+- **Dasbor:** Menampilkan ringkasan data di atas dan tabel pelacakan berkas pemohon binaan.
+- **Partner Club (MPC):** Informasi tingkatan reward kemitraan (Bronze, Silver, Gold, Platinum).
+- **Syarat & Ketentuan:** Kebijakan hak & kewajiban mitra.
+- **Pusat Bantuan:** Tombol direct WhatsApp ke customer service MapahTrip (`0814-0173-5648`).
+- **Halaman Pelanggan:** Tombol untuk melihat halaman landing page pelanggan umum.
+- **Profil & Logout:** Menampilkan inisial foto profil, nama, email mitra, dan tombol keluar akun di pojok kiri bawah.
 
 ---
 
-## 💰 6. Prosedur & Jadwal Pencairan Komisi
+## 💡 5. Cara Pemohon Memasukkan Kode Referral Mitra
 
-1. **Kapan Komisi Berhak Cair?**
-   Komisi berhak cair setelah berkas fisik pemohon dipastikan tiba di kantor PIC MapahTrip dan pemohon telah menyelesaikan pembayaran resmi ke rekening PT Tokyo Asia Connection.
-2. **Metode Pembayaran Komisi:**
-   Tim Finance MapahTrip akan mentransfer komisi langsung ke nomor rekening yang Anda cantumkan pada saat pendaftaran.
-3. **Bukti Transfer:**
-   Setiap pencairan komisi akan disertai bukti transfer resmi dari Bank BTN/BCA perusahaan yang dikirimkan via WhatsApp ke nomor Anda.
-4. **Perubahan Rekening Bank:**
-   Jika Anda ingin mengganti nomor rekening penerima komisi, hubungi Admin Helpdesk melalui tombol WhatsApp di pojok kiri bawah portal mitra.
+Saat Anda merekomendasikan seseorang untuk membuat visa di `mapahtrip.id`:
+1. Pemohon memilih program visa (misal: *Tokutei Ginou* atau *Turis Reguler*), lalu klik "Daftar".
+2. Pada formulir akan muncul pertanyaan:
+   > *"Apakah kamu punya kode referral mitra?"*
+3. Pemohon memilih radio button: **"Ya, Punya Kode"**, lalu memasukkan kode Anda (contoh: `MPH965RE`).
+4. Begitu formulir disubmit, nama pemohon otomatis terhubung ke akun mitra Anda, dan komisi Anda terkunci aman di sistem.
 
 ---
 
-> 💡 **Pusat Bantuan Resmi Mitra:**
-> Jika Anda memiliki pertanyaan seputar berkas pemohon atau kendala komisi, hubungi WhatsApp Hotline Mitra di **0814-0173-5648**.
+## 💰 6. Prosedur & Pencairan Komisi
+
+- **Status Menunggu Pembayaran:** Pemohon baru mendaftar atau berkas baru tiba, namun invoice belum dilunasi ke kantor pusat.
+- **Status Siap Cair:** Biaya visa pemohon telah lunas diterima oleh Owner MapahTrip di Bank BTN PT Tokyo Asia Connection.
+- **Status Sudah Ditransfer:** Tim Finance MapahTrip telah mentransfer komisi ke rekening bank mitra yang didaftarkan.

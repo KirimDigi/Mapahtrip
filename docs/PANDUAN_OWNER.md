@@ -1,7 +1,7 @@
 # 👑 Panduan Eksekutif Owner & Super Admin
 **MapahTrip — Kendali Bisnis, Keuangan, & Otorisasi Operasional**
 
-Buku panduan ini merupakan acuan operasional dan finansial resmi bagi Owner / Manajemen Puncak MapahTrip. Panduan ini mencakup pengelolaan arus kas (omset, modal loket konsulat, komisi mitra, fee staf, laba bersih), siklus penagihan invoice ke pemohon, otorisasi status pembayaran (buka kunci proses staf), pencairan komisi & fee, hingga konfigurasi master tarif dan alamat konsulat.
+Buku panduan ini merupakan acuan operasional dan finansial resmi bagi Owner / Manajemen Puncak MapahTrip. Panduan ini mencakup pengelolaan arus kas (omset, modal loket konsulat, komisi mitra, fee staf, laba bersih), siklus penagihan invoice ke pemohon, otorisasi status pembayaran (buka kunci proses staf), pencairan komisi & fee, hingga konfigurasi master tarif dan alamat konsulat, disertai **penjelasan rinci setiap gambar tampilan (screenshot)**.
 
 ---
 
@@ -15,134 +15,100 @@ Sebagai Super Admin, Anda memegang kendali penuh atas:
 
 ---
 
-## 🔑 2. Akses & Login Portal Owner
+## 📈 2. Bedah Tampilan Dashboard Eksekutif Keuangan
 
-1. Buka tautan: `https://mapahtrip.id/#owner`.
-2. Masukkan kredensial Super Admin Anda (Email / Username & Password).
-3. Anda akan langsung diarahkan ke **Dashboard Eksekutif**.
-
----
-
-## 📈 3. Dashboard Eksekutif Keuangan & Arus Kas
-
-Dashboard Owner menyajikan laporan keuangan secara otomatis berdasarkan data pengajuan yang masuk ke sistem:
+Berikut adalah tampilan utama Dashboard Finansial Owner:
 
 ![Dashboard Eksekutif Owner](images/sop_owner_dashboard.png)
-*(Tampilan Dashboard Eksekutif Arus Kas & Sebaran Wilayah Konsulat)*
 
-### A. Rincian 5 Metrik Keuangan Utama:
-1. **Total Pemasukan (Omset / Gross Revenue):**
-   - Akumulasi total pembayaran yang ditagihkan dan diterima dari seluruh pemohon visa.
-2. **Biaya Konsulat & JVAC (Modal Loket):**
-   - Dana wajib yang harus disetorkan ke loket VFS JVAC / Konsulat Jenderal Jepang untuk penerbitan stiker visa resmi.
-3. **Total Komisi Mitra Affiliate:**
-   - Hak insentif yang wajib dibayarkan kepada mitra affiliate (Rp 50.000 untuk visa turis/reguler, hingga Rp 150.000 untuk Tokutei Ginou/kerja).
-4. **Total Fee Staf PIC:**
-   - Alokasi imbal jasa operasional untuk staf PIC yang menangani berkas di lapangan (Rp 50.000 / paspor).
-5. **Laba Bersih MapahTrip (Net Profit):**
-   $$\text{Laba Bersih} = \text{Omset} - (\text{Biaya JVAC} + \text{Komisi Mitra} + \text{Fee Staf})$$
-   - Menunjukkan keuntungan bersih riil yang didapatkan MapahTrip setelah seluruh beban operasional dan pihak ketiga terpenuhi.
+### 🔍 Penjelasan Rinci Setiap Bagian pada Gambar Dashboard Owner:
 
-### B. Distribusi Volume 5 Wilayah Konsulat:
-- Memantau sebaran pengajuan di seluruh yurisdiksi: **Konsjen Jakarta (KBRI), Surabaya, Medan, Makassar, dan Bali (Denpasar)**.
+#### 1. Lima (5) Pilar Metrik Finansial Utama:
+- **Total Pemasukan (Omset): `Rp 218.400.000`**
+  * Seluruh akumulasi dana yang ditagihkan dan dibayarkan oleh pemohon visa dari semua program.
+- **Biaya Konsulat & JVAC: `Rp 140.700.000`**
+  * Estimasi pengeluaran wajib yang harus disetorkan ke loket VFS Global / Konsulat Jenderal Jepang untuk penerbitan stiker visa resmi.
+- **Total Komisi Mitra: `Rp 21.000.000`**
+  * Akumulasi kewajiban komisi yang harus dibayarkan ke mitra affiliate (Rp 50.000 - Rp 150.000 per paspor binaan yang lunas).
+- **Total Fee Staf PIC: `Rp 10.500.000`**
+  * Akumulasi kewajiban fee operasional untuk staf lapangan PIC konsulat (Rp 50.000 per paspor selesai).
+- **Laba Bersih MapahTrip: `Rp 46.200.000`**
+  * Margin laba murni perusahaan setelah dikurangi seluruh biaya pihak ketiga:
+    $$\text{Laba Bersih} = \text{Omset} - (\text{Biaya Konsulat} + \text{Komisi Mitra} + \text{Fee Staf})$$
+
+#### 2. Distribusi Sebaran 5 Wilayah Konsulat:
+- Menampilkan grafik / tabulasi pembagian volume pengajuan di seluruh yurisdiksi Indonesia:
+  * **Konsjen Jakarta (KBRI):** 180 pemohon (volume terbesar).
+  * **Konsjen Surabaya:** 15 pemohon.
+  * **Konsjen Medan:** 5 pemohon.
+  * **Konsjen Makassar:** 5 pemohon.
+  * **Konsjen Bali / Denpasar:** 5 pemohon.
+- Membantu manajemen mengevaluasi kinerja dan ketersediaan kapasitas staf PIC di tiap kantor cabang.
 
 ---
 
-## 💳 4. Menu Pengajuan & Prosedur Penagihan (Billing Cycle)
+## 💳 3. Bedah Tampilan Menu Pengajuan & Prosedur Penagihan
 
-Menu Pengajuan adalah pusat verifikasi dokumen dan penagihan dana pemohon.
+Menu Pengajuan adalah tempat eksekusi penagihan invoice resmi dan validasi mutasi pembayaran:
 
 ![Menu Pengajuan Owner](images/sop_owner_pengajuan.png)
-*(Tampilan Tabel Pengajuan, Tombol Penagihan, & Status Pembayaran)*
 
-### Prosedur Standar Penagihan & Otorisasi:
+### 🔍 Penjelasan Rinci Setiap Bagian pada Gambar Menu Pengajuan:
 
-```
-[Staf Klik "Sampai"] ──► [Notifikasi Masuk ke WA Owner]
-                                    │
-                                    ▼
-                      [Owner Klik "Kirim Tagihan"]
-                                    │
-                                    ▼ (Kirim Invoice via WhatsApp)
-                      [Pemohon Transfer ke Bank BTN]
-                                    │
-                                    ▼ (Owner Cek Mutasi)
-                      [Owner Ubah Status: "LUNAS"]
-                                    │
-                                    ▼ (Gembok Staf Terbuka)
-                      [Staf PIC Submit ke Loket JVAC]
-```
+#### 1. Indikator Status & Filter Pencarian:
+- **Pencarian Cepat:** Mencari data pemohon berdasarkan nama, nomor paspor, atau kode registrasi `MT-xxxx`.
+- **Filter Status Pembayaran:** Memisahkan data *Lunas* vs *Belum Lunas*.
 
-#### 1. Penerimaan Notifikasi Berkas Sampai:
-- Saat Staf PIC menerima berkas fisik dan mengklik tombol *"Sampai"*, Anda akan menerima pesan otomatis di WhatsApp:
-  > *"BERKAS SAMPAI (SIAP DITAGIH) — Berkas fisik MT-xxxx atas nama [Nama Pemohon] telah tiba di kantor PIC. Siap kirim tagihan di Dashboard Owner: https://mapahtrip.id/#owner"*
-
-#### 2. Mengirimkan Invoice Tagihan Resmi ke Pemohon:
-- Buka tabel **Pengajuan** di portal Owner.
-- Cari baris pemohon yang bersangkutan, lalu klik tombol hijau **"Kirim Tagihan"**.
-- Sistem akan menyiapkan pesan WhatsApp resmi berisi rincian tagihan:
-  * ID Pengajuan (misal: `MT-0314`)
-  * Nama Pemohon
-  * Program Visa & Opsi Paket (Reguler / Premium)
-  * Total Nominal Tagihan
+#### 2. Tombol Aksi Penagihan WhatsApp:
+- Pada baris pemohon, terdapat tombol hijau **"Kirim Tagihan"**.
+- Saat tombol ini diklik, sistem membuka percakapan WhatsApp ke nomor pemohon dengan pesan tagihan resmi terformat rapi yang memuat:
+  * ID Pengajuan & Nama Pemohon.
+  * Rincian Program Visa & Layanan Tambahan (Reguler / Premium).
+  * Total Biaya Tagihan.
   * Rekening Resmi Pembayaran:
     > **BANK BTN**  
     > No. Rekening: **1401-50-008080-6**  
     > Atas Nama: **PT Tokyo Asia Connection**
 
-#### 3. Verifikasi Mutasi Rekening & Otorisasi Lunas:
-- Pemohon akan mengirimkan foto/file bukti transfer via WhatsApp.
-- Buka m-Banking atau mutasi rekening Bank BTN PT Tokyo Asia Connection untuk memastikan dana sudah benar-benar masuk.
-- Pada tabel Pengajuan, klik tombol status pembayaran pada baris pemohon tersebut, lalu ubah dari **"Belum Lunas"** menjadi **"Lunas"**.
+#### 3. Kontrol Otorisasi Status Pembayaran:
+- **Status "Belum Lunas":** Status awal saat berkas tiba. Pada kondisi ini, staf PIC di lapangan terkunci dan dilarang memproses berkas ke loket konsulat.
+- **Mengubah Menjadi "Lunas":**
+  * Setelah Owner memeriksa mutasi rekening Bank BTN dan memastikan dana masuk, Owner mengklik tombol status bayar pemohon dan memilih opsi **"Lunas"**.
+  * **Efek Seketika:** Tombol status berubah menjadi hijau (*LUNAS - Siap JVAC*), dan sistem secara otomatis **membuka gembok tombol "Proses" pada portal Staf PIC**.
 
-> ⚡ **DAMPAK PENTING:**
-> Seketika Anda mengubah status menjadi **Lunas**, indikator status akan berubah menjadi hijau (*LUNAS - Siap JVAC*) dan secara otomatis **membuka gembok tombol "Proses"** di portal Staf PIC. Staf sekarang memiliki izin sah untuk mendaftarkan paspor ke loket JVAC.
-
-#### 4. Fitur Pengelolaan Berkas:
-- **Rincian:** Melihat formulir pendaftaran lengkap pemohon, file paspor, KTP, dan dokumen pendukung yang diunggah.
-- **Tolak:** Menolak pengajuan jika data tidak valid atau pemohon membatalkan.
-- **Hapus:** Menghapus data uji coba / permohonan fiktif agar tidak mengotori laporan statistik dan omset keuangan.
+#### 4. Tombol Aksi Tambahan:
+- **Rincian:** Melihat data formulir lengkap pemohon, foto KTP, dan paspor yang diunggah.
+- **Tolak:** Membatalkan pengajuan yang bermasalah.
+- **Hapus:** Menghapus data permohonan fiktif / uji coba agar laporan omset tetap akurat.
 
 ---
 
-## 🤝 5. Menu Komisi & Fee Rekanan
+## ⚙️ 4. Bedah Tampilan Menu Pengaturan Master & Tarif
 
-Di menu ini, Owner mengelola kewajiban pembayaran insentif kepada pihak mitra dan staf:
-
-1. **Rekapitulasi Komisi Mitra Affiliate:**
-   - Menampilkan daftar mitra yang berhak menerima komisi atas pemohon yang telah melunasi pembayaran.
-   - Owner melakukan transfer ke nomor rekening yang tertera pada profil mitra, lalu menandai statusnya sebagai **"Sudah Ditransfer"** dan melampirkan bukti transfer.
-2. **Rekapitulasi Fee Staf PIC:**
-   - Menghitung akumulasi paspor yang telah diselesaikan oleh masing-masing staf PIC (Rp 50.000 / paspor).
-   - Owner mentransfer fee operasional bulanan/mingguan ke rekening staf PIC.
-
----
-
-## ⚙️ 6. Menu Pengaturan Master & Konfigurasi Tarif
-
-Menu Pengaturan digunakan untuk mengelola konfigurasi fundamental sistem MapahTrip:
+Menu Pengaturan digunakan untuk mengelola data operasional kantor dan struktur harga:
 
 ![Menu Pengaturan Owner](images/sop_owner_pengaturan.png)
-*(Tampilan Pengaturan Master Konsulat, PIC, dan Matrix Tarif Visa)*
 
-### A. Master Konsulat & Alamat Kantor Cabang:
-- Mengatur data 5 perwakilan konsulat Jepang (Jakarta, Surabaya, Medan, Makassar, Denpasar).
-- Anda dapat memperbarui:
-  * Nama Staf PIC yang bertugas.
-  * Nomor WhatsApp PIC yang menerima pesan koordinasi.
-  * Alamat lengkap kantor penerimaan berkas fisik paspor (alamat ini yang dikirimkan ke pemohon untuk pengiriman kurir).
+### 🔍 Penjelasan Rinci Setiap Bagian pada Gambar Pengaturan:
 
-### B. Matrix Tarif Visa (Pricing Engine):
+#### 1. Master Konsulat & Alamat Pengiriman PIC:
+- Menampilkan daftar 5 perwakilan konsulat: Jakarta, Surabaya, Medan, Makassar, Denpasar.
+- Pada masing-masing konsulat, Owner dapat memperbarui:
+  * **Nama Staf PIC:** Petugas yang bertanggung jawab di wilayah tersebut.
+  * **Nomor WhatsApp PIC:** Nomor telepon untuk menerima pemberitahuan berkas tiba.
+  * **Alamat Lengkap Kantor Cabang:** Alamat tujuan yang akan diberikan kepada pemohon saat hendak mengirimkan paspor fisik melalui kurir/ekspedisi.
+
+#### 2. Matrix Master Tarif Visa (Pricing Engine):
 - Menentukan **Harga Modal Loket JVAC** vs **Harga Jual ke Pemohon** untuk setiap kategori visa:
   * Visa Turis Single Entry
   * Visa Turis Multiple Entry
   * Visa Kunjungan Keluarga / Teman
   * Visa Tokutei Ginou / Kerja
   * Visa Bisnis / Pelatihan
-- **Pengaturan Add-on Layanan Tambahan:**
+- **Pengaturan Add-on Tambahan:**
   * **Paket Premium Fast-Track / Prioritas (+Rp 600.000):** Opsi penanganan berkas ekspres prioritas.
-  * **Japan e-Visa / Waiver (Rp 200.000 flat):** Layanan khusus bagi pemegang e-Paspor tanpa pengiriman fisik ke loket VFS.
+  * **Japan e-Visa / Waiver (Rp 200.000 flat):** Biaya pengurusan waiver e-paspor tanpa penyerahan paspor fisik ke JVAC.
 
-### C. Antrean WhatsApp Gateway (Outbox):
-- Terletak pada bilah atas (navbar) khusus tampilan Owner (`WAGatewayIndicator`).
-- Memantau antrean pesan otomatis, memeriksa status pengiriman pesan, dan tombol kirim ulang instan jika ada pesan notifikasi yang tertunda.
+#### 3. Antrean WhatsApp Gateway (Outbox):
+- Terletak pada navbar atas khusus tampilan Owner.
+- Berfungsi untuk memonitor status pengiriman pesan otomatis ke pemohon, staf, dan owner, serta menyediakan tombol kirim ulang instan jika ada pesan yang sempat pending saat jaringan terputus.
