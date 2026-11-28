@@ -83,10 +83,13 @@ Sebelum membagikan kode referral, mitra **wajib melengkapi data pencairan** agar
 ---
 
 ## 💰 LANGKAH 6: Transfer Komisi oleh Owner ke Bank/E-Wallet Mitra
-1. **Besaran Komisi:**
-   - **Rp 100.000 per orang/pemohon** (kategori Turis, Kunjungan Keluarga, Bisnis).
-   - **Hingga Rp 150.000 per orang** untuk program kerja Tokutei Ginou.
-   - Komisi dihitung per kepala: jika Anda membawa 5 orang, Anda mendapatkan **Rp 500.000**!
+1. **Besaran Komisi & Ketentuan Program:**
+   - **Rp 100.000 per orang/pemohon** untuk seluruh visa stiker (Turis Single, Multiple, Kunjungan Keluarga, Bisnis).
+   - **Hingga Rp 150.000 per orang** untuk visa kerja Tokutei Ginou.
+   - Komisi dihitung per kepala: jika membawa 5 orang rombongan, komisi langsung **Rp 500.000**!
+   - ⚠️ **PENGECUALIAN PENTING (VISA WAIVER):**
+     * **Khusus Japan e-Visa / Visa Waiver TIDAK BERLAKU kode referral.**
+     * *Alasan:* Biaya pengurusan visa waiver sangat terjangkau (flat hanya Rp 200.000). Jika dipotong komisi referral, margin keuntungan tidak mencukupi. Sistem secara otomatis menonaktifkan input kode referral saat pemohon memilih layanan Visa Waiver.
 2. **Pencairan Otomatis:**
    - Karena visa pemohon telah selesai dan lunas, data pemohon langsung masuk ke antrean pencairan Owner.
    - Owner langsung mentransfer komisi ke nomor **Rekening Bank atau E-Wallet** yang sudah Anda isi di Langkah 3 tadi.

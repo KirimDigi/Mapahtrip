@@ -885,6 +885,14 @@ Saya ingin konfirmasi pendaftaran saya. Mohon arahan dan alamat tujuan pengirima
     return validateReferralCode(customerRefCode, pengajuanList);
   }, [hasRefChoice, customerRefCode, pengajuanList]);
 
+  // Cek apakah program yang sedang dipilih adalah Japan e-Visa / Visa Waiver
+  const isWaiverProgram = useMemo(() => {
+    const title = (selectedVisaModal?.title || '').toLowerCase();
+    const id = (selectedVisaModal?.id || '').toLowerCase();
+    const sub = (selectedVisaModal?.subtitle || '').toLowerCase();
+    return id === 'evisa-waiver' || title.includes('waiver') || title.includes('evisa') || title.includes('e-visa') || sub.includes('waiver');
+  }, [selectedVisaModal]);
+
   const [activeVisaTab, setActiveVisaTab] = useState<'all' | 'turis' | 'kerja' | 'bisnis' | 'keluarga'>('all');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -1190,8 +1198,8 @@ Saya ingin konfirmasi pendaftaran saya. Mohon arahan dan alamat tujuan pengirima
       return;
     }
 
-    // Validasi Kode Referral (Khusus pemohon yang memilih punya kode)
-    if (hasRefChoice === 'yes') {
+    // Validasi Kode Referral (Khusus pemohon yang memilih punya kode dan BUKAN program Waiver)
+    if (!isWaiverProgram && hasRefChoice === 'yes') {
       const check = validateReferralCode(customerRefCode, pengajuanList);
       if (!check.isValid) {
         setFormError(
@@ -1206,9 +1214,9 @@ Saya ingin konfirmasi pendaftaran saya. Mohon arahan dan alamat tujuan pengirima
     const finalDomisili =
       formDomisili === 'Lainnya' ? formDomisiliLainnya.trim() || 'Lainnya' : formDomisili;
 
-    const cleanInputCode = customerRefCode.trim().toUpperCase();
+    const cleanInputCode = isWaiverProgram ? '' : customerRefCode.trim().toUpperCase();
     let finalRefCode = 'MAPAHTRIP';
-    if (cleanInputCode) {
+    if (!isWaiverProgram && cleanInputCode) {
       const check = validateReferralCode(cleanInputCode, pengajuanList);
       finalRefCode = check.isValid ? check.code : cleanInputCode;
     }
@@ -1345,8 +1353,8 @@ _Spesialis Pengajuan Visa Jepang Resmi_`;
       return null;
     });
 
-    // 2b. Otomatis kirim WhatsApp ke Mitra Affiliate jika pemohon menggunakan kode referral
-    if (finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP') {
+    // 2b. Otomatis kirim WhatsApp ke Mitra Affiliate jika pemohon menggunakan kode referral (Hanya jika BUKAN Visa Waiver)
+    if (!isWaiverProgram && finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP') {
       findAffiliateByCode(finalRefCode).then((affiliate) => {
         if (affiliate && affiliate.noWa && affiliate.noWa.trim()) {
           const tanggalDaftar = new Date().toLocaleDateString('id-ID', {
@@ -3946,6 +3954,27 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                 </div>
 
                 {/* Pertanyaan & Form Kode Referral Mitra */}
+                {isWaiverProgram ? (
+                  <div
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      border: '1.5px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
+                      marginBottom: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#005BB5', flexShrink: 0 }}>
+                      info
+                    </span>
+                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.4 }}>
+                      <strong style={{ color: '#0F172A' }}>Khusus Japan e-Visa / Waiver (Rp 200.000):</strong> Tidak berlaku kode referral mitra karena biaya layanan sudah flat dan sangat terjangkau.
+                    </div>
+                  </div>
+                ) : (
                 <div
                   style={{
                     backgroundColor: '#F8FAFC',
@@ -4128,14 +4157,15 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* CTA BUTTON: PENGGANTI KONSULTASI VIA WHATSAPP -> DAFTAR SEKARANG */}
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     type="button"
-                    disabled={hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)}
+                    disabled={!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)}
                     onClick={() => {
-                      if (hasRefChoice === 'yes') {
+                      if (!isWaiverProgram && hasRefChoice === 'yes') {
                         if (!customerRefCode.trim()) {
                           alert('Silakan masukkan kode referral mitra terlebih dahulu, atau pilih opsi "Tidak Punya".');
                           return;
@@ -4149,30 +4179,30 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                     }}
                     style={{
                       flex: 1,
-                      backgroundColor: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? '#94A3B8' : '#005BB5',
+                      backgroundColor: (!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? '#94A3B8' : '#005BB5',
                       color: '#FFFFFF',
                       padding: '12px 16px',
                       borderRadius: '9999px',
                       fontWeight: 700,
                       fontSize: '0.88rem',
                       border: 'none',
-                      cursor: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'not-allowed' : 'pointer',
+                      cursor: (!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '6px',
-                      boxShadow: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'none' : '0 4px 14px rgba(0, 91, 181, 0.28)',
+                      boxShadow: (!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 'none' : '0 4px 14px rgba(0, 91, 181, 0.28)',
                       transition: 'all 0.15s ease',
-                      opacity: (hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 0.7 : 1,
+                      opacity: (!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid)) ? 0.7 : 1,
                       whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={(e) => {
-                      if (!(hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
+                      if (!(!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
                         e.currentTarget.style.backgroundColor = '#00478F';
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (!(hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
+                      if (!(!isWaiverProgram && hasRefChoice === 'yes' && (!customerRefCode.trim() || !referralValidation.isValid))) {
                         e.currentTarget.style.backgroundColor = '#005BB5';
                       }
                     }}
@@ -4386,67 +4416,90 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       </div>
 
                       {/* Input Kode Referral Mitra (Affiliate) */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
-                            Kode Referral Mitra (Opsional)
-                          </label>
-                          {customerRefCode.trim() && (
-                            referralValidation.isValid ? (
-                              <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap' }}>
-                                ✓ {referralValidation.partnerName && referralValidation.partnerName !== '-' ? `Mitra: ${referralValidation.partnerName}` : 'Mitra Terhubung'}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: '0.7rem', color: '#DC2626', fontWeight: 700, backgroundColor: '#FEE2E2', padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap' }}>
-                                ✕ Kode Tidak Dikenali
-                              </span>
-                            )
-                          )}
+                      {!isWaiverProgram ? (
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
+                              Kode Referral Mitra (Opsional)
+                            </label>
+                            {customerRefCode.trim() && (
+                              referralValidation.isValid ? (
+                                <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap' }}>
+                                  ✓ {referralValidation.partnerName && referralValidation.partnerName !== '-' ? `Mitra: ${referralValidation.partnerName}` : 'Mitra Terhubung'}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', color: '#DC2626', fontWeight: 700, backgroundColor: '#FEE2E2', padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap' }}>
+                                  ✕ Kode Tidak Dikenali
+                                </span>
+                              )
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={customerRefCode}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setCustomerRefCode(val);
+                              setHasRefChoice(val.trim() ? 'yes' : 'no');
+                              if (val.trim()) {
+                                localStorage.setItem('mapahtrip_customer_ref', val);
+                              } else {
+                                localStorage.removeItem('mapahtrip_customer_ref');
+                              }
+                            }}
+                            placeholder="Masukkan kode mitra jika ada (contoh: MPH425MI atau MPC)"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: customerRefCode.trim()
+                                ? referralValidation.isValid
+                                  ? '1.5px solid #10B981'
+                                  : '1.5px solid #EF4444'
+                                : '1px solid #CBD5E1',
+                              fontSize: '0.88rem',
+                              fontWeight: customerRefCode.trim() ? 700 : 400,
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#F8FAFC',
+                              color: '#0F172A',
+                              textTransform: 'uppercase',
+                            }}
+                            onFocus={(e) => (e.currentTarget.style.borderColor = '#005BB5')}
+                            onBlur={(e) => {
+                              if (customerRefCode.trim()) {
+                                e.currentTarget.style.borderColor = referralValidation.isValid ? '#10B981' : '#EF4444';
+                              } else {
+                                e.currentTarget.style.borderColor = '#CBD5E1';
+                              }
+                            }}
+                          />
+                          <div style={{ marginTop: '4px', fontSize: '0.72rem', color: '#64748B' }}>
+                            💡 Pemohon yang menggunakan kode mitra akan otomatis terhubung ke portal mitra &amp; staf operasional.
+                          </div>
                         </div>
-                        <input
-                          type="text"
-                          value={customerRefCode}
-                          onChange={(e) => {
-                            const val = e.target.value.toUpperCase();
-                            setCustomerRefCode(val);
-                            setHasRefChoice(val.trim() ? 'yes' : 'no');
-                            if (val.trim()) {
-                              localStorage.setItem('mapahtrip_customer_ref', val);
-                            } else {
-                              localStorage.removeItem('mapahtrip_customer_ref');
-                            }
-                          }}
-                          placeholder="Masukkan kode mitra jika ada (contoh: MPH425MI atau MPC)"
+                      ) : (
+                        <div
                           style={{
-                            width: '100%',
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            border: customerRefCode.trim()
-                              ? referralValidation.isValid
-                                ? '1.5px solid #10B981'
-                                : '1.5px solid #EF4444'
-                              : '1px solid #CBD5E1',
-                            fontSize: '0.88rem',
-                            fontWeight: customerRefCode.trim() ? 700 : 400,
-                            outline: 'none',
-                            boxSizing: 'border-box',
                             backgroundColor: '#F8FAFC',
-                            color: '#0F172A',
-                            textTransform: 'uppercase',
+                            border: '1.5px dashed #CBD5E1',
+                            borderRadius: '10px',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.78rem',
+                            color: '#64748B',
                           }}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = '#005BB5')}
-                          onBlur={(e) => {
-                            if (customerRefCode.trim()) {
-                              e.currentTarget.style.borderColor = referralValidation.isValid ? '#10B981' : '#EF4444';
-                            } else {
-                              e.currentTarget.style.borderColor = '#CBD5E1';
-                            }
-                          }}
-                        />
-                        <div style={{ marginTop: '4px', fontSize: '0.72rem', color: '#64748B' }}>
-                          💡 Pemohon yang menggunakan kode mitra akan otomatis terhubung ke portal mitra &amp; staf operasional.
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B' }}>
+                            info
+                          </span>
+                          <span>
+                            <strong>Khusus Visa Waiver (Rp 200.000):</strong> Tidak berlaku kode referral mitra karena biaya sudah flat terjangkau.
+                          </span>
                         </div>
-                      </div>
+                      )}
 
                       {/* Baris 2 Kolom: No WA & No Paspor */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

@@ -137,6 +137,7 @@ Tab ini adalah tempat kerja Owner untuk mengeksekusi transfer komisi kepada mitr
    - Status pengajuan visa pemohon telah **"Selesai"** (stiker visa terbit).
    - Biaya jasa visa telah dibayar **Lunas** oleh pemohon ke rekening MapahTrip.
    - Komisi referral mitra (**Rp 100.000 / orang**) belum ditransfer oleh Owner.
+   - ⚠️ **Khusus Visa Waiver (Rp 200.000):** Tidak berlaku kode referral dan tidak menghasilkan komisi mitra karena biaya pengurusan sudah flat sangat terjangkau. Sistem otomatis menonaktifkan kode referral untuk program Waiver.
 2. **Alur Pelaksanaan Transfer oleh Owner:**
    - **Langkah 1:** Buka baris antrean pemohon, lalu klik tombol **"Bayar Payout / Transfer"**.
    - **Langkah 2:** Muncul modal transfer yang menampilkan data lengkap rekening mitra:

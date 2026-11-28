@@ -809,47 +809,68 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
                     Default: <strong>MAPAHTRIP</strong>
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    border: '1px solid #CBD5E1',
-                    backgroundColor: '#FFFFFF',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
-                    loyalty
-                  </span>
-                  <input
-                    type="text"
-                    value={affiliateCode}
-                    onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
-                    placeholder="MAPAHTRIP atau Kode Mitra (MPH425MI)"
+                {(program || '').toLowerCase().includes('waiver') ? (
+                  <div
                     style={{
-                      border: 'none',
-                      outline: 'none',
-                      width: '100%',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      color: '#0F172A',
-                      backgroundColor: 'transparent',
-                      textTransform: 'uppercase',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px dashed #CBD5E1',
+                      backgroundColor: '#F8FAFC',
+                      fontSize: '0.78rem',
+                      color: '#64748B',
                     }}
-                  />
-                  {affiliateCode && affiliateCode !== 'MAPAHTRIP' && (
-                    <button
-                      type="button"
-                      onClick={() => setAffiliateCode('MAPAHTRIP')}
-                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: '12px' }}
-                      title="Reset ke default"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B' }}>
+                      block
+                    </span>
+                    <span>Waiver (Rp 200rb) tidak berlaku kode referral</span>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid #CBD5E1',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#005BB5' }}>
+                      loyalty
+                    </span>
+                    <input
+                      type="text"
+                      value={affiliateCode}
+                      onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
+                      placeholder="MAPAHTRIP atau Kode Mitra (MPH425MI)"
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        width: '100%',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        color: '#0F172A',
+                        backgroundColor: 'transparent',
+                        textTransform: 'uppercase',
+                      }}
+                    />
+                    {affiliateCode && affiliateCode !== 'MAPAHTRIP' && (
+                      <button
+                        type="button"
+                        onClick={() => setAffiliateCode('MAPAHTRIP')}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: '12px' }}
+                        title="Reset ke default"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
