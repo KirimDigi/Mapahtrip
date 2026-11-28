@@ -799,36 +799,17 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
                 </span>
               </div>
 
-              {/* Kode Mitra / Referral */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
-                    Kode Mitra / Referral
-                  </label>
-                  <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
-                    Default: <strong>MAPAHTRIP</strong>
-                  </span>
-                </div>
-                {(program || '').toLowerCase().includes('waiver') ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      border: '1px dashed #CBD5E1',
-                      backgroundColor: '#F8FAFC',
-                      fontSize: '0.78rem',
-                      color: '#64748B',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B' }}>
-                      block
+              {/* Kode Mitra / Referral (Hanya jika bukan Waiver) */}
+              {!(program || '').toLowerCase().includes('waiver') && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
+                      Kode Mitra / Referral
+                    </label>
+                    <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                      Default: <strong>MAPAHTRIP</strong>
                     </span>
-                    <span>Waiver (Rp 200rb) tidak berlaku kode referral</span>
                   </div>
-                ) : (
                   <div
                     style={{
                       display: 'flex',
@@ -870,8 +851,8 @@ ${cleanAffCode && cleanAffCode !== 'MAPAHTRIP' ? `• *Mitra:* ${cleanAffCode}\n
                       </button>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 

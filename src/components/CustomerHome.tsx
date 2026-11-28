@@ -3954,27 +3954,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                 </div>
 
                 {/* Pertanyaan & Form Kode Referral Mitra */}
-                {isWaiverProgram ? (
-                  <div
-                    style={{
-                      backgroundColor: '#F8FAFC',
-                      border: '1.5px solid #E2E8F0',
-                      borderRadius: '12px',
-                      padding: '12px 14px',
-                      marginBottom: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#005BB5', flexShrink: 0 }}>
-                      info
-                    </span>
-                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.4 }}>
-                      <strong style={{ color: '#0F172A' }}>Khusus Japan e-Visa / Waiver (Rp 200.000):</strong> Tidak berlaku kode referral mitra karena biaya layanan sudah flat dan sangat terjangkau.
-                    </div>
-                  </div>
-                ) : (
+                {!isWaiverProgram && (
                 <div
                   style={{
                     backgroundColor: '#F8FAFC',
@@ -4416,7 +4396,7 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                       </div>
 
                       {/* Input Kode Referral Mitra (Affiliate) */}
-                      {!isWaiverProgram ? (
+                      {!isWaiverProgram && (
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
                             <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
@@ -4477,27 +4457,6 @@ ${finalRefCode && finalRefCode.toUpperCase() !== 'MAPAHTRIP' ? `• *Mitra:* ${f
                           <div style={{ marginTop: '4px', fontSize: '0.72rem', color: '#64748B' }}>
                             💡 Pemohon yang menggunakan kode mitra akan otomatis terhubung ke portal mitra &amp; staf operasional.
                           </div>
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            backgroundColor: '#F8FAFC',
-                            border: '1.5px dashed #CBD5E1',
-                            borderRadius: '10px',
-                            padding: '10px 14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '0.78rem',
-                            color: '#64748B',
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B' }}>
-                            info
-                          </span>
-                          <span>
-                            <strong>Khusus Visa Waiver (Rp 200.000):</strong> Tidak berlaku kode referral mitra karena biaya sudah flat terjangkau.
-                          </span>
                         </div>
                       )}
 
